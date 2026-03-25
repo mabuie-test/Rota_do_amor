@@ -1,7 +1,9 @@
-<h2>Verificação de Identidade</h2>
-<p>Submeta selfie e documento para revisão manual.</p>
-<form method="post" action="/verification/submit">
-  <input class="form-control mb-2" name="document_image_path" placeholder="Caminho do documento">
-  <input class="form-control mb-2" name="selfie_image_path" placeholder="Caminho da selfie">
-  <button class="btn btn-primary">Enviar</button>
-</form>
+<h3 class="mb-3"><i class="fa-solid fa-id-card me-2"></i>Verificação de Identidade</h3>
+<div class="rd-card"><div class="card-body">
+  <p class="text-muted">Envie selfie e documento para ganhar badge de confiança.</p>
+  <form method="post" action="/verification/submit" class="row g-2">
+    <div class="col-md-6"><input class="form-control" name="document_image_path" placeholder="Caminho do documento"></div>
+    <div class="col-md-6"><input class="form-control" name="selfie_image_path" placeholder="Caminho da selfie"></div>
+    <div class="col-12"><button class="btn btn-rd-primary">Enviar para análise</button></div>
+  </form>
+</div></div>

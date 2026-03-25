@@ -1,6 +1,8 @@
-<h2>Admin Login</h2>
-<form method="post" action="/admin/login">
-  <input class="form-control mb-2" type="email" name="email" placeholder="Email">
-  <input class="form-control mb-2" type="password" name="password" placeholder="Senha">
-  <button class="btn btn-danger">Entrar</button>
-</form>
+<div class="row justify-content-center"><div class="col-lg-4"><div class="rd-card"><div class="card-body p-4">
+  <h4 class="mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Painel Admin</h4>
+  <form method="post" action="/admin/login" class="d-flex flex-column gap-2">
+    <input class="form-control" type="email" name="email" placeholder="Email admin">
+    <input class="form-control" type="password" name="password" placeholder="Senha">
+    <button class="btn btn-rd-primary">Entrar</button>
+  </form>
+</div></div></div></div>

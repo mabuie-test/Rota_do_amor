@@ -12,4 +12,19 @@ final class HomeController extends Controller
     {
         $this->view('home/index', ['title' => 'Rota do Amor']);
     }
+
+    public function plans(): void
+    {
+        $this->view('home/plans', ['title' => 'Planos']);
+    }
+
+    public function about(): void
+    {
+        $this->view('home/about', ['title' => 'Sobre']);
+    }
+
+    public function safety(): void
+    {
+        $this->view('home/safety', ['title' => 'Segurança']);
+    }
 }
