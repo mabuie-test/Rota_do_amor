@@ -18,7 +18,11 @@ final class AdminVerificationController extends Controller
     {
         if (Request::method() === 'GET') {
             $rows = \App\Core\Database::connection()->query('SELECT * FROM identity_verifications ORDER BY id DESC LIMIT 500')->fetchAll();
-            Response::json(['verifications' => $rows]);
+            if (Request::input('format') === 'json') {
+                Response::json(['verifications' => $rows]);
+            }
+            $this->view('admin/verifications', ['title' => 'Admin · Verificações', 'verifications' => $rows]);
+            return;
         }
 
         if (str_contains(Request::uriPath(), '/approve')) {

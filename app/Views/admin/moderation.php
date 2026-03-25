@@ -1,0 +1,2 @@
+<h3 class="mb-3">Moderação</h3>
+<div class="rd-card"><div class="card-body table-responsive"><table class="table table-modern align-middle"><thead><tr><th>ID</th><th>Admin</th><th>User</th><th>Ação</th><th>Motivo</th><th>Data</th></tr></thead><tbody><?php foreach (($actions ?? []) as $a): ?><tr><td><?= (int)$a['id'] ?></td><td>#<?= (int)$a['admin_id'] ?></td><td>#<?= (int)$a['user_id'] ?></td><td><?= e($a['action_type']) ?></td><td><?= e($a['reason']) ?></td><td><?= e($a['created_at']) ?></td></tr><?php endforeach; ?></tbody></table></div></div>

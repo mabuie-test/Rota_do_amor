@@ -27,7 +27,12 @@ final class AdminUserController extends Controller
         }
 
         if (Request::method() === 'GET') {
-            Response::json(['users' => $db->query('SELECT id,first_name,last_name,email,status,premium_status,created_at FROM users ORDER BY id DESC LIMIT 500')->fetchAll()]);
+            $rows = $db->query('SELECT id,first_name,last_name,email,status,premium_status,created_at FROM users ORDER BY id DESC LIMIT 500')->fetchAll();
+            if (Request::input('format') === 'json') {
+                Response::json(['users' => $rows]);
+            }
+            $this->view('admin/users', ['title' => 'Admin · Utilizadores', 'users' => $rows]);
+            return;
         }
 
         if (str_contains(Request::uriPath(), '/status')) {

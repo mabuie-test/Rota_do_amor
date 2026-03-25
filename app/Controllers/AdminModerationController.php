@@ -14,7 +14,11 @@ final class AdminModerationController extends Controller
     public function index(): void
     {
         $rows = \App\Core\Database::connection()->query('SELECT * FROM moderation_actions ORDER BY id DESC LIMIT 500')->fetchAll();
-        Response::json(['moderation_actions' => $rows]);
+        if (Request::input('format') === 'json') {
+            Response::json(['moderation_actions' => $rows]);
+        }
+
+        $this->view('admin/moderation', ['title' => 'Admin · Moderação', 'actions' => $rows]);
     }
 
     public function suspend(): void

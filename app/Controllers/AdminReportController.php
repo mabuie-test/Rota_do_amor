@@ -15,7 +15,12 @@ final class AdminReportController extends Controller
     {
         $db = \App\Core\Database::connection();
         if (Request::method() === 'GET') {
-            Response::json(['reports' => $db->query('SELECT * FROM reports ORDER BY id DESC LIMIT 500')->fetchAll()]);
+            $rows = $db->query('SELECT * FROM reports ORDER BY id DESC LIMIT 500')->fetchAll();
+            if (Request::input('format') === 'json') {
+                Response::json(['reports' => $rows]);
+            }
+            $this->view('admin/reports', ['title' => 'Admin · Denúncias', 'reports' => $rows]);
+            return;
         }
 
         if (str_contains(Request::uriPath(), '/resolve')) {

@@ -12,6 +12,7 @@ use App\Controllers\MessageController;
 use App\Controllers\NotificationController;
 use App\Controllers\ProfileController;
 use App\Controllers\ReportController;
+use App\Controllers\SettingsController;
 use App\Controllers\SubscriptionController;
 use App\Controllers\SwipeController;
 use App\Middleware\ActiveAccountMiddleware;
@@ -49,3 +50,6 @@ $router->add('POST', '/block', [BlockController::class, 'store'], $coreAccess);
 $router->add('POST', '/report', [ReportController::class, 'store'], $coreAccess);
 $router->add('POST', '/connection/request', [ConnectionController::class, 'request'], $coreAccess);
 $router->add('POST', '/connection/accept', [ConnectionController::class, 'accept'], $coreAccess);
+
+$router->add('GET', '/settings', [SettingsController::class, 'index'], $coreAccess);
+$router->add('POST', '/settings/update', [SettingsController::class, 'update'], $coreAccess);

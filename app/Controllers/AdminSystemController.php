@@ -13,7 +13,11 @@ final class AdminSystemController extends Controller
     public function index(): void
     {
         $rows = \App\Core\Database::connection()->query('SELECT * FROM site_settings ORDER BY setting_key')->fetchAll();
-        Response::json(['settings' => $rows]);
+        if (Request::input('format') === 'json') {
+            Response::json(['settings' => $rows]);
+        }
+
+        $this->view('admin/settings', ['title' => 'Admin · Configurações', 'settings' => $rows]);
     }
 
     public function update(): void

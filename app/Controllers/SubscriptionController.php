@@ -22,11 +22,18 @@ final class SubscriptionController extends Controller
 
     public function status(): void
     {
-        Response::json([
+        $userId = Auth::id() ?? 0;
+        $data = [
             'ok' => true,
-            'days_remaining' => $this->subscriptionService->getDaysRemaining(Auth::id() ?? 0),
-            'has_active_subscription' => $this->subscriptionService->userHasActiveSubscription(Auth::id() ?? 0),
-        ]);
+            'days_remaining' => $this->subscriptionService->getDaysRemaining($userId),
+            'has_active_subscription' => $this->subscriptionService->userHasActiveSubscription($userId),
+        ];
+
+        if (Request::input('format') === 'json') {
+            Response::json($data);
+        }
+
+        $this->view('subscription/status', ['title' => 'Estado da Subscrição', 'subscription' => $data]);
     }
 
     public function renew(): void
