@@ -13,8 +13,25 @@
           <div class="col-md-4"><input class="form-control" type="date" name="birth_date" required></div>
           <div class="col-md-4"><select class="form-select" name="gender" required><option value="male">Masculino</option><option value="female">Feminino</option><option value="other">Outro</option></select></div>
           <div class="col-md-4"><select class="form-select" name="relationship_goal" required><option value="friendship">Amizade</option><option value="dating">Namoro</option><option value="marriage">Casamento</option></select></div>
-          <div class="col-md-6"><input class="form-control" name="province_id" placeholder="ID Província" required></div>
-          <div class="col-md-6"><input class="form-control" name="city_id" placeholder="ID Cidade" required></div>
+
+          <div class="col-md-6">
+            <select class="form-select" name="province_id" id="provinceSelect" required>
+              <option value="">Selecione a província</option>
+              <?php foreach (($provinces ?? []) as $province): ?>
+                <option value="<?= (int) $province['id'] ?>"><?= e((string) $province['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <select class="form-select" name="city_id" id="citySelect" required>
+              <option value="">Selecione a cidade</option>
+              <?php foreach (($cities ?? []) as $city): ?>
+                <option value="<?= (int) $city['id'] ?>" data-province="<?= (int) $city['province_id'] ?>" hidden><?= e((string) $city['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <small class="text-muted">As cidades disponíveis dependem da província escolhida.</small>
+          </div>
+
           <div class="col-md-6 input-icon-wrap"><i class="fa-solid fa-lock"></i><input class="form-control" type="password" name="password" placeholder="Senha forte" required></div>
           <div class="col-md-6 input-icon-wrap"><i class="fa-solid fa-lock"></i><input class="form-control" type="password" name="password_confirmation" placeholder="Confirmar senha" required></div>
           <div class="col-12 form-check"><input class="form-check-input" type="checkbox" required><label class="form-check-label">Aceito os termos e a política de privacidade</label></div>

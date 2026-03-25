@@ -16,4 +16,22 @@ document.addEventListener('DOMContentLoaded', () => {
       navbar.classList.toggle('shadow', window.scrollY > 4);
     });
   }
+
+  const provinceSelect = document.getElementById('provinceSelect');
+  const citySelect = document.getElementById('citySelect');
+  if (provinceSelect && citySelect) {
+    const cityOptions = Array.from(citySelect.querySelectorAll('option[data-province]'));
+
+    const updateCities = () => {
+      const provinceId = provinceSelect.value;
+      citySelect.value = '';
+
+      cityOptions.forEach((option) => {
+        option.hidden = option.dataset.province !== provinceId;
+      });
+    };
+
+    provinceSelect.addEventListener('change', updateCities);
+    updateCities();
+  }
 });

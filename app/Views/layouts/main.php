@@ -13,6 +13,8 @@
 </head>
 <body>
 <?php
+use App\Core\Flash;
+
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $navItems = [
     '/discover' => 'Descobrir',
@@ -47,6 +49,12 @@ $navItems = [
 </nav>
 
 <div class="container main-shell py-4 py-md-5">
+  <?php if ($message = Flash::get('success')): ?>
+    <?php $type = 'success'; require dirname(__DIR__) . '/partials/alert.php'; ?>
+  <?php endif; ?>
+  <?php if ($message = Flash::get('error')): ?>
+    <?php $type = 'danger'; require dirname(__DIR__) . '/partials/alert.php'; ?>
+  <?php endif; ?>
   <?php if (str_starts_with($path, '/admin') && $path !== '/admin/login'): ?>
     <div class="admin-layout">
       <?php require dirname(__DIR__) . '/partials/admin-sidebar.php'; ?>

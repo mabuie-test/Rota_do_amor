@@ -1,5 +1,6 @@
-CREATE DATABASE IF NOT EXISTS rota_do_amor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE rota_do_amor;
+-- Nota para hospedagem compartilhada (phpMyAdmin):
+-- Se o usuário não tiver permissão CREATE DATABASE, selecione a base existente no phpMyAdmin
+-- e importe este arquivo normalmente. Não é necessário executar CREATE DATABASE/USE.
 
 CREATE TABLE provinces (
   id INT AUTO_INCREMENT PRIMARY KEY,

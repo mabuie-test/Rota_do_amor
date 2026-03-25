@@ -39,4 +39,15 @@ final class Request
     {
         return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     }
+
+    public static function expectsJson(): bool
+    {
+        $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+        $requestedWith = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+        $format = strtolower((string) self::input('format', ''));
+
+        return str_contains($accept, 'application/json')
+            || $requestedWith === 'xmlhttprequest'
+            || $format === 'json';
+    }
 }

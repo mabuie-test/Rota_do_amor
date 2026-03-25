@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Controller;
+use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\PasswordResetService;
@@ -23,7 +24,13 @@ final class PasswordResetController extends Controller
     public function requestReset(): void
     {
         $this->service->requestReset((string) Request::input('email', ''));
-        Response::json(['ok' => true, 'message' => 'Se o email existir, um link foi enviado.']);
+
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true, 'message' => 'Se o email existir, um link foi enviado.']);
+        }
+
+        Flash::set('success', 'Se o email existir, um link foi enviado.');
+        Response::redirect('/forgot-password');
     }
 
     public function showResetPassword(array $params = []): void
@@ -35,9 +42,19 @@ final class PasswordResetController extends Controller
     {
         $ok = $this->service->resetPassword((string) Request::input('token', ''), (string) Request::input('password', ''));
         if (!$ok) {
-            Response::json(['ok' => false, 'message' => 'Token inválido ou senha fraca'], 422);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => 'Token inválido ou senha fraca'], 422);
+            }
+
+            Flash::set('error', 'Token inválido ou senha fraca.');
+            Response::redirect('/reset-password');
         }
 
-        Response::json(['ok' => true]);
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true]);
+        }
+
+        Flash::set('success', 'Senha atualizada com sucesso.');
+        Response::redirect('/login');
     }
 }

@@ -10,4 +10,13 @@ final class Flash
     {
         Session::put('flash_' . $key, $message);
     }
+
+    public static function get(string $key): ?string
+    {
+        $sessionKey = 'flash_' . $key;
+        $message = Session::get($sessionKey);
+        Session::forget($sessionKey);
+
+        return is_string($message) ? $message : null;
+    }
 }

@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\AuthService;
@@ -25,7 +26,16 @@ final class AuthController extends Controller
     {
         $result = $this->authService->attemptLogin((string) Request::input('email', ''), (string) Request::input('password', ''));
         if (!$result['ok']) {
-            Response::json(['ok' => false, 'message' => $result['message']], 422);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => $result['message']], 422);
+            }
+
+            Flash::set('error', $result['message']);
+            Response::redirect('/login');
+        }
+
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true, 'next' => '/dashboard']);
         }
 
         Response::redirect('/dashboard');

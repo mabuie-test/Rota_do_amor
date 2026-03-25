@@ -8,6 +8,7 @@ use App\Core\Config;
 use App\Core\Model;
 use App\Core\Validator;
 use DateTimeImmutable;
+use Exception;
 use RuntimeException;
 
 final class UserService extends Model
@@ -51,6 +52,16 @@ final class UserService extends Model
         return $this->fetchOne('SELECT * FROM users WHERE id = :id LIMIT 1', [':id' => $id]);
     }
 
+    public function listProvinces(): array
+    {
+        return $this->fetchAll('SELECT id, name FROM provinces ORDER BY name ASC');
+    }
+
+    public function listCities(): array
+    {
+        return $this->fetchAll('SELECT id, province_id, name FROM cities ORDER BY name ASC');
+    }
+
     public function updateProfile(int $userId, array $payload): bool
     {
         return $this->execute('UPDATE users SET bio=:bio,profession=:profession,education=:education,religion=:religion,habits=:habits,updated_at=NOW() WHERE id=:id', [
@@ -77,7 +88,12 @@ final class UserService extends Model
             throw new RuntimeException('Confirmação de senha inválida.');
         }
 
-        $birthDate = new DateTimeImmutable((string) $data['birth_date']);
+        try {
+            $birthDate = new DateTimeImmutable((string) ($data['birth_date'] ?? ''));
+        } catch (Exception) {
+            throw new RuntimeException('Data de nascimento inválida.');
+        }
+
         $age = (int) $birthDate->diff(new DateTimeImmutable('today'))->y;
         $minimum = (int) Config::env('MINIMUM_AGE', 18);
         if ($age < $minimum) {
@@ -90,6 +106,20 @@ final class UserService extends Model
 
         if ($this->fetchOne('SELECT id FROM users WHERE phone = :phone LIMIT 1', [':phone' => $data['phone']])) {
             throw new RuntimeException('Telefone já utilizado.');
+        }
+
+        $provinceId = (int) ($data['province_id'] ?? 0);
+        $cityId = (int) ($data['city_id'] ?? 0);
+
+        if ($provinceId <= 0 || !$this->fetchOne('SELECT id FROM provinces WHERE id = :id LIMIT 1', [':id' => $provinceId])) {
+            throw new RuntimeException('Província inválida.');
+        }
+
+        if ($cityId <= 0 || !$this->fetchOne('SELECT id FROM cities WHERE id = :city_id AND province_id = :province_id LIMIT 1', [
+            ':city_id' => $cityId,
+            ':province_id' => $provinceId,
+        ])) {
+            throw new RuntimeException('Cidade inválida para a província selecionada.');
         }
     }
 }
