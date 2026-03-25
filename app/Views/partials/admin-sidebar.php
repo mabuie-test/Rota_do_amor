@@ -1,12 +1,23 @@
+<?php $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'; ?>
 <div class="admin-sidebar">
   <h6 class="text-white mb-3"><i class="fa-solid fa-crown me-2"></i>Admin</h6>
-  <a href="/admin"><i class="fa-solid fa-chart-line me-2"></i>Dashboard</a>
-  <a href="/admin/users"><i class="fa-solid fa-users me-2"></i>Utilizadores</a>
-  <a href="/admin/payments"><i class="fa-solid fa-money-bill-wave me-2"></i>Pagamentos</a>
-  <a href="/admin/subscriptions"><i class="fa-solid fa-calendar-check me-2"></i>Subscrições</a>
-  <a href="/admin/boosts"><i class="fa-solid fa-bolt me-2"></i>Boosts</a>
-  <a href="/admin/verifications"><i class="fa-solid fa-id-card me-2"></i>Verificações</a>
-  <a href="/admin/reports"><i class="fa-solid fa-flag me-2"></i>Denúncias</a>
-  <a href="/admin/moderation"><i class="fa-solid fa-gavel me-2"></i>Moderação</a>
-  <a href="/admin/settings"><i class="fa-solid fa-gear me-2"></i>Configurações</a>
+  <?php
+  $adminLinks = [
+      '/admin' => ['fa-chart-line', 'Dashboard'],
+      '/admin/users' => ['fa-users', 'Utilizadores'],
+      '/admin/payments' => ['fa-money-bill-wave', 'Pagamentos'],
+      '/admin/subscriptions' => ['fa-calendar-check', 'Subscrições'],
+      '/admin/boosts' => ['fa-bolt', 'Boosts'],
+      '/admin/verifications' => ['fa-id-card', 'Verificações'],
+      '/admin/reports' => ['fa-flag', 'Denúncias'],
+      '/admin/moderation' => ['fa-gavel', 'Moderação'],
+      '/admin/settings' => ['fa-gear', 'Configurações'],
+  ];
+  foreach ($adminLinks as $href => [$icon, $label]):
+      $isActive = $href === '/admin' ? $path === '/admin' : str_starts_with($path, $href);
+  ?>
+    <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>">
+      <i class="fa-solid <?= e($icon) ?> me-2"></i><?= e($label) ?>
+    </a>
+  <?php endforeach; ?>
 </div>
