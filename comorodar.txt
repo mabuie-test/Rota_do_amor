@@ -1,0 +1,43 @@
+Rota do Amor — Como rodar localmente
+
+1) Pré-requisitos
+- PHP 8.2+
+- Composer 2+
+- MySQL/MariaDB
+
+2) Instalar dependências
+- No diretório do projeto execute:
+  composer install
+
+3) Configurar ambiente
+- Copie o ficheiro .env.example para .env
+- Ajuste as variáveis principais:
+  APP_URL=http://localhost:8000
+  DB_HOST=127.0.0.1
+  DB_PORT=3306
+  DB_DATABASE=rota_do_amor
+  DB_USERNAME=root
+  DB_PASSWORD=
+
+4) Criar base de dados e importar schema
+- Crie a base no MySQL e importe:
+  mysql -u root -p rota_do_amor < database/schema.sql
+  mysql -u root -p rota_do_amor < database/mozambique_locations.sql
+  mysql -u root -p rota_do_amor < database/seed.sql
+
+5) Subir servidor local
+- Execute:
+  php -S localhost:8000 -t public
+
+6) Acessar no navegador
+- Site: http://localhost:8000
+- Admin login: http://localhost:8000/admin/login
+
+7) Tarefas operacionais (opcional)
+- Pode agendar scripts em scripts/ (expiração, lembretes, reconciliação)
+- Exemplo manual:
+  php scripts/expire_subscriptions.php
+
+Notas
+- Em ambiente real, use Apache/Nginx apontando para /public.
+- Garanta HTTPS e ajuste credenciais de e-mail/pagamentos no .env.
