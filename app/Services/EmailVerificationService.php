@@ -9,8 +9,10 @@ use App\Core\Model;
 
 final class EmailVerificationService extends Model
 {
-    public function __construct(private readonly MailService $mailService = new MailService())
-    {
+    public function __construct(
+        private readonly MailService $mailService = new MailService(),
+        private readonly AccountStateService $accountStates = new AccountStateService()
+    ) {
         parent::__construct();
     }
 
@@ -18,8 +20,10 @@ final class EmailVerificationService extends Model
     {
         $token = bin2hex(random_bytes(32));
         $hours = (int) Config::env('EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS', 24);
-        $this->db->prepare('UPDATE email_verifications SET expires_at = NOW(), verified_at = verified_at WHERE user_id = :user_id AND verified_at IS NULL')->execute([':user_id' => $userId]);
+
+        $this->db->prepare('UPDATE email_verifications SET expires_at = NOW() WHERE user_id = :user_id AND verified_at IS NULL')->execute([':user_id' => $userId]);
         $this->db->prepare('INSERT INTO email_verifications (user_id,token,expires_at,created_at) VALUES (:user_id,:token,DATE_ADD(NOW(), INTERVAL :hours HOUR),NOW())')->execute([':user_id' => $userId, ':token' => $token, ':hours' => $hours]);
+
         return $token;
     }
 
@@ -45,7 +49,8 @@ final class EmailVerificationService extends Model
         }
 
         $this->db->prepare('UPDATE email_verifications SET verified_at = NOW() WHERE id = :id')->execute([':id' => $verification['id']]);
-        $this->db->prepare("UPDATE users SET email_verified_at = NOW(), status = CASE WHEN activation_paid_at IS NOT NULL THEN 'active' ELSE status END WHERE id = :id")->execute([':id' => $verification['user_id']]);
+        $this->db->prepare('UPDATE users SET email_verified_at = NOW(), updated_at = NOW() WHERE id = :id')->execute([':id' => $verification['user_id']]);
+        $this->accountStates->syncUserStatus((int) $verification['user_id']);
 
         return true;
     }
@@ -57,10 +62,6 @@ final class EmailVerificationService extends Model
 
     public function isEmailVerified(int $userId): bool
     {
-        $stmt = $this->db->prepare('SELECT email_verified_at FROM users WHERE id = :id');
-        $stmt->execute([':id' => $userId]);
-        $result = $stmt->fetch();
-
-        return isset($result['email_verified_at']) && $result['email_verified_at'] !== null;
+        return $this->accountStates->isEmailVerified($userId);
     }
 }

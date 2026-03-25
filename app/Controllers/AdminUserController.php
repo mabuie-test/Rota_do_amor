@@ -8,10 +8,12 @@ use App\Core\Controller;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\EmailVerificationService;
+use App\Services\MailService;
 
 final class AdminUserController extends Controller
 {
-    public function __construct(private readonly EmailVerificationService $emailVerificationService = new EmailVerificationService())
+    public function __construct(private readonly EmailVerificationService $emailVerificationService = new EmailVerificationService(),
+        private readonly MailService $mail = new MailService())
     {
     }
 
@@ -29,8 +31,15 @@ final class AdminUserController extends Controller
         }
 
         if (str_contains(Request::uriPath(), '/status')) {
+            $newStatus = (string) Request::input('status', 'active');
             $stmt = $db->prepare('UPDATE users SET status=:status,updated_at=NOW() WHERE id=:id');
-            $stmt->execute([':status' => Request::input('status', 'active'), ':id' => $params['id'] ?? 0]);
+            $stmt->execute([':status' => $newStatus, ':id' => $params['id'] ?? 0]);
+            $u = $db->prepare('SELECT id,email FROM users WHERE id=:id');
+            $u->execute([':id' => $params['id'] ?? 0]);
+            $userRow = $u->fetch();
+            if ($userRow) {
+                $this->mail->sendAccountStatusChangedEmail((int) $userRow['id'], (string) $userRow['email'], $newStatus);
+            }
             Response::json(['ok' => true]);
         }
 

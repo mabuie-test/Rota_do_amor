@@ -10,7 +10,9 @@ final class IdentityVerificationService extends Model
 {
     public function __construct(
         private readonly NotificationService $notifications = new NotificationService(),
-        private readonly MailService $mail = new MailService()
+        private readonly MailService $mail = new MailService(),
+        private readonly BadgeService $badges = new BadgeService(),
+        private readonly AccountStateService $accountStates = new AccountStateService()
     ) {
         parent::__construct();
     }
@@ -35,12 +37,14 @@ final class IdentityVerificationService extends Model
 
         $this->execute("UPDATE identity_verifications SET status='approved',reviewed_by_admin_id=:a,updated_at=NOW() WHERE id=:id", [':a' => $adminId, ':id' => $verificationId]);
         $this->execute("UPDATE users SET premium_status='verified',status=CASE WHEN status='pending_verification' THEN 'active' ELSE status END WHERE id=:id", [':id' => $verification['user_id']]);
-        $this->execute("INSERT INTO user_badges (user_id,badge_type,source,is_active,starts_at,created_at) VALUES (:u,'verified','identity_verification',1,NOW(),NOW())", [':u' => $verification['user_id']]);
+        $this->badges->assignBadge((int) $verification['user_id'], 'verified', 'identity_verification', date('Y-m-d H:i:s'));
+        $this->badges->syncSystemBadges((int) $verification['user_id']);
 
         $user = $this->fetchOne('SELECT email FROM users WHERE id=:id', [':id' => $verification['user_id']]);
         if ($user) {
             $this->mail->sendIdentityVerificationApprovedEmail((int) $verification['user_id'], (string) $user['email']);
         }
+        $this->accountStates->syncUserStatus((int) $verification['user_id']);
         $this->notifications->create((int) $verification['user_id'], 'verification_approved', 'Identidade aprovada', 'Seu perfil foi verificado com sucesso.');
         return true;
     }
@@ -57,6 +61,8 @@ final class IdentityVerificationService extends Model
         if ($user) {
             $this->mail->sendIdentityVerificationRejectedEmail((int) $verification['user_id'], (string) $user['email'], $reason);
         }
+        $this->badges->revokeBadge((int) $verification['user_id'], 'verified');
+        $this->badges->syncSystemBadges((int) $verification['user_id']);
         $this->notifications->create((int) $verification['user_id'], 'verification_rejected', 'Identidade rejeitada', $reason);
         return true;
     }

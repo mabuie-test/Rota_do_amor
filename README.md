@@ -89,6 +89,13 @@ php scripts/cleanup_temp_uploads.php
 5. Conta ativa e subscrição inicial inicia.
 6. Pode usar descoberta, swipe, match, chat, feed e recursos premium.
 
+
+## Consistência de estados (revisão final)
+- `AccountStateService` centraliza regras de estado entre email verificado, ativação paga, subscrição e bloqueios administrativos.
+- Middlewares de conta/subscrição/email garantem permissões coerentes por rota.
+- Reconciliação de pagamentos atualiza estados internos e badges.
+- Expiração de subscrições/boosts sincroniza estado do utilizador e badges automaticamente.
+
 ## Segurança aplicada
 - `password_hash` / `password_verify`
 - Prepared statements via PDO

@@ -9,7 +9,7 @@ use App\Core\Model;
 
 final class MessageService extends Model
 {
-    public function __construct(private readonly MatchService $matchService = new MatchService())
+    public function __construct(private readonly MatchService $matchService = new MatchService(), private readonly SubscriptionService $subscriptions = new SubscriptionService(), private readonly BlockService $blocks = new BlockService())
     {
         parent::__construct();
     }
@@ -67,6 +67,14 @@ final class MessageService extends Model
     public function userCanMessage(int $senderId, int $receiverId): bool
     {
         $chatOnlyAfterMatch = filter_var((string) Config::env('ALLOW_CHAT_ONLY_AFTER_MATCH', 'true'), FILTER_VALIDATE_BOOLEAN);
+        if ($this->blocks->isBlocked($senderId, $receiverId)) {
+            return false;
+        }
+
+        if (!$this->subscriptions->canSendMessages($senderId) || !$this->subscriptions->canSendMessages($receiverId)) {
+            return false;
+        }
+
         if (!$chatOnlyAfterMatch) {
             return true;
         }

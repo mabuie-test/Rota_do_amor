@@ -11,6 +11,13 @@ use RuntimeException;
 
 final class PaymentService extends Model
 {
+    public function __construct(
+        private readonly AccountStateService $accountStateService = new AccountStateService(),
+        private readonly BadgeService $badgeService = new BadgeService()
+    ) {
+        parent::__construct();
+    }
+
     public function initiateActivationPayment(int $userId, string $phone): array
     {
         return $this->initiatePayment($userId, $phone, 'activation', (float) Config::env('ACTIVATION_PRICE', 100), 'Activacao Conta Rota do Amor');
@@ -65,7 +72,7 @@ final class PaymentService extends Model
             ':amount' => $amount,
             ':currency' => 'MZN',
             ':status' => 'pending',
-            ':debito_reference' => $gatewayResponse['reference'] ?? null,
+            ':debito_reference' => $gatewayResponse['reference'] ?? $gatewayResponse['transaction_reference'] ?? null,
             ':raw' => json_encode($gatewayResponse, JSON_THROW_ON_ERROR),
         ]);
 
@@ -94,19 +101,23 @@ final class PaymentService extends Model
 
     public function syncUserStatusFromPayment(int $userId, string $paymentType): void
     {
-        if ($paymentType !== 'activation') {
-            return;
+        if ($paymentType === 'activation') {
+            $stmt = $this->db->prepare('UPDATE users SET activation_paid_at = NOW(), updated_at = NOW() WHERE id = :id');
+            $stmt->execute([':id' => $userId]);
         }
 
-        $stmt = $this->db->prepare("UPDATE users SET activation_paid_at = NOW(), status = CASE WHEN email_verified_at IS NOT NULL THEN 'active' ELSE 'pending_activation' END, updated_at = NOW() WHERE id = :id");
-        $stmt->execute([':id' => $userId]);
+        $this->accountStateService->syncUserStatus($userId);
     }
 
     public function syncSubscriptionFromPayment(int $userId): void
     {
         $days = (int) Config::env('SUBSCRIPTION_DURATION_DAYS', 30);
-        $stmt = $this->db->prepare('INSERT INTO subscriptions (user_id,status,starts_at,ends_at,created_at,updated_at) VALUES (:user_id,:status,NOW(),DATE_ADD(NOW(), INTERVAL :days DAY),NOW(),NOW())');
-        $stmt->execute([':user_id' => $userId, ':status' => 'active', ':days' => $days]);
+        $sql = "INSERT INTO subscriptions (user_id,status,starts_at,ends_at,created_at,updated_at)
+                VALUES (:user_id,:status,NOW(),DATE_ADD(COALESCE((SELECT MAX(ends_at) FROM subscriptions WHERE user_id=:user_id2 AND ends_at > NOW()), NOW()), INTERVAL :days DAY),NOW(),NOW())";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':user_id' => $userId, ':user_id2' => $userId, ':status' => 'active', ':days' => $days]);
+
+        $this->accountStateService->syncUserStatus($userId);
     }
 
     public function syncBoostFromPayment(int $userId, int $paymentId): void
@@ -114,6 +125,8 @@ final class PaymentService extends Model
         $hours = (int) Config::env('BOOST_DURATION_HOURS', 24);
         $stmt = $this->db->prepare('INSERT INTO user_boosts (user_id,payment_id,status,starts_at,ends_at,created_at) VALUES (:user_id,:payment_id,:status,NOW(),DATE_ADD(NOW(), INTERVAL :hours HOUR),NOW())');
         $stmt->execute([':user_id' => $userId, ':payment_id' => $paymentId, ':status' => 'active', ':hours' => $hours]);
+
+        $this->badgeService->syncSystemBadges($userId);
     }
 
     public function saveGatewayRawResponse(int $paymentId, array $response): void
@@ -172,7 +185,7 @@ final class PaymentService extends Model
             throw new RuntimeException('Falha ao comunicar com Débito API: ' . $error);
         }
 
-        $decoded = json_decode($raw, true);
+        $decoded = json_decode((string) $raw, true);
         if (!is_array($decoded)) {
             throw new RuntimeException('Resposta inválida da Débito API.');
         }

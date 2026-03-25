@@ -5,6 +5,13 @@
     <h5><?= e(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')) ?></h5>
     <p><?= e($profile['bio'] ?? 'Sem bio') ?></p>
     <small><?= e(($profile['city_name'] ?? '') . ', ' . ($profile['province_name'] ?? '')) ?></small>
+    <?php if (!empty($badges ?? [])): ?>
+      <div class="mt-3">
+        <?php foreach (($badges ?? []) as $badge): ?>
+          <span class="badge bg-primary me-1"><?= e($badge['badge_type']) ?></span>
+        <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
   </div>
 </div>
 <?php else: ?>

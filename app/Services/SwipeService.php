@@ -8,7 +8,7 @@ use App\Core\Model;
 
 final class SwipeService extends Model
 {
-    public function __construct(private readonly MatchService $matchService = new MatchService())
+    public function __construct(private readonly MatchService $matchService = new MatchService(), private readonly SubscriptionService $subscriptions = new SubscriptionService())
     {
         parent::__construct();
     }
@@ -29,6 +29,17 @@ final class SwipeService extends Model
 
     public function recordSwipe(int $userId, int $targetId, string $actionType): int
     {
+        if (!$this->subscriptions->canUseSwipe($userId)) {
+            return 0;
+        }
+
+        $limit = (int) \App\Core\Config::env('SWIPE_DAILY_LIMIT', 100);
+        $countStmt = $this->db->prepare('SELECT COUNT(*) c FROM swipe_actions WHERE actor_user_id=:actor AND DATE(created_at)=CURDATE()');
+        $countStmt->execute([':actor' => $userId]);
+        if ((int) ($countStmt->fetch()['c'] ?? 0) >= $limit) {
+            return 0;
+        }
+
         $stmt = $this->db->prepare('INSERT INTO swipe_actions (actor_user_id,target_user_id,action_type,created_at) VALUES (:actor,:target,:action,NOW())');
         $stmt->execute([':actor' => $userId, ':target' => $targetId, ':action' => $actionType]);
         if (in_array($actionType, ['like', 'super_like'], true)) {

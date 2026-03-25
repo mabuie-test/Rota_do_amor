@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Core\Config;
 use App\Core\Model;
+use App\Core\Request;
 use App\Core\Validator;
 
 final class PasswordResetService extends Model
@@ -43,6 +44,7 @@ final class PasswordResetService extends Model
             ':token' => $token,
             ':minutes' => $minutes,
         ]);
+        $this->logSecurity($userId, 'password_reset_requested');
 
         return $token;
     }
@@ -68,9 +70,10 @@ final class PasswordResetService extends Model
         }
 
         $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-        $this->db->prepare('UPDATE users SET password = :password WHERE id = :id')->execute([':password' => $hash, ':id' => $reset['user_id']]);
+        $this->db->prepare('UPDATE users SET password = :password, updated_at = NOW() WHERE id = :id')->execute([':password' => $hash, ':id' => $reset['user_id']]);
         $this->db->prepare('UPDATE password_resets SET used_at = NOW() WHERE id = :id')->execute([':id' => $reset['id']]);
         $this->invalidateUserResetTokens((int) $reset['user_id']);
+        $this->logSecurity((int) $reset['user_id'], 'password_reset_completed');
 
         return true;
     }
@@ -78,5 +81,18 @@ final class PasswordResetService extends Model
     public function invalidateUserResetTokens(int $userId): void
     {
         $this->db->prepare('UPDATE password_resets SET used_at = COALESCE(used_at, NOW()) WHERE user_id = :user_id AND used_at IS NULL')->execute([':user_id' => $userId]);
+    }
+
+    private function logSecurity(int $userId, string $action): void
+    {
+        $this->db->prepare('INSERT INTO activity_logs (actor_type,actor_id,action,target_type,target_id,metadata_json,ip_address,created_at) VALUES (:actor_type,:actor_id,:action,:target_type,:target_id,:metadata,:ip,NOW())')->execute([
+            ':actor_type' => 'user',
+            ':actor_id' => $userId,
+            ':action' => $action,
+            ':target_type' => 'security',
+            ':target_id' => $userId,
+            ':metadata' => json_encode(['source' => 'password_reset'], JSON_THROW_ON_ERROR),
+            ':ip' => Request::ip(),
+        ]);
     }
 }

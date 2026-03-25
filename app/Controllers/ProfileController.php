@@ -8,6 +8,7 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\BadgeService;
 use App\Services\ProfileService;
 use App\Services\UserService;
 
@@ -15,7 +16,8 @@ final class ProfileController extends Controller
 {
     public function __construct(
         private readonly ProfileService $profileService = new ProfileService(),
-        private readonly UserService $userService = new UserService()
+        private readonly UserService $userService = new UserService(),
+        private readonly BadgeService $badgeService = new BadgeService()
     ) {
     }
 
@@ -23,7 +25,8 @@ final class ProfileController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $profile = $this->profileService->getProfile($userId);
-        $this->view('profile/index', ['title' => 'Meu Perfil', 'profile' => $profile]);
+        $badges = $this->badgeService->getUserBadges($userId);
+        $this->view('profile/index', ['title' => 'Meu Perfil', 'profile' => $profile, 'badges' => $badges]);
     }
 
     public function update(): void
