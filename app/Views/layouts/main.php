@@ -9,7 +9,19 @@
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
-<div class="container py-4">
+<nav class="navbar navbar-expand-lg navbar-dark bg-black mb-4">
+  <div class="container">
+    <a class="navbar-brand" href="/">Rota do Amor</a>
+    <div class="navbar-nav ms-auto gap-2">
+      <a class="nav-link" href="/discover">Descobrir</a>
+      <a class="nav-link" href="/swipe">Swipe</a>
+      <a class="nav-link" href="/matches">Matches</a>
+      <a class="nav-link" href="/feed">Feed</a>
+      <a class="nav-link" href="/profile">Perfil</a>
+    </div>
+  </div>
+</nav>
+<div class="container py-2">
     <?php require $file; ?>
 </div>
 <script src="/assets/js/app.js"></script>

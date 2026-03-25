@@ -14,4 +14,26 @@ abstract class Model
     {
         $this->db = Database::connection();
     }
+
+    protected function fetchOne(string $sql, array $params = []): ?array
+    {
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    protected function fetchAllRows(string $sql, array $params = []): array
+    {
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    protected function execute(string $sql, array $params = []): bool
+    {
+        $stmt = $this->db->prepare($sql);
+        return $stmt->execute($params);
+    }
 }

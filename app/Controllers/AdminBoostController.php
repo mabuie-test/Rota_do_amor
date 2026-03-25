@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Controller;
+use App\Core\Response;
 
-final class AdminBoostController
+final class AdminBoostController extends Controller
 {
     public function index(): void
     {
-        $this->json(['controller' => 'AdminBoostController', 'status' => 'ok']);
+        $rows = \App\Core\Database::connection()->query('SELECT * FROM user_boosts ORDER BY id DESC LIMIT 500')->fetchAll();
+        Response::json(['boosts' => $rows]);
     }
 }
