@@ -20,7 +20,14 @@ Rota do Amor — Como rodar localmente
   DB_PASSWORD=
 
 4) Criar base de dados e importar schema
-- Crie a base no MySQL e importe:
+- Se tiver permissão para criar base (ambiente local):
+  CREATE DATABASE rota_do_amor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  USE rota_do_amor;
+- Se estiver em hospedagem compartilhada/phpMyAdmin (sem CREATE DATABASE):
+  1. Crie/seleciona a base já fornecida pelo hosting.
+  2. Importe `database/schema.sql` nessa base selecionada.
+  3. Depois importe `database/mozambique_locations.sql` e `database/seed.sql`.
+- Via terminal local (exemplo):
   mysql -u root -p rota_do_amor < database/schema.sql
   mysql -u root -p rota_do_amor < database/mozambique_locations.sql
   mysql -u root -p rota_do_amor < database/seed.sql
