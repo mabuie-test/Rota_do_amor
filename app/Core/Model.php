@@ -31,6 +31,14 @@ abstract class Model
         return $stmt->fetchAll();
     }
 
+    /**
+     * Backward-compatible alias used by services.
+     */
+    protected function fetchAll(string $sql, array $params = []): array
+    {
+        return $this->fetchAllRows($sql, $params);
+    }
+
     protected function execute(string $sql, array $params = []): bool
     {
         $stmt = $this->db->prepare($sql);
