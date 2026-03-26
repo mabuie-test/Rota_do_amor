@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateCities = () => {
       const provinceId = provinceSelect.value;
       citySelect.value = '';
+      citySelect.disabled = !provinceId;
 
       cityOptions.forEach((option) => {
         option.hidden = option.dataset.province !== provinceId;
