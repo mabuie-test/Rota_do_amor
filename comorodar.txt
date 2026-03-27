@@ -18,6 +18,8 @@ Rota do Amor — Como rodar localmente
   DB_DATABASE=rota_do_amor
   DB_USERNAME=root
   DB_PASSWORD=
+- Em produção/subpasta, APP_URL deve incluir o caminho completo.
+  Exemplo: https://dominio.com/app/public
 
 4) Criar base de dados e importar schema
 - Se tiver permissão para criar base (ambiente local):

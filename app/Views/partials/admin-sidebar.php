@@ -16,7 +16,7 @@
   foreach ($adminLinks as $href => [$icon, $label]):
       $isActive = $href === '/admin' ? $path === '/admin' : str_starts_with($path, $href);
   ?>
-    <a href="<?= e($href) ?>" class="<?= $isActive ? 'active' : '' ?>">
+    <a href="<?= e(url($href)) ?>" class="<?= $isActive ? 'active' : '' ?>">
       <i class="fa-solid <?= e($icon) ?> me-2"></i><?= e($label) ?>
     </a>
   <?php endforeach; ?>

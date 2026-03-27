@@ -4,7 +4,7 @@
       <div class="card-body p-4 p-md-5">
         <h3 class="mb-2"><i class="fa-solid fa-user-plus me-2 text-primary"></i>Criar Conta</h3>
         <p class="text-muted mb-4">Preencha seus dados para iniciar sua jornada no Rota do Amor.</p>
-        <form method="post" action="/register" class="row g-3">
+        <form method="post" action="<?= e(url('register')) ?>" class="row g-3">
           <input type="hidden" name="_token" value="<?= e(\App\Core\Csrf::token()) ?>">
           <div class="col-md-6 input-icon-wrap"><i class="fa-regular fa-user"></i><input class="form-control" name="first_name" placeholder="Nome" required></div>
           <div class="col-md-6 input-icon-wrap"><i class="fa-regular fa-user"></i><input class="form-control" name="last_name" placeholder="Apelido" required></div>
@@ -15,6 +15,7 @@
           <div class="col-md-4"><select class="form-select" name="relationship_goal" required><option value="friendship">Amizade</option><option value="dating">Namoro</option><option value="marriage">Casamento</option></select></div>
 
           <div class="col-md-6">
+            <label for="provinceSelect" class="form-label small fw-semibold">Província</label>
             <select class="form-select" name="province_id" id="provinceSelect" required>
               <option value="">Selecione a província</option>
               <?php foreach (($provinces ?? []) as $province): ?>
@@ -23,7 +24,8 @@
             </select>
           </div>
           <div class="col-md-6">
-            <select class="form-select" name="city_id" id="citySelect" required>
+            <label for="citySelect" class="form-label small fw-semibold">Cidade</label>
+            <select class="form-select" name="city_id" id="citySelect" required disabled>
               <option value="">Selecione a cidade</option>
               <?php foreach (($cities ?? []) as $city): ?>
                 <option value="<?= (int) $city['id'] ?>" data-province="<?= (int) $city['province_id'] ?>" hidden><?= e((string) $city['name']) ?></option>

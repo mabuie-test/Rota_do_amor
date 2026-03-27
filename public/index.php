@@ -13,7 +13,10 @@ if (is_file($env)) {
             continue;
         }
         [$k, $v] = explode('=', $line, 2);
-        $_ENV[trim($k)] = trim($v);
+        $key = trim($k);
+        $value = trim($v);
+        $value = trim($value, "\"'");
+        $_ENV[$key] = $value;
     }
 }
 

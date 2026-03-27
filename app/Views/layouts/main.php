@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="/assets/css/app.css">
+    <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
 </head>
 <body>
 <?php
@@ -29,19 +29,19 @@ $navItems = [
 <div class="rd-topbar py-2">
   <div class="container d-flex justify-content-between align-items-center small">
     <span><i class="fa-solid fa-crown me-2"></i>Experiência premium pensada para relacionamentos reais.</span>
-    <a href="/plans" class="text-decoration-none text-white fw-semibold">Ver planos</a>
+    <a href="<?= e(url('plans')) ?>" class="text-decoration-none text-white fw-semibold">Ver planos</a>
   </div>
 </div>
 
 <nav class="navbar navbar-expand-lg navbar-dark rd-navbar sticky-top">
   <div class="container py-1">
-    <a class="navbar-brand" href="/"><i class="fa-solid fa-heart me-2"></i>Rota do Amor</a>
+    <a class="navbar-brand" href="<?= e(url()) ?>"><i class="fa-solid fa-heart me-2"></i>Rota do Amor</a>
     <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="mainNav">
       <div class="navbar-nav ms-auto gap-1">
         <?php foreach ($navItems as $href => $label): ?>
           <?php $active = str_starts_with($path, $href) ? 'active' : ''; ?>
-          <a class="nav-link <?= e($active) ?>" href="<?= e($href) ?>"><?= e($label) ?></a>
+          <a class="nav-link <?= e($active) ?>" href="<?= e(url($href)) ?>"><?= e($label) ?></a>
         <?php endforeach; ?>
       </div>
     </div>
@@ -74,9 +74,9 @@ $navItems = [
       <small>Conexões verdadeiras em Moçambique.</small>
     </div>
     <div class="d-flex gap-3 align-items-center flex-wrap">
-      <a href="/plans" class="text-decoration-none text-light">Planos</a>
-      <a href="/about" class="text-decoration-none text-light">Sobre</a>
-      <a href="/safety" class="text-decoration-none text-light">Segurança</a>
+      <a href="<?= e(url('plans')) ?>" class="text-decoration-none text-light">Planos</a>
+      <a href="<?= e(url('about')) ?>" class="text-decoration-none text-light">Sobre</a>
+      <a href="<?= e(url('safety')) ?>" class="text-decoration-none text-light">Segurança</a>
       <a href="#" class="text-decoration-none text-light" aria-label="Facebook"><i class="fa-brands fa-facebook"></i></a>
       <a href="#" class="text-decoration-none text-light" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
     </div>
@@ -84,6 +84,6 @@ $navItems = [
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/assets/js/app.js"></script>
+<script src="<?= e(asset('js/app.js')) ?>"></script>
 </body>
 </html>
