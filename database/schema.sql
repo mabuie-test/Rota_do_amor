@@ -72,6 +72,7 @@ CREATE TABLE user_interests (
   interest_name VARCHAR(120) NOT NULL,
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_user_interests_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_interests_user_interest (user_id, interest_name),
   UNIQUE KEY uq_user_interest (user_id, interest_name)
 );
 
@@ -312,8 +313,26 @@ CREATE TABLE post_images (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   post_id BIGINT NOT NULL,
   image_path VARCHAR(255) NOT NULL,
+  thumbnail_path VARCHAR(255) NULL,
+  mime_type VARCHAR(120) NULL,
+  file_size INT NOT NULL DEFAULT 0,
+  sort_order SMALLINT NOT NULL DEFAULT 1,
+  created_by_user_id BIGINT NULL,
   created_at DATETIME NOT NULL,
-  CONSTRAINT fk_post_images_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+  CONSTRAINT fk_post_images_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_post_images_created_by FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_post_images_post_sort (post_id, sort_order, id)
+);
+
+CREATE TABLE message_attachments (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  message_id BIGINT NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(120) NULL,
+  file_size INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  CONSTRAINT fk_message_attachments_message FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+  INDEX idx_message_attachments_message (message_id, id)
 );
 
 CREATE TABLE post_likes (
@@ -399,11 +418,14 @@ CREATE TABLE activity_logs (
   action VARCHAR(190) NOT NULL,
   target_type VARCHAR(120) NULL,
   target_id BIGINT NULL,
+  rate_limit_key VARCHAR(190) NULL,
+  rate_limit_outcome VARCHAR(24) NULL,
   metadata_json JSON NULL,
   ip_address VARCHAR(45) NULL,
   created_at DATETIME NOT NULL,
   INDEX idx_activity_actor (actor_type, actor_id),
   INDEX idx_activity_action (action),
+  INDEX idx_activity_rate_limit_key (action, target_type, rate_limit_key, rate_limit_outcome, created_at),
   INDEX idx_activity_rate_limit_lookup (action, target_type, created_at),
   INDEX idx_activity_actor_created (actor_id, created_at)
 );

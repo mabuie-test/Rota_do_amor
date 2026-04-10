@@ -28,13 +28,13 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    cp .env.example .env
    ```
 4. Ajuste variáveis no `.env` (DB, Débito API, SMTP e pricing).
-5. Crie e popule a BD:
+5. Crie e popule a BD (instalação nova já fica alinhada com o estado atual do código):
    ```bash
    mysql -u root -p < database/schema.sql
    mysql -u root -p < database/mozambique_locations.sql
    mysql -u root -p < database/seed.sql
    ```
-6. Se a instância já existir, aplique migrações incrementais:
+6. **Apenas para instâncias antigas** já existentes antes desta consolidação, aplique migrações incrementais:
    ```bash
    mysql -u root -p < database/migrations/20260410_hardening.sql
    mysql -u root -p < database/migrations/20260410_consolidation_core.sql
@@ -103,7 +103,11 @@ php scripts/cleanup_temp_uploads.php
 - Throttling com logs de tentativa/sucesso/falha para login, feed e mensagens, persistido com colunas indexáveis (`rate_limit_key`, `rate_limit_outcome`)
 - Autorização explícita em leitura de conversas (somente participantes)
 - Uploads de imagens via `$_FILES` com validação de MIME real, tamanho máximo e nome aleatório seguro
-- Política de ciclo de vida de media explícita: rollback limpa ficheiros em falha; soft delete mantém media para auditoria/restauro; purge físico fica reservado para rotina administrativa.
+- Política de ciclo de vida de media explícita e aplicada no código:
+  - em falha de upload/validação/transação abortada, os ficheiros são removidos (rollback físico);
+  - imagens de posts mantêm-se quando o post é apagado logicamente (`status='deleted'`);
+  - anexos de mensagens mantêm-se enquanto a mensagem existir;
+  - remoção física definitiva fica reservada para purge administrativo/rotina operacional.
 - Controle de estado de conta (`pending_activation`, `active`, `expired`, `suspended`, `banned`)
 - Logs de atividade, auditoria e logs financeiros
 
@@ -112,11 +116,13 @@ php scripts/cleanup_temp_uploads.php
 - Inbox otimizada com joins agregados para última mensagem e não lidas (sem subqueries correlacionadas por item).
 - Dashboard com distinção entre perfil completo vs atrativo, impacto de boost, progresso de verificação, contexto premium e ações prioritárias.
 - Feed com paginação, payload enriquecido de autor, comentários recentes e ações de UI ligadas ao backend (like/comentário/denúncia/apagar).
-- Mensagens com histórico paginado, conversa ativa na inbox, contexto consistente do outro utilizador, anexos (`message_attachments`) e apresentação visual humanizada.
+- Mensagens com histórico paginado, conversa ativa na inbox, contexto do outro utilizador (presença/verificação/última atividade), anexos (`message_attachments`) e acabamento visual final.
 - Compatibilidade com menor round-trip por cálculo (interesses agregados e reutilização de dados alvo quando disponível).
 
 ## Índices e migração
-As migrações incrementais atuais são:
+`database/schema.sql` já inclui o estado consolidado atual (incluindo `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images` e `message_attachments`) para instalações novas.
+
+As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260410_hardening.sql`;
 - `database/migrations/20260410_consolidation_core.sql`.
 
