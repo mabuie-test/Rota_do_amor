@@ -31,14 +31,15 @@ final class AuthController extends Controller
     public function login(): void
     {
         $email = (string) Request::input('email', '');
-        $key = 'user_login:' . mb_strtolower(trim($email)) . ':' . Request::ip();
-        if ($this->rateLimiter->tooManyAttempts('user_login', $key, 10, 10)) {
+        $emailKey = mb_strtolower(trim($email));
+        $key = 'user_login:' . $emailKey . ':' . Request::ip();
+        if ($this->rateLimiter->tooManyAttempts('user_login', $key, 10, 10, 'failed')) {
             Response::json(['ok' => false, 'message' => 'Muitas tentativas. Tente novamente em alguns minutos.'], 429);
         }
 
         $result = $this->authService->attemptLogin($email, (string) Request::input('password', ''));
-        $this->rateLimiter->hit('user_login', $key, (int) ($result['user']['id'] ?? 0));
         if (!$result['ok']) {
+            $this->rateLimiter->hitFailure('user_login', $key, null, ['email' => $emailKey]);
             if (Request::expectsJson()) {
                 Response::json(['ok' => false, 'message' => $result['message']], 422);
             }
@@ -47,6 +48,7 @@ final class AuthController extends Controller
             Response::redirect('/login');
         }
 
+        $this->rateLimiter->hitSuccess('user_login', $key, (int) ($result['user']['id'] ?? 0), ['email' => $emailKey]);
         if (Request::expectsJson()) {
             Response::json(['ok' => true, 'next' => '/dashboard']);
         }

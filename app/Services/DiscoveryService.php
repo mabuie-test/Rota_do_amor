@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use DateTimeImmutable;
 
 final class DiscoveryService extends Model
 {
     public function __construct(
-        private readonly CompatibilityService $compatibility = new CompatibilityService(),
-        private readonly BoostService $boost = new BoostService(),
-        private readonly PremiumService $premium = new PremiumService()
+        private readonly CompatibilityService $compatibility = new CompatibilityService()
     ) {
         parent::__construct();
     }
@@ -30,7 +29,27 @@ final class DiscoveryService extends Model
         }
 
         $params = [':id' => $userId];
-        $sql = "SELECT u.* FROM users u
+        $sql = "SELECT u.*, 
+                       IFNULL(iv.is_verified, 0) AS is_verified,
+                       IFNULL(ub.boost_active, 0) AS boost_active,
+                       IFNULL(pf.has_premium, 0) AS has_premium,
+                       TIMESTAMPDIFF(MINUTE, COALESCE(u.last_activity_at, u.created_at), NOW()) AS minutes_since_activity
+                FROM users u
+                LEFT JOIN (
+                    SELECT user_id, MAX(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS is_verified
+                    FROM identity_verifications
+                    GROUP BY user_id
+                ) iv ON iv.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, MAX(CASE WHEN status='active' AND ends_at > NOW() THEN 1 ELSE 0 END) AS boost_active
+                    FROM user_boosts
+                    GROUP BY user_id
+                ) ub ON ub.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_premium
+                    FROM premium_features
+                    GROUP BY user_id
+                ) pf ON pf.user_id = u.id
                 WHERE u.id != :id
                   AND u.status = 'active'
                   AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.actor_user_id=:id AND b.target_user_id=u.id) OR (b.actor_user_id=u.id AND b.target_user_id=:id))";
@@ -38,60 +57,69 @@ final class DiscoveryService extends Model
         if (!empty($filters['age_min']) || !empty($filters['age_max'])) {
             $ageMin = max(18, (int) ($filters['age_min'] ?? 18));
             $ageMax = min(99, (int) ($filters['age_max'] ?? 99));
-            $sql .= " AND TIMESTAMPDIFF(YEAR, u.birth_date, CURDATE()) BETWEEN :age_min AND :age_max";
+            $sql .= ' AND TIMESTAMPDIFF(YEAR, u.birth_date, CURDATE()) BETWEEN :age_min AND :age_max';
             $params[':age_min'] = $ageMin;
             $params[':age_max'] = max($ageMin, $ageMax);
         }
 
         if (!empty($filters['province_id'])) {
-            $sql .= " AND u.province_id = :province_id";
+            $sql .= ' AND u.province_id = :province_id';
             $params[':province_id'] = (int) $filters['province_id'];
         }
 
         if (!empty($filters['city_id'])) {
-            $sql .= " AND u.city_id = :city_id";
+            $sql .= ' AND u.city_id = :city_id';
             $params[':city_id'] = (int) $filters['city_id'];
         }
 
         if (!empty($filters['relationship_goal']) && $filters['relationship_goal'] !== 'any') {
-            $sql .= " AND u.relationship_goal = :relationship_goal";
+            $sql .= ' AND u.relationship_goal = :relationship_goal';
             $params[':relationship_goal'] = (string) $filters['relationship_goal'];
         }
 
         if (!empty($filters['verified_only'])) {
-            $sql .= " AND EXISTS (SELECT 1 FROM identity_verifications iv WHERE iv.user_id = u.id AND iv.status='approved')";
+            $sql .= ' AND IFNULL(iv.is_verified, 0) = 1';
         }
 
-        $sql .= " ORDER BY u.last_activity_at DESC
-                LIMIT 200";
+        $sql .= ' ORDER BY u.last_activity_at DESC LIMIT 200';
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $profiles = $stmt->fetchAll();
         $profiles = $this->excludeSeenBlockedSuspended($profiles, $userId, $currentUser, $filters);
-        $profiles = $this->applyBoostWeight($profiles);
-        $profiles = $this->applyPremiumWeight($profiles);
-        $profiles = $this->applyVerificationWeight($profiles);
 
         return $this->rankProfilesByCompatibilityAndPriority($userId, $profiles);
     }
 
     public function rankProfilesByCompatibilityAndPriority(int $userId, array $profiles): array
     {
-        foreach ($profiles as &$profile) {
+        if ($profiles === []) {
+            return [];
+        }
+
+        $targetIds = array_map(static fn(array $profile): int => (int) $profile['id'], $profiles);
+        $scores = $this->compatibility->getCompatibilityScoresForTargets($userId, $targetIds);
+        $now = new DateTimeImmutable('now');
+
+        foreach ($profiles as $index => &$profile) {
             $targetId = (int) $profile['id'];
-            $score = $this->compatibility->getCompatibilityScore($userId, $targetId);
-            if ($score <= 0) {
+            $scoreMeta = $scores[$targetId] ?? null;
+            $score = (float) ($scoreMeta['score'] ?? 0);
+            $calculatedAt = isset($scoreMeta['calculated_at']) ? new DateTimeImmutable((string) $scoreMeta['calculated_at']) : null;
+            $isStale = $calculatedAt === null || $calculatedAt < $now->modify('-14 days');
+
+            if (($score <= 0 || $isStale) && $index < 40) {
                 $score = (float) ($this->compatibility->calculateCompatibility($userId, $targetId)['score'] ?? 0);
             }
 
             $profile['_compatibility'] = $score;
-            $profile['_boost_weight'] = (float) ($profile['_boost_weight'] ?? 1.0);
-            $profile['_premium_weight'] = (float) ($profile['_premium_weight'] ?? 1.0);
-            $profile['_verification_weight'] = (float) ($profile['_verification_weight'] ?? 1.0);
-            $minutes = (int) ($profile['_minutes_since_activity'] ?? 1440);
+            $profile['_boost_weight'] = ((int) ($profile['boost_active'] ?? 0) === 1) ? 1.5 : 1.0;
+            $profile['_premium_weight'] = ((int) ($profile['has_premium'] ?? 0) === 1) ? 1.2 : 1.0;
+            $profile['_verification_weight'] = ((int) ($profile['is_verified'] ?? 0) === 1) ? 1.1 : 1.0;
+            $minutes = (int) ($profile['minutes_since_activity'] ?? 1440);
             $activityWeight = $minutes <= 60 ? 1.15 : ($minutes <= 360 ? 1.08 : ($minutes <= 1440 ? 1.03 : 1.0));
             $profile['_activity_weight'] = $activityWeight;
+            $profile['_minutes_since_activity'] = $minutes;
             $profile['_rank'] = $score
                 * $profile['_boost_weight']
                 * $profile['_premium_weight']
@@ -145,34 +173,5 @@ final class DiscoveryService extends Model
 
             return true;
         }));
-    }
-
-    public function applyBoostWeight(array $profiles): array
-    {
-        foreach ($profiles as &$profile) {
-            $profile['_boost_weight'] = $this->boost->getBoostPriorityMultiplier((int) $profile['id']);
-        }
-        unset($profile);
-        return $profiles;
-    }
-
-    public function applyPremiumWeight(array $profiles): array
-    {
-        foreach ($profiles as &$profile) {
-            $profile['_premium_weight'] = $this->premium->userHasPremium((int) $profile['id']) ? 1.2 : 1.0;
-        }
-        unset($profile);
-        return $profiles;
-    }
-
-    public function applyVerificationWeight(array $profiles): array
-    {
-        foreach ($profiles as &$profile) {
-            $isVerified = (bool) $this->fetchOne("SELECT id FROM identity_verifications WHERE user_id=:id AND status='approved' LIMIT 1", [':id' => (int) $profile['id']]);
-            $profile['_verification_weight'] = $isVerified ? 1.1 : 1.0;
-            $profile['_minutes_since_activity'] = (int) ($this->fetchOne('SELECT TIMESTAMPDIFF(MINUTE, COALESCE(last_activity_at, created_at), NOW()) AS m FROM users WHERE id=:id', [':id' => (int) $profile['id']])['m'] ?? 9999);
-        }
-        unset($profile);
-        return $profiles;
     }
 }

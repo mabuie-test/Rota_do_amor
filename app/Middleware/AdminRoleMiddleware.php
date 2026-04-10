@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Middleware;
 
 use App\Core\Response;
-use App\Core\Session;
+use App\Services\AdminAuthorizationService;
 
 final class AdminRoleMiddleware
 {
@@ -14,12 +14,12 @@ final class AdminRoleMiddleware
      */
     public static function allow(array $allowedRoles, callable $next): mixed
     {
-        $role = (string) Session::get('admin_role', '');
-        if ($role === '' || !in_array($role, $allowedRoles, true)) {
+        $authorization = new AdminAuthorizationService();
+        if (!$authorization->sessionAdminHasRole($allowedRoles)) {
+            $authorization->invalidateAdminSession();
             Response::abort(403, 'Permissão administrativa insuficiente.');
         }
 
         return $next();
     }
 }
-

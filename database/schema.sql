@@ -113,6 +113,8 @@ CREATE TABLE payments (
   amount DECIMAL(10,2) NOT NULL,
   currency CHAR(3) NOT NULL DEFAULT 'MZN',
   status ENUM('pending','completed','failed','cancelled') NOT NULL,
+  benefit_application_status ENUM('pending','applying','applied','failed','skipped') NOT NULL DEFAULT 'pending',
+  benefit_applied_at DATETIME NULL,
   debito_reference VARCHAR(191) NULL,
   gateway_raw_response JSON NULL,
   paid_at DATETIME NULL,
@@ -121,6 +123,8 @@ CREATE TABLE payments (
   CONSTRAINT fk_payments_user FOREIGN KEY (user_id) REFERENCES users(id),
   INDEX idx_payments_user_type (user_id, payment_type),
   INDEX idx_payments_status (status),
+  INDEX idx_payments_type_status (payment_type, status),
+  INDEX idx_payments_benefit_status (benefit_application_status),
   UNIQUE KEY uq_debito_reference (debito_reference)
 );
 
@@ -172,7 +176,8 @@ CREATE TABLE identity_verifications (
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_identity_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_identity_admin FOREIGN KEY (reviewed_by_admin_id) REFERENCES admins(id),
-  INDEX idx_identity_status (status)
+  INDEX idx_identity_status (status),
+  INDEX idx_identity_user_status (user_id, status)
 );
 
 CREATE TABLE email_verifications (
@@ -247,7 +252,8 @@ CREATE TABLE compatibility_scores (
   CONSTRAINT fk_comp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_comp_target FOREIGN KEY (target_user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE KEY uq_comp_pair (user_id, target_user_id),
-  INDEX idx_comp_score (score)
+  INDEX idx_comp_score (score),
+  INDEX idx_comp_user_calculated (user_id, calculated_at)
 );
 
 CREATE TABLE connections (
@@ -285,7 +291,9 @@ CREATE TABLE messages (
   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
   CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id),
   CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_id) REFERENCES users(id),
-  INDEX idx_messages_receiver_read (receiver_id, is_read)
+  INDEX idx_messages_receiver_read (receiver_id, is_read),
+  INDEX idx_messages_conversation_id (conversation_id, id),
+  INDEX idx_messages_conversation_receiver_read (conversation_id, receiver_id, is_read, id)
 );
 
 CREATE TABLE posts (
@@ -296,7 +304,8 @@ CREATE TABLE posts (
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id),
-  INDEX idx_posts_status_created (status, created_at)
+  INDEX idx_posts_status_created (status, created_at),
+  INDEX idx_posts_user_status_created (user_id, status, created_at)
 );
 
 CREATE TABLE post_images (
@@ -324,7 +333,8 @@ CREATE TABLE post_comments (
   comment_text TEXT NOT NULL,
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_post_comments_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-  CONSTRAINT fk_post_comments_user FOREIGN KEY (user_id) REFERENCES users(id)
+  CONSTRAINT fk_post_comments_user FOREIGN KEY (user_id) REFERENCES users(id),
+  INDEX idx_post_comments_post_created (post_id, created_at)
 );
 
 CREATE TABLE favorites (
@@ -393,7 +403,9 @@ CREATE TABLE activity_logs (
   ip_address VARCHAR(45) NULL,
   created_at DATETIME NOT NULL,
   INDEX idx_activity_actor (actor_type, actor_id),
-  INDEX idx_activity_action (action)
+  INDEX idx_activity_action (action),
+  INDEX idx_activity_rate_limit_lookup (action, target_type, created_at),
+  INDEX idx_activity_actor_created (actor_id, created_at)
 );
 
 CREATE TABLE moderation_actions (

@@ -37,15 +37,16 @@ final class MessageController extends Controller
         }
 
         $messages = $this->service->getConversationMessages($conversationId, $userId);
+        $context = $this->service->getConversationContext($conversationId, $userId);
         $this->service->markAsRead($conversationId, $userId);
-        $this->view('messages/show', ['title' => 'Conversa', 'messages' => $messages]);
+        $this->view('messages/show', ['title' => 'Conversa', 'messages' => $messages, 'context' => $context]);
     }
 
     public function send(): void
     {
         $senderId = Auth::id() ?? 0;
         $rateLimitKey = 'chat_send:' . $senderId . ':' . Request::ip();
-        if ($this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 20, 1)) {
+        if ($this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 20, 1, 'failed')) {
             Response::json(['ok' => false, 'message' => 'Muitas mensagens em pouco tempo.'], 429);
         }
 
@@ -55,7 +56,11 @@ final class MessageController extends Controller
             (string) Request::input('message_text', ''),
             (string) Request::input('message_type', 'text')
         );
-        $this->rateLimiter->hit('chat_send', $rateLimitKey, $senderId);
+        if ($messageId > 0) {
+            $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId);
+        } else {
+            $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId);
+        }
 
         Response::json(['ok' => $messageId > 0, 'message_id' => $messageId], $messageId > 0 ? 200 : 422);
     }

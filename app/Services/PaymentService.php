@@ -10,6 +10,7 @@ use App\Services\Payments\DebitoMpesaProvider;
 use App\Services\Payments\PaymentProviderInterface;
 use DateTimeImmutable;
 use RuntimeException;
+use Throwable;
 
 final class PaymentService extends Model
 {
@@ -69,7 +70,7 @@ final class PaymentService extends Model
 
     public function createPendingPayment(int $userId, string $type, string $phone, float $amount, array $gatewayResponse): int
     {
-        $stmt = $this->db->prepare('INSERT INTO payments (user_id,payment_type,phone,amount,currency,status,debito_reference,gateway_raw_response,created_at,updated_at) VALUES (:user_id,:payment_type,:phone,:amount,:currency,:status,:debito_reference,:raw,NOW(),NOW())');
+        $stmt = $this->db->prepare('INSERT INTO payments (user_id,payment_type,phone,amount,currency,status,benefit_application_status,debito_reference,gateway_raw_response,created_at,updated_at) VALUES (:user_id,:payment_type,:phone,:amount,:currency,:status,:benefit_application_status,:debito_reference,:raw,NOW(),NOW())');
         $stmt->execute([
             ':user_id' => $userId,
             ':payment_type' => $type,
@@ -77,11 +78,90 @@ final class PaymentService extends Model
             ':amount' => $amount,
             ':currency' => 'MZN',
             ':status' => 'pending',
+            ':benefit_application_status' => 'pending',
             ':debito_reference' => $gatewayResponse['reference'] ?? $gatewayResponse['transaction_reference'] ?? null,
             ':raw' => json_encode($gatewayResponse, JSON_THROW_ON_ERROR),
         ]);
 
         return (int) $this->db->lastInsertId();
+    }
+
+    public function reconcilePaymentWithIdempotency(int $paymentId, int $userId, string $paymentType, array $statusPayload): string
+    {
+        $normalized = (string) ($statusPayload['normalized_status'] ?? 'pending');
+        $finalStatuses = ['completed', 'failed', 'cancelled'];
+
+        $this->db->beginTransaction();
+        try {
+            $payment = $this->fetchPaymentForUpdate($paymentId);
+            if (!$payment || (int) $payment['user_id'] !== $userId || (string) $payment['payment_type'] !== $paymentType) {
+                $this->db->rollBack();
+                return 'ignored';
+            }
+
+            $currentStatus = (string) ($payment['status'] ?? 'pending');
+            $benefitAppliedAt = $payment['benefit_applied_at'] ?? null;
+            $benefitStatus = (string) ($payment['benefit_application_status'] ?? 'pending');
+
+            if (in_array($currentStatus, $finalStatuses, true) && $currentStatus !== 'pending' && $normalized !== 'completed') {
+                $this->saveGatewayRawResponse($paymentId, $statusPayload);
+                $this->financialLog->log('reconciliation_skipped', $paymentId, ['reason' => 'already_finalized', 'status' => $currentStatus]);
+                $this->db->commit();
+                return $currentStatus;
+            }
+
+            if ($normalized === 'completed') {
+                if (in_array($currentStatus, ['failed', 'cancelled'], true)) {
+                    $this->saveGatewayRawResponse($paymentId, $statusPayload);
+                    $this->financialLog->log('reconciliation_skipped', $paymentId, ['reason' => 'cannot_transition_from_failed_state', 'status' => $currentStatus]);
+                    $this->db->commit();
+                    return $currentStatus;
+                }
+
+                if ($currentStatus === 'pending') {
+                    $this->markPaymentCompleted($paymentId, $statusPayload);
+                } else {
+                    $this->saveGatewayRawResponse($paymentId, $statusPayload);
+                }
+
+                if ($benefitAppliedAt !== null || $benefitStatus === 'applied') {
+                    $this->financialLog->log('benefit_idempotent_skip', $paymentId, ['reason' => 'benefit_already_applied', 'payment_type' => $paymentType]);
+                    $this->db->commit();
+                    return 'completed';
+                }
+
+                $this->markBenefitStatus($paymentId, 'applying');
+                $this->applyBenefitForPaymentType($paymentType, $userId, $paymentId);
+                $this->markBenefitApplied($paymentId);
+                $this->financialLog->log('benefit_applied', $paymentId, ['payment_type' => $paymentType]);
+                $this->db->commit();
+                return 'completed';
+            }
+
+            if (in_array($normalized, ['failed', 'cancelled'], true)) {
+                if ($currentStatus === 'pending') {
+                    $this->markPaymentFailed($paymentId, $statusPayload);
+                    $this->markBenefitStatus($paymentId, 'skipped');
+                } else {
+                    $this->saveGatewayRawResponse($paymentId, $statusPayload);
+                    $this->financialLog->log('reconciliation_skipped', $paymentId, ['reason' => 'already_finalized', 'status' => $currentStatus]);
+                }
+
+                $this->db->commit();
+                return $normalized;
+            }
+
+            $this->saveGatewayRawResponse($paymentId, $statusPayload);
+            $this->db->commit();
+            return 'pending';
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->markBenefitStatus($paymentId, 'failed');
+            $this->financialLog->log('benefit_failed', $paymentId, ['error' => $exception->getMessage()]);
+            throw $exception;
+        }
     }
 
     public function markPaymentCompleted(int $paymentId, array $statusPayload): void
@@ -150,6 +230,25 @@ final class PaymentService extends Model
     {
         $stmt = $this->db->prepare('UPDATE payments SET gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id');
         $stmt->execute([':id' => $paymentId, ':raw' => json_encode($response, JSON_THROW_ON_ERROR)]);
+    }
+
+    private function fetchPaymentForUpdate(int $paymentId): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM payments WHERE id = :id FOR UPDATE');
+        $stmt->execute([':id' => $paymentId]);
+        return $stmt->fetch() ?: [];
+    }
+
+    private function markBenefitApplied(int $paymentId): void
+    {
+        $stmt = $this->db->prepare("UPDATE payments SET benefit_application_status='applied', benefit_applied_at=NOW(), updated_at=NOW() WHERE id=:id");
+        $stmt->execute([':id' => $paymentId]);
+    }
+
+    private function markBenefitStatus(int $paymentId, string $status): void
+    {
+        $stmt = $this->db->prepare('UPDATE payments SET benefit_application_status=:status, updated_at=NOW() WHERE id=:id');
+        $stmt->execute([':status' => $status, ':id' => $paymentId]);
     }
 
     private function initiatePayment(int $userId, string $phone, string $type, float $amount, string $description): array
