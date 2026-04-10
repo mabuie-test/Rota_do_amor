@@ -17,5 +17,6 @@ $router->add('GET', '/forgot-password', [PasswordResetController::class, 'showFo
 $router->add('POST', '/forgot-password', [PasswordResetController::class, 'requestReset'], $guest);
 $router->add('GET', '/reset-password/{token}', [PasswordResetController::class, 'showResetPassword'], $guest);
 $router->add('POST', '/reset-password', [PasswordResetController::class, 'resetPassword'], $guest);
+$router->add('GET', '/email/verify', [EmailVerificationController::class, 'verify']);
 $router->add('GET', '/email/verify/{token}', [EmailVerificationController::class, 'verify']);
 $router->add('POST', '/email/verify/resend', [EmailVerificationController::class, 'resend']);

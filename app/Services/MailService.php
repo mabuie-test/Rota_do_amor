@@ -13,7 +13,12 @@ final class MailService extends Model
 {
     public function sendVerificationEmail(int $userId, string $email, string $token): bool
     {
-        return $this->sendGenericTemplate($userId, $email, 'Verifique seu email', 'verify-account', ['token' => $token]);
+        $verificationUrl = rtrim((string) Config::env('APP_URL', 'http://127.0.0.1:8000'), '/') . '/email/verify/' . urlencode($token);
+
+        return $this->sendGenericTemplate($userId, $email, 'Verifique seu email', 'verify-account', [
+            'token' => $token,
+            'verificationUrl' => $verificationUrl,
+        ]);
     }
 
     public function sendWelcomeEmail(int $userId, string $email): bool { return $this->sendGenericTemplate($userId, $email, 'Bem-vindo ao Rota do Amor', 'welcome'); }

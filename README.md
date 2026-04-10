@@ -56,6 +56,7 @@ Preços e regras de negócio são carregados por ambiente (sem hardcode operacio
 - `EMAIL_VERIFICATION_REQUIRED`
 - `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES`
 - `EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS`
+- `APP_URL` (base pública usada em links transacionais, ex.: `http://127.0.0.1:8000`)
 - `UPLOAD_MAX_IMAGE_SIZE` (bytes, default 5242880)
 
 ## Débito API (M-Pesa)
