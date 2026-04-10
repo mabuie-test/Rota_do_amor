@@ -10,14 +10,17 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\BadgeService;
 use App\Services\ProfileService;
+use App\Services\UploadService;
 use App\Services\UserService;
+use RuntimeException;
 
 final class ProfileController extends Controller
 {
     public function __construct(
         private readonly ProfileService $profileService = new ProfileService(),
         private readonly UserService $userService = new UserService(),
-        private readonly BadgeService $badgeService = new BadgeService()
+        private readonly BadgeService $badgeService = new BadgeService(),
+        private readonly UploadService $uploads = new UploadService()
     ) {
     }
 
@@ -37,15 +40,23 @@ final class ProfileController extends Controller
 
     public function photo(): void
     {
-        $path = (string) Request::input('image_path', '');
-        $id = $this->profileService->savePhoto(Auth::id() ?? 0, $path, true);
-        Response::json(['ok' => true, 'photo_id' => $id]);
+        try {
+            $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'profiles');
+            $id = $this->profileService->savePhoto(Auth::id() ?? 0, $stored['path'], true);
+            Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
+        } catch (RuntimeException $exception) {
+            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 
     public function gallery(): void
     {
-        $path = (string) Request::input('image_path', '');
-        $id = $this->profileService->savePhoto(Auth::id() ?? 0, $path, false);
-        Response::json(['ok' => true, 'photo_id' => $id]);
+        try {
+            $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'gallery');
+            $id = $this->profileService->savePhoto(Auth::id() ?? 0, $stored['path'], false);
+            Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
+        } catch (RuntimeException $exception) {
+            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 }

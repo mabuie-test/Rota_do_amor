@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Controller;
-use App\Core\Request;
 use App\Core\Response;
 use App\Services\EmailVerificationService;
 use App\Services\MailService;
@@ -17,40 +16,41 @@ final class AdminUserController extends Controller
     {
     }
 
-    public function index(array $params = []): void
+    public function index(): void
     {
         $db = \App\Core\Database::connection();
-        if (isset($params['id']) && Request::method() === 'GET') {
-            $stmt = $db->prepare('SELECT * FROM users WHERE id=:id');
-            $stmt->execute([':id' => $params['id']]);
-            Response::json(['user' => $stmt->fetch() ?: null]);
+        $rows = $db->query('SELECT id,first_name,last_name,email,status,premium_status,created_at FROM users ORDER BY id DESC LIMIT 500')->fetchAll();
+        if (\App\Core\Request::input('format') === 'json') {
+            Response::json(['users' => $rows]);
         }
+        $this->view('admin/users', ['title' => 'Admin · Utilizadores', 'users' => $rows]);
+    }
 
-        if (Request::method() === 'GET') {
-            $rows = $db->query('SELECT id,first_name,last_name,email,status,premium_status,created_at FROM users ORDER BY id DESC LIMIT 500')->fetchAll();
-            if (Request::input('format') === 'json') {
-                Response::json(['users' => $rows]);
-            }
-            $this->view('admin/users', ['title' => 'Admin · Utilizadores', 'users' => $rows]);
-            return;
-        }
+    public function show(array $params): void
+    {
+        $stmt = \App\Core\Database::connection()->prepare('SELECT * FROM users WHERE id=:id');
+        $stmt->execute([':id' => (int) ($params['id'] ?? 0)]);
+        Response::json(['user' => $stmt->fetch() ?: null]);
+    }
 
-        if (str_contains(Request::uriPath(), '/status')) {
-            $newStatus = (string) Request::input('status', 'active');
-            $stmt = $db->prepare('UPDATE users SET status=:status,updated_at=NOW() WHERE id=:id');
-            $stmt->execute([':status' => $newStatus, ':id' => $params['id'] ?? 0]);
-            $u = $db->prepare('SELECT id,email FROM users WHERE id=:id');
-            $u->execute([':id' => $params['id'] ?? 0]);
-            $userRow = $u->fetch();
-            if ($userRow) {
-                $this->mail->sendAccountStatusChangedEmail((int) $userRow['id'], (string) $userRow['email'], $newStatus);
-            }
-            Response::json(['ok' => true]);
+    public function updateStatus(array $params): void
+    {
+        $newStatus = (string) \App\Core\Request::input('status', 'active');
+        $db = \App\Core\Database::connection();
+        $stmt = $db->prepare('UPDATE users SET status=:status,updated_at=NOW() WHERE id=:id');
+        $stmt->execute([':status' => $newStatus, ':id' => (int) ($params['id'] ?? 0)]);
+        $u = $db->prepare('SELECT id,email FROM users WHERE id=:id');
+        $u->execute([':id' => (int) ($params['id'] ?? 0)]);
+        $userRow = $u->fetch();
+        if ($userRow) {
+            $this->mail->sendAccountStatusChangedEmail((int) $userRow['id'], (string) $userRow['email'], $newStatus);
         }
+        Response::json(['ok' => true]);
+    }
 
-        if (str_contains(Request::uriPath(), '/resend-verification-email')) {
-            $ok = $this->emailVerificationService->resendVerification((int) ($params['id'] ?? 0));
-            Response::json(['ok' => $ok]);
-        }
+    public function resendVerificationEmail(array $params): void
+    {
+        $ok = $this->emailVerificationService->resendVerification((int) ($params['id'] ?? 0));
+        Response::json(['ok' => $ok]);
     }
 }

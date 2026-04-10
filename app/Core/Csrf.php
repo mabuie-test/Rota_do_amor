@@ -6,19 +6,26 @@ namespace App\Core;
 
 final class Csrf
 {
+    private const SESSION_KEY = '_csrf';
+
     public static function token(): string
     {
         Session::start();
-        $token = Session::get('_csrf');
+        $token = Session::get(self::SESSION_KEY);
         if (!$token) {
             $token = bin2hex(random_bytes(32));
-            Session::put('_csrf', $token);
+            Session::put(self::SESSION_KEY, $token);
         }
         return $token;
     }
 
     public static function validate(?string $token): bool
     {
-        return hash_equals((string) Session::get('_csrf', ''), (string) $token);
+        $stored = (string) Session::get(self::SESSION_KEY, '');
+        if ($stored === '' || !is_string($token) || $token === '') {
+            return false;
+        }
+
+        return hash_equals($stored, $token);
     }
 }

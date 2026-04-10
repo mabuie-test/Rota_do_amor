@@ -1,5 +1,5 @@
 <h3 class="mb-3"><i class="fa-solid fa-newspaper me-2"></i>Feed Social</h3>
-<form method="post" action="/feed/post" class="rd-card mb-3"><div class="card-body"><textarea class="form-control mb-2" name="content" placeholder="Partilhe algo com a comunidade..."></textarea><button class="btn btn-rd-primary">Publicar</button></div></form>
+<form method="post" action="/feed/post" class="rd-card mb-3"><?= csrf_field() ?><div class="card-body"><textarea class="form-control mb-2" name="content" placeholder="Partilhe algo com a comunidade..."></textarea><button class="btn btn-rd-primary">Publicar</button></div></form>
 <?php foreach (($feed ?? []) as $post): ?>
   <div class="rd-card mb-2"><div class="card-body"><div class="d-flex justify-content-between"><strong>Utilizador #<?= (int) $post['user_id'] ?></strong><small class="text-muted"><?= e($post['created_at']) ?></small></div><p class="my-2"><?= e($post['content']) ?></p><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-heart"></i></button><button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-comment"></i></button><button class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-flag"></i></button></div></div></div>
 <?php endforeach; ?>
