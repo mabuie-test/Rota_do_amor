@@ -35,6 +35,7 @@ final class UserDashboardService extends Model
         $profileSignals = $this->loadProfileSignals($userId);
         $completion = $this->profileCompletion($user, $profileSignals);
         $compatibilityAverage = $this->averageCompatibility($userId);
+        $boostImpact = $this->boostImpact($userId);
 
         return [
             'account_status' => $accountStatus,
@@ -43,8 +44,10 @@ final class UserDashboardService extends Model
             'unread_messages' => $unread,
             'total_matches' => count($matches),
             'boost_active' => $isBoosted,
+            'boost_impact' => $boostImpact,
             'active_badges' => $badges,
             'profile_completion_percent' => $completion['percent'],
+            'profile_attractiveness_percent' => $completion['attractiveness_percent'],
             'profile_missing_items' => $completion['missing'],
             'profile_checklist' => $completion['checks'],
             'profile_signals' => $profileSignals,
@@ -53,6 +56,7 @@ final class UserDashboardService extends Model
             'avg_compatibility' => $compatibilityAverage,
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
+            'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),
             'last_activity_at' => $user['last_activity_at'] ?? null,
         ];
     }
@@ -84,17 +88,46 @@ final class UserDashboardService extends Model
             'Identidade verificada' => (int) ($signals['identity_verified'] ?? 0) > 0,
         ];
 
+        $attractivenessChecks = [
+            'Bio com contexto' => mb_strlen((string) ($user['bio'] ?? '')) >= 100,
+            '3+ fotos' => (int) ($signals['photos_count'] ?? 0) >= 3,
+            'Interesses fortes' => (int) ($signals['interests_count'] ?? 0) >= 5,
+            'Objetivo claro' => !empty($user['relationship_goal']),
+            'Compatibilidade amostrada' => (int) ($signals['compatibility_samples'] ?? 0) >= 20,
+        ];
+
         $done = count(array_filter($checks));
         $percent = (int) round(($done / max(1, count($checks))) * 100);
         $missing = array_keys(array_filter($checks, static fn(bool $ok): bool => !$ok));
 
-        return ['percent' => $percent, 'missing' => $missing, 'checks' => $checks];
+        $attractiveDone = count(array_filter($attractivenessChecks));
+        $attractivenessPercent = (int) round(($attractiveDone / max(1, count($attractivenessChecks))) * 100);
+
+        return ['percent' => $percent, 'missing' => $missing, 'checks' => $checks, 'attractiveness_percent' => $attractivenessPercent];
     }
 
     private function averageCompatibility(int $userId): float
     {
         $row = $this->fetchOne('SELECT AVG(score) AS avg_score FROM compatibility_scores WHERE user_id = :id', [':id' => $userId]);
         return round((float) ($row['avg_score'] ?? 0), 1);
+    }
+
+    private function boostImpact(int $userId): array
+    {
+        $row = $this->fetchOne('SELECT COUNT(*) AS active_count, MAX(ends_at) AS ends_at FROM user_boosts WHERE user_id=:id AND status = :status AND ends_at > NOW()', [':id' => $userId, ':status' => 'active']) ?: [];
+        return [
+            'active_count' => (int) ($row['active_count'] ?? 0),
+            'next_ends_at' => $row['ends_at'] ?? null,
+        ];
+    }
+
+    private function retentionContext(int $daysRemaining, int $unread, int $matches, bool $boostActive): array
+    {
+        return [
+            'risk_level' => $daysRemaining <= 0 ? 'alto' : ($daysRemaining <= 3 ? 'médio' : 'baixo'),
+            'engagement_signal' => $unread > 0 || $matches > 0 ? 'engajado' : 'frio',
+            'premium_opportunity' => !$boostActive || $daysRemaining <= 3,
+        ];
     }
 
     private function buildTrustIndicator(array $signals, int $completion): string

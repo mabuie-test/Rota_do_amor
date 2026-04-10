@@ -109,7 +109,7 @@ final class DiscoveryService extends Model
             $isStale = $calculatedAt === null || $calculatedAt < $now->modify('-14 days');
 
             if (($score <= 0 || $isStale) && $index < 40) {
-                $score = (float) ($this->compatibility->calculateCompatibility($userId, $targetId)['score'] ?? 0);
+                $score = (float) ($this->compatibility->calculateCompatibility($userId, $targetId, $profile)['score'] ?? 0);
             }
 
             $profile['_compatibility'] = $score;
