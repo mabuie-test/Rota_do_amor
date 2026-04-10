@@ -30,7 +30,8 @@ final class DebitoClient
         $raw = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
+        // curl_close became a no-op in PHP 8.0 and emits deprecation warnings in 8.5.
+        // We intentionally skip it to avoid output that breaks JSON responses/headers.
 
         if ($raw === false || $error !== '') {
             throw new RuntimeException('Falha ao comunicar com Débito API: ' . $error);
@@ -45,4 +46,3 @@ final class DebitoClient
         return $decoded;
     }
 }
-
