@@ -45,6 +45,10 @@ final class MessageService extends Model
             return 0;
         }
 
+        if ($sanitizedType === 'image' && $attachments === []) {
+            return 0;
+        }
+
         if (!$this->userCanMessage($senderId, $receiverId)) {
             return 0;
         }
@@ -135,7 +139,22 @@ final class MessageService extends Model
                        CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
                        CASE WHEN c.user_one_id = :uid THEN u2.last_activity_at ELSE u1.last_activity_at END AS other_last_activity_at,
                        CASE WHEN c.user_one_id = :uid THEN u2.status ELSE u1.status END AS other_user_status,
-                       CASE WHEN c.user_one_id = :uid THEN u2.verified_at ELSE u1.verified_at END AS other_verified_at
+                       CASE
+                           WHEN c.user_one_id = :uid THEN EXISTS (
+                               SELECT 1
+                               FROM identity_verifications iv
+                               WHERE iv.user_id = u2.id
+                                 AND iv.status = 'approved'
+                               LIMIT 1
+                           )
+                           ELSE EXISTS (
+                               SELECT 1
+                               FROM identity_verifications iv
+                               WHERE iv.user_id = u1.id
+                                 AND iv.status = 'approved'
+                               LIMIT 1
+                           )
+                       END AS other_is_verified
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id

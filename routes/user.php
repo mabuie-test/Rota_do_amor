@@ -45,6 +45,7 @@ $router->add('GET', '/messages/{conversation}', [MessageController::class, 'show
 $router->add('POST', '/messages/send', [MessageController::class, 'send'], $coreAccess);
 $router->add('GET', '/feed', [FeedController::class, 'index'], $coreAccess);
 $router->add('POST', '/feed/post', [FeedController::class, 'post'], $coreAccess);
+$router->add('POST', '/feed/delete', [FeedController::class, 'delete'], $coreAccess);
 $router->add('POST', '/feed/like', [FeedController::class, 'like'], $coreAccess);
 $router->add('POST', '/feed/comment', [FeedController::class, 'comment'], $coreAccess);
 $router->add('GET', '/notifications', [NotificationController::class, 'index'], $coreAccess);

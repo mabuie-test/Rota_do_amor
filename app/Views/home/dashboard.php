@@ -1,4 +1,4 @@
-<?php $d = $dashboard ?? []; $signals = $d['profile_signals'] ?? []; $verification = $d['verification_progress'] ?? []; $retention = $d['retention_context'] ?? []; $boostImpact = $d['boost_impact'] ?? []; ?>
+<?php $d = $dashboard ?? []; $signals = $d['profile_signals'] ?? []; $verification = $d['verification_progress'] ?? []; $retention = $d['retention_context'] ?? []; $boostImpact = $d['boost_impact'] ?? []; $premium = $d['premium_context'] ?? []; ?>
 <h3 class="mb-3">Dashboard</h3>
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Estado da Conta</div><div class="value"><?= e((string) ($d['account_status'] ?? 'pending')) ?></div></div></div></div>
@@ -23,14 +23,20 @@
     <div class="rd-card"><div class="card-body">
       <h6>Retenção & Premium</h6>
       <p class="small mb-1">Boost activo: <strong><?= !empty($d['boost_active']) ? 'Sim' : 'Não' ?></strong> <?php if (!empty($boostImpact['next_ends_at'])): ?>· termina em <?= e((string) $boostImpact['next_ends_at']) ?><?php endif; ?></p>
+      <p class="small mb-1">Impacto estimado do boost: <strong><?= e((string) ($premium['boost_estimated_impact'] ?? 'visibilidade normal')) ?></strong></p>
+      <p class="small mb-1">Readiness para boost: <strong><?= (int) ($premium['boost_readiness_score'] ?? 0) ?>%</strong> · boosts activos: <strong><?= (int) ($premium['boost_active_count'] ?? 0) ?></strong></p>
       <p class="small mb-1">Compatibilidade média: <strong><?= e((string) ($d['avg_compatibility'] ?? '0')) ?>%</strong></p>
       <p class="small mb-1">Fotos: <strong><?= (int) ($signals['photos_count'] ?? 0) ?></strong> · Interesses: <strong><?= (int) ($signals['interests_count'] ?? 0) ?></strong></p>
-      <p class="small mb-1">Verificação: <strong><?= e((string) ($verification['label'] ?? 'Não iniciada')) ?></strong></p>
+      <p class="small mb-1">Verificação: <strong><?= e((string) ($verification['label'] ?? 'Não iniciada')) ?></strong> <?php if (!empty($verification['updated_at'])): ?>· actualizada em <?= e((string) $verification['updated_at']) ?><?php endif; ?></p>
+      <p class="small mb-1">Contexto premium: <strong><?= e((string) ($premium['subscription_state'] ?? 'expirada')) ?></strong> · urgência <strong><?= e((string) ($premium['subscription_urgency'] ?? 'alta')) ?></strong></p>
       <p class="small mb-1">Risco de retenção: <strong><?= e((string) ($retention['risk_level'] ?? 'baixo')) ?></strong> · Engajamento: <strong><?= e((string) ($retention['engagement_signal'] ?? 'frio')) ?></strong></p>
       <p class="small mb-3">Última actividade: <?= e((string) ($d['last_activity_at'] ?? '---')) ?></p>
-      <?php foreach (($d['actions'] ?? []) as $action): ?>
-        <a class="btn btn-sm btn-rd-primary me-2 mb-2" href="<?= e((string) $action['url']) ?>"><?= e((string) $action['label']) ?></a>
-      <?php endforeach; ?>
+      <?php if (!empty($d['actions'])): ?>
+        <p class="small fw-semibold mb-1">Ações prioritárias</p>
+        <?php foreach (($d['actions'] ?? []) as $index => $action): ?>
+          <a class="btn btn-sm btn-rd-primary me-2 mb-2" href="<?= e((string) $action['url']) ?>"><?= ($index + 1) ?>. <?= e((string) $action['label']) ?></a>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </div></div>
   </div>
 </div>
