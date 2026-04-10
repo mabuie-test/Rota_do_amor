@@ -24,4 +24,40 @@ final class PaymentReconciliationService
 
         return $this->payments->reconcilePaymentWithIdempotency($paymentId, $userId, $paymentType, $gatewayPayload);
     }
+
+    public function pollUntilFinal(
+        int $paymentId,
+        int $userId,
+        string $paymentType,
+        string $reference,
+        int $maxAttempts = 8,
+        int $intervalMs = 1500
+    ): array {
+        $lastGateway = ['normalized_status' => 'pending'];
+        $lastReconciledStatus = 'pending';
+        $attempts = max(1, $maxAttempts);
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+            $lastGateway = $this->payments->checkPaymentStatus($reference);
+            $lastReconciledStatus = $this->reconcileWithPayload($paymentId, $userId, $paymentType, $lastGateway);
+
+            if (in_array($lastReconciledStatus, ['completed', 'failed', 'cancelled'], true)) {
+                return [
+                    'status' => $lastReconciledStatus,
+                    'gateway' => $lastGateway,
+                    'attempts' => $attempt,
+                ];
+            }
+
+            if ($attempt < $attempts) {
+                usleep(max(100, $intervalMs) * 1000);
+            }
+        }
+
+        return [
+            'status' => $lastReconciledStatus,
+            'gateway' => $lastGateway,
+            'attempts' => $attempts,
+        ];
+    }
 }
