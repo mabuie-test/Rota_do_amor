@@ -10,6 +10,13 @@ use RuntimeException;
 
 final class UploadService extends Model
 {
+    /**
+     * Política base de ciclo de vida de media:
+     * - Guardar ficheiros apenas em storage/uploads.
+     * - Em falha de validação/processamento, nada é persistido.
+     * - Em falha após persistência temporária, o chamador deve executar deleteImageBundle (rollback físico).
+     * - Ficheiros ligados a entidades soft-deleted permanecem até purge administrativo.
+     */
     private const DEFAULT_MAX_SIZE = 5242880; // 5 MB
     private const ALLOWED_MIME_MAP = [
         'image/jpeg' => 'jpg',

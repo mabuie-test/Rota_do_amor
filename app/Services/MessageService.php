@@ -35,6 +35,12 @@ final class MessageService extends Model
 
     public function sendMessage(int $senderId, int $receiverId, string $messageText, string $messageType = 'text', array $attachments = []): int
     {
+        /**
+         * Política de media em mensagens:
+         * - anexos entram na BD apenas após INSERT da mensagem dentro de transação;
+         * - qualquer rollback devolve 0 para o controller limpar ficheiros recém-uploaded;
+         * - sem soft delete de mensagens no produto atual, portanto media mantém-se enquanto a mensagem existir.
+         */
         $messageText = trim($messageText);
         $sanitizedType = in_array($messageType, ['text', 'image', 'system'], true) ? $messageType : 'text';
 
