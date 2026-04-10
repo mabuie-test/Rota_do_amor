@@ -165,10 +165,14 @@ final class MessageService extends Model
                                  AND iv.status = 'approved'
                                LIMIT 1
                            )
-                       END AS other_is_verified
+                       END AS other_is_verified,
+                       CASE WHEN c.user_one_id = :uid THEN cm2.current_intention ELSE cm1.current_intention END AS other_current_intention,
+                       CASE WHEN c.user_one_id = :uid THEN cm2.relational_pace ELSE cm1.relational_pace END AS other_relational_pace
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id
+                LEFT JOIN user_connection_modes cm1 ON cm1.user_id = u1.id
+                LEFT JOIN user_connection_modes cm2 ON cm2.user_id = u2.id
                 WHERE c.id = :conversation_id
                 LIMIT 1";
 

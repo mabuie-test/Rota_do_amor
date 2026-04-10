@@ -10,7 +10,8 @@ use DateTimeImmutable;
 final class DiscoveryService extends Model
 {
     public function __construct(
-        private readonly CompatibilityService $compatibility = new CompatibilityService()
+        private readonly CompatibilityService $compatibility = new CompatibilityService(),
+        private readonly ConnectionModeService $connectionModes = new ConnectionModeService()
     ) {
         parent::__construct();
     }
@@ -29,12 +30,19 @@ final class DiscoveryService extends Model
         }
 
         $params = [':id' => $userId];
-        $sql = "SELECT u.*, 
+        $sql = "SELECT u.*,
+                       c.name AS city_name,
+                       p.name AS province_name,
+                       ucm.current_intention,
+                       ucm.relational_pace,
                        IFNULL(iv.is_verified, 0) AS is_verified,
                        IFNULL(ub.boost_active, 0) AS boost_active,
                        IFNULL(pf.has_premium, 0) AS has_premium,
                        TIMESTAMPDIFF(MINUTE, COALESCE(u.last_activity_at, u.created_at), NOW()) AS minutes_since_activity
                 FROM users u
+                JOIN cities c ON c.id = u.city_id
+                JOIN provinces p ON p.id = u.province_id
+                LEFT JOIN user_connection_modes ucm ON ucm.user_id = u.id
                 LEFT JOIN (
                     SELECT user_id, MAX(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS is_verified
                     FROM identity_verifications
@@ -109,8 +117,22 @@ final class DiscoveryService extends Model
             $isStale = $calculatedAt === null || $calculatedAt < $now->modify('-14 days');
 
             if (($score <= 0 || $isStale) && $index < 40) {
-                $score = (float) ($this->compatibility->calculateCompatibility($userId, $targetId, $profile)['score'] ?? 0);
+                $scoreMeta = $this->compatibility->calculateCompatibility($userId, $targetId, $profile);
+                $score = (float) ($scoreMeta['score'] ?? 0);
             }
+
+            $breakdown = is_array($scoreMeta['breakdown'] ?? null) ? $scoreMeta['breakdown'] : [];
+            $intentionPoints = (float) ($breakdown['current_intention'] ?? 0);
+            $pacePoints = (float) ($breakdown['relational_pace'] ?? 0);
+            $profile['_intention_alignment_percent'] = min(100, (int) round($intentionPoints / 0.20));
+            $profile['_pace_alignment_percent'] = min(100, (int) round($pacePoints / 0.15));
+            $profile['_intention_alignment_label'] = $this->connectionModes->alignmentLabel((float) $profile['_intention_alignment_percent']);
+            $profile['_pace_alignment_label'] = $this->connectionModes->alignmentLabel((float) $profile['_pace_alignment_percent']);
+            $profile['_intention_label'] = $this->connectionModes->labelForIntention((string) ($profile['current_intention'] ?? ''));
+            $profile['_pace_label'] = $this->connectionModes->labelForPace((string) ($profile['relational_pace'] ?? ''));
+            $profile['_intention_icon'] = $this->connectionModes->iconForIntention((string) ($profile['current_intention'] ?? ''));
+            $profile['_pace_icon'] = $this->connectionModes->iconForPace((string) ($profile['relational_pace'] ?? ''));
+            $profile['_intention_is_aligned'] = (int) $profile['_intention_alignment_percent'] >= 75;
 
             $profile['_compatibility'] = $score;
             $profile['_boost_weight'] = ((int) ($profile['boost_active'] ?? 0) === 1) ? 1.5 : 1.0;

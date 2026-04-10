@@ -35,6 +35,7 @@ $router->add('POST', '/swipe/action', [SwipeController::class, 'action'], $coreA
 $router->add('GET', '/matches', [MatchController::class, 'index'], $coreAccess);
 $router->add('GET', '/profile', [ProfileController::class, 'index'], $coreAccess);
 $router->add('POST', '/profile/update', [ProfileController::class, 'update'], $coreAccess);
+$router->add('POST', '/profile/connection-mode', [ProfileController::class, 'updateConnectionMode'], $coreAccess);
 $router->add('POST', '/profile/photo', [ProfileController::class, 'photo'], $coreAccess);
 $router->add('POST', '/profile/gallery', [ProfileController::class, 'gallery'], $coreAccess);
 $router->add('POST', '/profile/photo/primary', [ProfileController::class, 'setPrimaryPhoto'], $coreAccess);

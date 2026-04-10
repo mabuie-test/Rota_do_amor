@@ -6,6 +6,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Registo, autenticação segura, logout, recuperação de senha e verificação de email.
 - Ativação da conta por pagamento inicial, subscrição mensal e boost pago.
 - Descoberta, swipe, match, mensagens, favoritos, bloqueios, denúncias e notificações.
+- Modo do Coração + Ritmo Relacional (camada de momento) com edição no perfil, chips na descoberta e contexto no dashboard/chat.
 - Feed social com posts, likes, comentários, denúncia, paginação e media (upload múltiplo com thumbnails e ordenação).
 - Verificação de identidade e badges de confiança.
 - Painel admin com dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
@@ -38,6 +39,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    ```bash
    mysql -u root -p < database/migrations/20260410_hardening.sql
    mysql -u root -p < database/migrations/20260410_consolidation_core.sql
+   mysql -u root -p < database/migrations/20260410_connection_modes.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -119,12 +121,37 @@ php scripts/cleanup_temp_uploads.php
 - Mensagens com histórico paginado, conversa ativa na inbox, contexto do outro utilizador (presença/verificação/última atividade), anexos (`message_attachments`) e acabamento visual final.
 - Compatibilidade com menor round-trip por cálculo (interesses agregados e reutilização de dados alvo quando disponível).
 
+
+## Compatibilidade híbrida (estrutural + momento)
+A compatibilidade mantém a base estrutural e adiciona camada emocional contextual:
+- **65%**: score estrutural existente (localização, interesses, objetivo relacional, preferências e sinais de atividade/perfil).
+- **20%**: alinhamento de **intenção atual** (`current_intention`).
+- **15%**: alinhamento de **ritmo relacional** (`relational_pace`).
+
+O `breakdown_json` em `compatibility_scores` agora inclui também:
+- `current_intention`
+- `relational_pace`
+
+Com isso, perfis seguem visíveis mesmo sem alinhamento perfeito, mas o ranking prioriza melhor alinhamento de momento.
+
+## Nova tabela incremental
+Migração incremental: `database/migrations/20260410_connection_modes.sql`
+
+Tabela adicionada:
+- `user_connection_modes`
+  - `user_id` único por utilizador
+  - `current_intention`
+  - `relational_pace`
+  - `openness_level` (opcional)
+  - timestamps + índices por intenção/ritmo
+
 ## Índices e migração
-`database/schema.sql` já inclui o estado consolidado atual (incluindo `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images` e `message_attachments`) para instalações novas.
+`database/schema.sql` já inclui o estado consolidado atual (incluindo `user_connection_modes`, `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images` e `message_attachments`) para instalações novas.
 
 As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260410_hardening.sql`;
-- `database/migrations/20260410_consolidation_core.sql`.
+- `database/migrations/20260410_consolidation_core.sql`;
+- `database/migrations/20260410_connection_modes.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;
