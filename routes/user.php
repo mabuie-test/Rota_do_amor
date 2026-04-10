@@ -37,6 +37,9 @@ $router->add('GET', '/profile', [ProfileController::class, 'index'], $coreAccess
 $router->add('POST', '/profile/update', [ProfileController::class, 'update'], $coreAccess);
 $router->add('POST', '/profile/photo', [ProfileController::class, 'photo'], $coreAccess);
 $router->add('POST', '/profile/gallery', [ProfileController::class, 'gallery'], $coreAccess);
+$router->add('POST', '/profile/photo/primary', [ProfileController::class, 'setPrimaryPhoto'], $coreAccess);
+$router->add('POST', '/profile/photo/delete', [ProfileController::class, 'deletePhoto'], $coreAccess);
+$router->add('POST', '/profile/gallery/reorder', [ProfileController::class, 'reorderGallery'], $coreAccess);
 $router->add('GET', '/messages', [MessageController::class, 'index'], $coreAccess);
 $router->add('GET', '/messages/{conversation}', [MessageController::class, 'show'], $coreAccess);
 $router->add('POST', '/messages/send', [MessageController::class, 'send'], $coreAccess);

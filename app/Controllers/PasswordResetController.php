@@ -9,10 +9,14 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\PasswordResetService;
+use App\Services\RateLimiterService;
 
 final class PasswordResetController extends Controller
 {
-    public function __construct(private readonly PasswordResetService $service = new PasswordResetService())
+    public function __construct(
+        private readonly PasswordResetService $service = new PasswordResetService(),
+        private readonly RateLimiterService $rateLimiter = new RateLimiterService()
+    )
     {
     }
 
@@ -23,7 +27,12 @@ final class PasswordResetController extends Controller
 
     public function requestReset(): void
     {
+        $key = 'password_reset_request:' . Request::ip();
+        if ($this->rateLimiter->tooManyAttempts('password_reset_request', $key, 8, 10)) {
+            Response::json(['ok' => false, 'message' => 'Muitas tentativas de reset.'], 429);
+        }
         $this->service->requestReset((string) Request::input('email', ''));
+        $this->rateLimiter->hit('password_reset_request', $key);
 
         if (Request::expectsJson()) {
             Response::json(['ok' => true, 'message' => 'Se o email existir, um link foi enviado.']);

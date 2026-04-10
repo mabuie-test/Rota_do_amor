@@ -10,10 +10,16 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\AuthService;
+use App\Services\RateLimiterService;
+use App\Services\UserDashboardService;
 
 final class AuthController extends Controller
 {
-    public function __construct(private readonly AuthService $authService = new AuthService())
+    public function __construct(
+        private readonly AuthService $authService = new AuthService(),
+        private readonly RateLimiterService $rateLimiter = new RateLimiterService(),
+        private readonly UserDashboardService $dashboardService = new UserDashboardService()
+    )
     {
     }
 
@@ -24,7 +30,14 @@ final class AuthController extends Controller
 
     public function login(): void
     {
-        $result = $this->authService->attemptLogin((string) Request::input('email', ''), (string) Request::input('password', ''));
+        $email = (string) Request::input('email', '');
+        $key = 'user_login:' . mb_strtolower(trim($email)) . ':' . Request::ip();
+        if ($this->rateLimiter->tooManyAttempts('user_login', $key, 10, 10)) {
+            Response::json(['ok' => false, 'message' => 'Muitas tentativas. Tente novamente em alguns minutos.'], 429);
+        }
+
+        $result = $this->authService->attemptLogin($email, (string) Request::input('password', ''));
+        $this->rateLimiter->hit('user_login', $key, (int) ($result['user']['id'] ?? 0));
         if (!$result['ok']) {
             if (Request::expectsJson()) {
                 Response::json(['ok' => false, 'message' => $result['message']], 422);
@@ -52,6 +65,8 @@ final class AuthController extends Controller
 
     public function dashboard(): void
     {
-        $this->view('home/dashboard', ['title' => 'Dashboard']);
+        $userId = Auth::id() ?? 0;
+        $dashboard = $this->dashboardService->build($userId);
+        $this->view('home/dashboard', ['title' => 'Dashboard', 'dashboard' => $dashboard]);
     }
 }

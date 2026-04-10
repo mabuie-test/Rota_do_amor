@@ -10,14 +10,17 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\BadgeService;
 use App\Services\ProfileService;
+use App\Services\UploadService;
 use App\Services\UserService;
+use RuntimeException;
 
 final class ProfileController extends Controller
 {
     public function __construct(
         private readonly ProfileService $profileService = new ProfileService(),
         private readonly UserService $userService = new UserService(),
-        private readonly BadgeService $badgeService = new BadgeService()
+        private readonly BadgeService $badgeService = new BadgeService(),
+        private readonly UploadService $uploads = new UploadService()
     ) {
     }
 
@@ -25,8 +28,9 @@ final class ProfileController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $profile = $this->profileService->getProfile($userId);
+        $photos = $this->profileService->getUserPhotos($userId);
         $badges = $this->badgeService->getUserBadges($userId);
-        $this->view('profile/index', ['title' => 'Meu Perfil', 'profile' => $profile, 'badges' => $badges]);
+        $this->view('profile/index', ['title' => 'Meu Perfil', 'profile' => $profile, 'photos' => $photos, 'badges' => $badges]);
     }
 
     public function update(): void
@@ -37,15 +41,45 @@ final class ProfileController extends Controller
 
     public function photo(): void
     {
-        $path = (string) Request::input('image_path', '');
-        $id = $this->profileService->savePhoto(Auth::id() ?? 0, $path, true);
-        Response::json(['ok' => true, 'photo_id' => $id]);
+        try {
+            $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'profiles');
+            $id = $this->profileService->savePhoto(Auth::id() ?? 0, $stored['path'], true);
+            Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
+        } catch (RuntimeException $exception) {
+            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 
     public function gallery(): void
     {
-        $path = (string) Request::input('image_path', '');
-        $id = $this->profileService->savePhoto(Auth::id() ?? 0, $path, false);
-        Response::json(['ok' => true, 'photo_id' => $id]);
+        try {
+            $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'gallery');
+            $id = $this->profileService->savePhoto(Auth::id() ?? 0, $stored['path'], false);
+            Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
+        } catch (RuntimeException $exception) {
+            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+        }
+    }
+
+    public function setPrimaryPhoto(): void
+    {
+        $ok = $this->profileService->setPrimaryPhoto(Auth::id() ?? 0, (int) Request::input('photo_id', 0));
+        Response::json(['ok' => $ok], $ok ? 200 : 422);
+    }
+
+    public function deletePhoto(): void
+    {
+        $ok = $this->profileService->deletePhoto(Auth::id() ?? 0, (int) Request::input('photo_id', 0));
+        Response::json(['ok' => $ok], $ok ? 200 : 422);
+    }
+
+    public function reorderGallery(): void
+    {
+        $photoIds = Request::input('photo_ids', []);
+        if (!is_array($photoIds)) {
+            Response::json(['ok' => false, 'message' => 'photo_ids inválido'], 422);
+        }
+        $this->profileService->reorderGallery(Auth::id() ?? 0, $photoIds);
+        Response::json(['ok' => true]);
     }
 }

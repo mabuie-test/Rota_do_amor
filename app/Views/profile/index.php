@@ -13,6 +13,23 @@
     <p class="mb-0"><?= e($profile['bio'] ?? 'Adicione uma bio para melhorar seu perfil.') ?></p>
   </div>
 </div>
+<div class="rd-card mt-3">
+  <div class="card-body">
+    <h6>Galeria</h6>
+    <div class="row g-2 mb-3">
+      <?php foreach (($photos ?? []) as $photo): ?>
+        <div class="col-md-3">
+          <div class="border rounded p-2">
+            <div class="small text-truncate mb-1"><?= e((string) $photo['image_path']) ?></div>
+            <div class="small mb-2"><?= (int) ($photo['is_primary'] ?? 0) === 1 ? 'Principal' : 'Galeria' ?></div>
+            <form method="post" action="/profile/photo/primary" class="mb-1"><?= csrf_field() ?><input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>"><button class="btn btn-sm btn-outline-primary w-100">Tornar principal</button></form>
+            <form method="post" action="/profile/photo/delete"><?= csrf_field() ?><input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>"><button class="btn btn-sm btn-outline-danger w-100">Remover</button></form>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</div>
 <?php else: ?>
 <?php $title='Perfil não encontrado'; $description='Complete seu registo e volte novamente.'; require dirname(__DIR__).'/partials/empty-state.php'; ?>
 <?php endif; ?>

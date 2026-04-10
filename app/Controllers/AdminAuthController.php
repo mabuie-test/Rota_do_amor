@@ -8,9 +8,14 @@ use App\Core\Controller;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Services\RateLimiterService;
 
 final class AdminAuthController extends Controller
 {
+    public function __construct(private readonly RateLimiterService $rateLimiter = new RateLimiterService())
+    {
+    }
+
     public function index(): void
     {
         if (Request::method() === 'GET') {
@@ -20,14 +25,22 @@ final class AdminAuthController extends Controller
 
         $email = (string) Request::input('email', '');
         $password = (string) Request::input('password', '');
+        $key = 'admin_login:' . mb_strtolower(trim($email)) . ':' . Request::ip();
+        if ($this->rateLimiter->tooManyAttempts('admin_login', $key, 8, 10)) {
+            Response::json(['ok' => false, 'message' => 'Muitas tentativas. Aguarde alguns minutos.'], 429);
+        }
+
         $admin = \App\Core\Database::connection()->prepare('SELECT * FROM admins WHERE email=:email LIMIT 1');
         $admin->execute([':email' => $email]);
         $row = $admin->fetch();
-        if (!$row || !password_verify($password, (string) $row['password'])) {
+        if (!$row || !password_verify($password, (string) $row['password']) || (string) ($row['status'] ?? 'inactive') !== 'active') {
+            $this->rateLimiter->hit('admin_login', $key);
             Response::json(['ok' => false, 'message' => 'Credenciais inválidas'], 422);
         }
 
+        $this->rateLimiter->hit('admin_login', $key, (int) $row['id']);
         Session::put('admin_id', (int) $row['id']);
+        Session::put('admin_role', (string) ($row['role'] ?? 'moderator'));
         Response::redirect('/admin');
     }
 }
