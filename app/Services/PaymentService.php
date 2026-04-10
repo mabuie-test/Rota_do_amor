@@ -81,7 +81,7 @@ final class PaymentService extends Model
             ':currency' => 'MZN',
             ':status' => 'pending',
             ':benefit_application_status' => 'pending',
-            ':debito_reference' => $gatewayResponse['reference'] ?? $gatewayResponse['transaction_reference'] ?? null,
+            ':debito_reference' => $this->extractGatewayReference($gatewayResponse),
             ':raw' => json_encode($gatewayResponse, JSON_THROW_ON_ERROR),
         ]);
 
@@ -428,5 +428,14 @@ final class PaymentService extends Model
         }
 
         return $this->emolaProvider;
+    }
+
+    public function extractGatewayReference(array $gatewayResponse): string
+    {
+        return (string) ($gatewayResponse['debito_reference']
+            ?? $gatewayResponse['reference']
+            ?? $gatewayResponse['transaction_reference']
+            ?? $gatewayResponse['provider_reference']
+            ?? '');
     }
 }

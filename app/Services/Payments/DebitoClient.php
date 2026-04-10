@@ -17,6 +17,7 @@ final class DebitoClient
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_HTTPHEADER => array_merge([
                 'Authorization: Bearer ' . Config::env('DEBITO_TOKEN', ''),
                 'Content-Type: application/json',
