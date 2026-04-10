@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Core\Config;
 use App\Core\Model;
+use App\Services\Payments\DebitoEmolaProvider;
 use App\Services\Payments\DebitoMpesaProvider;
 use App\Services\Payments\PaymentProviderInterface;
 use DateTimeImmutable;
@@ -18,7 +19,8 @@ final class PaymentService extends Model
         private readonly AccountStateService $accountStateService = new AccountStateService(),
         private readonly BadgeService $badgeService = new BadgeService(),
         private readonly FinancialLogService $financialLog = new FinancialLogService(),
-        private readonly PaymentProviderInterface $provider = new DebitoMpesaProvider()
+        private readonly PaymentProviderInterface $mpesaProvider = new DebitoMpesaProvider(),
+        private readonly PaymentProviderInterface $emolaProvider = new DebitoEmolaProvider()
     ) {
         parent::__construct();
     }
@@ -45,14 +47,14 @@ final class PaymentService extends Model
 
     public function checkPaymentStatus(string $debitoReference): array
     {
-        $raw = $this->provider->checkStatus($debitoReference);
-        $raw['normalized_status'] = $this->provider->normalizeStatus($raw);
+        $raw = $this->mpesaProvider->checkStatus($debitoReference);
+        $raw['normalized_status'] = $this->mpesaProvider->normalizeStatus($raw);
         return $raw;
     }
 
     public function validateMozambiqueMpesaNumber(string $phone): bool
     {
-        return (bool) preg_match('/^2588[4-7]\d{7}$/', $this->normalizePhone($phone));
+        return (bool) preg_match('/^258(8[4-7]\d{7})$/', $this->normalizePhone($phone));
     }
 
     public function normalizePhone(string $phone): string
@@ -387,11 +389,14 @@ final class PaymentService extends Model
     {
         $normalized = $this->normalizePhone($phone);
         if (!$this->validateMozambiqueMpesaNumber($normalized)) {
-            throw new RuntimeException('Numero M-Pesa invalido para Mocambique.');
+            throw new RuntimeException('Número inválido. Use 25884/85XXXXXXX (M-Pesa) ou 25886/87XXXXXXX (e-Mola).');
         }
 
-        $gatewayResponse = $this->provider->requestPayment(
-            $normalized,
+        $gatewayMsisdn = $this->toGatewayMsisdn($normalized);
+        $provider = $this->providerForPhone($gatewayMsisdn);
+
+        $gatewayResponse = $provider->requestPayment(
+            $gatewayMsisdn,
             $amount,
             sprintf('%s #%d', $description, $userId),
             hash('sha256', $userId . '|' . $type . '|' . $normalized . '|' . (string) round($amount, 2))
@@ -404,5 +409,24 @@ final class PaymentService extends Model
             'gateway' => $gatewayResponse,
             'requested_at' => (new DateTimeImmutable())->format(DATE_ATOM),
         ];
+    }
+
+    private function toGatewayMsisdn(string $normalizedPhone): string
+    {
+        $local = substr($normalizedPhone, 3);
+        if ($local === false || !preg_match('/^8[4-7]\d{7}$/', $local)) {
+            throw new RuntimeException('Número inválido para o gateway.');
+        }
+
+        return $local;
+    }
+
+    private function providerForPhone(string $gatewayMsisdn): PaymentProviderInterface
+    {
+        if (preg_match('/^8[4-5]\d{7}$/', $gatewayMsisdn) === 1) {
+            return $this->mpesaProvider;
+        }
+
+        return $this->emolaProvider;
     }
 }

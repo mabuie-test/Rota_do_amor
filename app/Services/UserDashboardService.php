@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use Throwable;
 
 final class UserDashboardService extends Model
 {
@@ -22,7 +23,7 @@ final class UserDashboardService extends Model
 
     public function build(int $userId): array
     {
-        $user = $this->fetchOne('SELECT * FROM users WHERE id = :id', [':id' => $userId]) ?: [];
+        $user = $this->safeFetchOne('SELECT * FROM users WHERE id = :id', [':id' => $userId]) ?: [];
         if ($user === []) {
             return [];
         }
@@ -37,7 +38,7 @@ final class UserDashboardService extends Model
         $completion = $this->profileCompletion($user, $profileSignals);
         $compatibilityAverage = $this->averageCompatibility($userId);
         $boostImpact = $this->boostImpact($userId);
-        $heartMode = $this->connectionModes->getForUser($userId);
+        $heartMode = $this->safeConnectionMode($userId);
         $momentAlignment = $this->averageMomentAlignment($userId);
 
         return [
@@ -80,7 +81,7 @@ final class UserDashboardService extends Model
                     (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :id AND iv.status = 'pending') AS identity_pending,
                     (SELECT COUNT(*) FROM compatibility_scores cs WHERE cs.user_id = :id) AS compatibility_samples";
 
-        return $this->fetchOne($sql, [':id' => $userId]) ?: [];
+        return $this->safeFetchOne($sql, [':id' => $userId]) ?: [];
     }
 
     private function profileCompletion(array $user, array $signals): array
@@ -117,20 +118,20 @@ final class UserDashboardService extends Model
 
     private function averageCompatibility(int $userId): float
     {
-        $row = $this->fetchOne('SELECT AVG(score) AS avg_score FROM compatibility_scores WHERE user_id = :id', [':id' => $userId]);
+        $row = $this->safeFetchOne('SELECT AVG(score) AS avg_score FROM compatibility_scores WHERE user_id = :id', [':id' => $userId]);
         return round((float) ($row['avg_score'] ?? 0), 1);
     }
 
 
     private function averageMomentAlignment(int $userId): array
     {
-        $row = $this->fetchOne("SELECT
+        $row = $this->safeFetchOne("SELECT
                     AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(breakdown_json, '$.current_intention')) AS DECIMAL(6,2))) AS avg_intention_points,
                     AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(breakdown_json, '$.relational_pace')) AS DECIMAL(6,2))) AS avg_pace_points
                 FROM compatibility_scores
                 WHERE user_id = :id", [':id' => $userId]) ?: [];
 
-        $mode = $this->fetchOne('SELECT updated_at FROM user_connection_modes WHERE user_id = :id LIMIT 1', [':id' => $userId]) ?: [];
+        $mode = $this->safeFetchOne('SELECT updated_at FROM user_connection_modes WHERE user_id = :id LIMIT 1', [':id' => $userId]) ?: [];
         $updatedAt = isset($mode['updated_at']) ? strtotime((string) $mode['updated_at']) : 0;
         $suggestRefresh = $updatedAt <= 0 || $updatedAt < strtotime('-21 days');
 
@@ -142,7 +143,7 @@ final class UserDashboardService extends Model
     }
     private function boostImpact(int $userId): array
     {
-        $row = $this->fetchOne('SELECT COUNT(*) AS active_count, MAX(ends_at) AS ends_at FROM user_boosts WHERE user_id=:id AND status = :status AND ends_at > NOW()', [':id' => $userId, ':status' => 'active']) ?: [];
+        $row = $this->safeFetchOne('SELECT COUNT(*) AS active_count, MAX(ends_at) AS ends_at FROM user_boosts WHERE user_id=:id AND status = :status AND ends_at > NOW()', [':id' => $userId, ':status' => 'active']) ?: [];
         return [
             'active_count' => (int) ($row['active_count'] ?? 0),
             'next_ends_at' => $row['ends_at'] ?? null,
@@ -183,7 +184,7 @@ final class UserDashboardService extends Model
 
     private function buildVerificationProgress(int $userId): array
     {
-        $latest = $this->fetchOne('SELECT status, updated_at FROM identity_verifications WHERE user_id = :id ORDER BY id DESC LIMIT 1', [':id' => $userId]) ?: [];
+        $latest = $this->safeFetchOne('SELECT status, updated_at FROM identity_verifications WHERE user_id = :id ORDER BY id DESC LIMIT 1', [':id' => $userId]) ?: [];
         $status = (string) ($latest['status'] ?? 'not_started');
 
         return [
@@ -266,5 +267,31 @@ final class UserDashboardService extends Model
         }
 
         return 'Manter consistência de mensagens e atividade diária.';
+    }
+
+    private function safeFetchOne(string $sql, array $params = []): ?array
+    {
+        try {
+            return $this->fetchOne($sql, $params);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private function safeConnectionMode(int $userId): array
+    {
+        try {
+            return $this->connectionModes->getForUser($userId);
+        } catch (Throwable) {
+            return [
+                'current_intention' => 'know_without_pressure',
+                'relational_pace' => 'balanced',
+                'openness_level' => null,
+                'intention_label' => 'Conhecer sem pressão',
+                'pace_label' => 'Equilibrado',
+                'intention_icon' => 'fa-heart-pulse',
+                'pace_icon' => 'fa-wave-square',
+            ];
+        }
     }
 }
