@@ -8,7 +8,9 @@
           <strong><?= e((string) ($conversation['other_user_name'] ?? 'Utilizador')) ?></strong>
           <?php if ((int) ($conversation['unread_count'] ?? 0) > 0): ?><span class="badge bg-danger"><?= (int) $conversation['unread_count'] ?></span><?php endif; ?>
         </div>
-        <div class="small text-muted"><?= e((string) ($conversation['last_message'] ?? 'Sem mensagens')) ?></div>
+        <div class="small text-muted">
+          <?php if (($conversation['last_message_type'] ?? 'text') === 'image'): ?>📷 imagem<?php else: ?><?= e((string) ($conversation['last_message'] ?? 'Sem mensagens')) ?><?php endif; ?>
+        </div>
         <div class="small text-muted">
           <?= e((string) ($conversation['last_message_at'] ?? $conversation['updated_at'])) ?>
           · <?= (int) ($conversation['other_online_status'] ?? 0) === 1 ? 'online' : 'offline' ?>
@@ -17,5 +19,5 @@
       </a>
     <?php endforeach; else: $title='Sem conversas'; $description='Quando houver match, as conversas aparecem aqui.'; require dirname(__DIR__).'/partials/empty-state.php'; endif; ?>
   </div></div></div>
-  <div class="col-lg-8"><div class="rd-card"><div class="card-body"><h6>Conversa ativa</h6><p class="text-muted">Selecione uma conversa para ver detalhes, estado online e histórico completo.</p></div></div></div>
+  <div class="col-lg-8"><div class="rd-card"><div class="card-body"><h6>Conversa ativa</h6><p class="text-muted">Selecione uma conversa para ver detalhes, estado online e histórico paginado.</p></div></div></div>
 </div>

@@ -28,14 +28,20 @@ final class MessageService extends Model
         return (int) $this->db->lastInsertId();
     }
 
-    public function sendMessage(int $senderId, int $receiverId, string $messageText, string $messageType = 'text'): int
+    public function sendMessage(int $senderId, int $receiverId, string $messageText, string $messageType = 'text', array $attachments = []): int
     {
         $messageText = trim($messageText);
-        if ($senderId <= 0 || $receiverId <= 0 || $senderId === $receiverId || $messageText === '') {
+        $sanitizedType = in_array($messageType, ['text', 'image', 'system'], true) ? $messageType : 'text';
+
+        if ($senderId <= 0 || $receiverId <= 0 || $senderId === $receiverId) {
             return 0;
         }
 
-        if (mb_strlen($messageText) > 2000) {
+        if ($sanitizedType === 'text' && $messageText === '') {
+            return 0;
+        }
+
+        if ($messageText !== '' && mb_strlen($messageText) > 2000) {
             return 0;
         }
 
@@ -44,27 +50,74 @@ final class MessageService extends Model
         }
 
         $conversationId = $this->getOrCreateConversation($senderId, $receiverId);
-        $this->db->prepare('INSERT INTO messages (conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at) VALUES (:conversation_id,:sender_id,:receiver_id,:message_text,:message_type,0,NOW())')->execute([
-            ':conversation_id' => $conversationId,
-            ':sender_id' => $senderId,
-            ':receiver_id' => $receiverId,
-            ':message_text' => $messageText,
-            ':message_type' => in_array($messageType, ['text', 'image', 'system'], true) ? $messageType : 'text',
-        ]);
-        $this->db->prepare('UPDATE conversations SET updated_at = NOW() WHERE id = :id')->execute([':id' => $conversationId]);
+        $this->db->beginTransaction();
+        try {
+            $this->db->prepare('INSERT INTO messages (conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at) VALUES (:conversation_id,:sender_id,:receiver_id,:message_text,:message_type,0,NOW())')->execute([
+                ':conversation_id' => $conversationId,
+                ':sender_id' => $senderId,
+                ':receiver_id' => $receiverId,
+                ':message_text' => $messageText !== '' ? $messageText : '[imagem]',
+                ':message_type' => $sanitizedType,
+            ]);
+            $messageId = (int) $this->db->lastInsertId();
 
-        return (int) $this->db->lastInsertId();
+            foreach ($attachments as $attachment) {
+                $this->db->prepare('INSERT INTO message_attachments (message_id,file_path,mime_type,file_size,created_at) VALUES (:message_id,:file_path,:mime_type,:file_size,NOW())')->execute([
+                    ':message_id' => $messageId,
+                    ':file_path' => $attachment['path'] ?? '',
+                    ':mime_type' => $attachment['mime'] ?? null,
+                    ':file_size' => (int) ($attachment['size'] ?? 0),
+                ]);
+            }
+
+            $this->db->prepare('UPDATE conversations SET updated_at = NOW() WHERE id = :id')->execute([':id' => $conversationId]);
+            $this->db->commit();
+
+            return $messageId;
+        } catch (\Throwable) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            return 0;
+        }
     }
 
-    public function getConversationMessages(int $conversationId, int $viewerId): array
+    public function getConversationMessages(int $conversationId, int $viewerId, int $page = 1, int $perPage = 40): array
     {
         if (!$this->isConversationParticipant($conversationId, $viewerId)) {
-            return [];
+            return ['items' => [], 'pagination' => ['page' => 1, 'per_page' => $perPage, 'has_more' => false]];
         }
 
-        $stmt = $this->db->prepare('SELECT id,conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at FROM messages WHERE conversation_id = :id ORDER BY created_at ASC');
-        $stmt->execute([':id' => $conversationId]);
-        return $stmt->fetchAll();
+        $page = max(1, $page);
+        $perPage = min(100, max(10, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $stmt = $this->db->prepare('SELECT id,conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at FROM messages WHERE conversation_id = :id ORDER BY id DESC LIMIT :limit OFFSET :offset');
+        $stmt->bindValue(':id', $conversationId, \PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        $items = array_reverse($stmt->fetchAll());
+
+        $attachmentMap = $this->attachmentsByMessageIds(array_map(static fn(array $row): int => (int) $row['id'], $items));
+        foreach ($items as &$item) {
+            $item['attachments'] = $attachmentMap[(int) $item['id']] ?? [];
+        }
+        unset($item);
+
+        $countRow = $this->fetchOne('SELECT COUNT(*) AS total FROM messages WHERE conversation_id = :id', [':id' => $conversationId]) ?: ['total' => 0];
+        $total = (int) ($countRow['total'] ?? 0);
+
+        return [
+            'items' => $items,
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'has_more' => $total > ($page * $perPage),
+                'total' => $total,
+            ],
+        ];
     }
 
     public function getConversationContext(int $conversationId, int $viewerId): array
@@ -80,7 +133,9 @@ final class MessageService extends Model
                        CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
                        CASE WHEN c.user_one_id = :uid THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
                        CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
-                       CASE WHEN c.user_one_id = :uid THEN u2.last_activity_at ELSE u1.last_activity_at END AS other_last_activity_at
+                       CASE WHEN c.user_one_id = :uid THEN u2.last_activity_at ELSE u1.last_activity_at END AS other_last_activity_at,
+                       CASE WHEN c.user_one_id = :uid THEN u2.status ELSE u1.status END AS other_user_status,
+                       CASE WHEN c.user_one_id = :uid THEN u2.verified_at ELSE u1.verified_at END AS other_verified_at
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id
@@ -124,13 +179,14 @@ final class MessageService extends Model
                        CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
                        CASE WHEN c.user_one_id = :uid THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
                        lm.message_text AS last_message,
+                       lm.message_type AS last_message_type,
                        lm.created_at AS last_message_at,
                        IFNULL(um.unread_count, 0) AS unread_count
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id
                 LEFT JOIN (
-                    SELECT m.conversation_id, m.message_text, m.created_at
+                    SELECT m.conversation_id, m.message_text, m.message_type, m.created_at
                     FROM messages m
                     INNER JOIN (
                         SELECT conversation_id, MAX(id) AS last_message_id
@@ -172,5 +228,23 @@ final class MessageService extends Model
         }
 
         return $this->matchService->hasActiveMatch($senderId, $receiverId);
+    }
+
+    private function attachmentsByMessageIds(array $messageIds): array
+    {
+        if ($messageIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+        $stmt = $this->db->prepare("SELECT message_id,file_path,mime_type,file_size FROM message_attachments WHERE message_id IN ($placeholders) ORDER BY id ASC");
+        $stmt->execute(array_values($messageIds));
+
+        $rows = [];
+        foreach ($stmt->fetchAll() as $attachment) {
+            $rows[(int) $attachment['message_id']][] = $attachment;
+        }
+
+        return $rows;
     }
 }

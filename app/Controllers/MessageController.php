@@ -10,12 +10,15 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\MessageService;
 use App\Services\RateLimiterService;
+use App\Services\UploadService;
+use RuntimeException;
 
 final class MessageController extends Controller
 {
     public function __construct(
         private readonly MessageService $service = new MessageService(),
-        private readonly RateLimiterService $rateLimiter = new RateLimiterService()
+        private readonly RateLimiterService $rateLimiter = new RateLimiterService(),
+        private readonly UploadService $uploads = new UploadService()
     )
     {
     }
@@ -36,10 +39,11 @@ final class MessageController extends Controller
             Response::abort(403, 'Acesso negado');
         }
 
-        $messages = $this->service->getConversationMessages($conversationId, $userId);
+        $page = max(1, (int) Request::input('page', 1));
+        $conversation = $this->service->getConversationMessages($conversationId, $userId, $page, 40);
         $context = $this->service->getConversationContext($conversationId, $userId);
         $this->service->markAsRead($conversationId, $userId);
-        $this->view('messages/show', ['title' => 'Conversa', 'messages' => $messages, 'context' => $context]);
+        $this->view('messages/show', ['title' => 'Conversa', 'messages' => $conversation['items'], 'pagination' => $conversation['pagination'], 'context' => $context]);
     }
 
     public function send(): void
@@ -50,18 +54,39 @@ final class MessageController extends Controller
             Response::json(['ok' => false, 'message' => 'Muitas mensagens em pouco tempo.'], 429);
         }
 
-        $messageId = $this->service->sendMessage(
-            $senderId,
-            (int) Request::input('receiver_id', 0),
-            (string) Request::input('message_text', ''),
-            (string) Request::input('message_type', 'text')
-        );
-        if ($messageId > 0) {
-            $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId);
-        } else {
-            $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId);
-        }
+        $attachments = [];
+        $messageType = (string) Request::input('message_type', 'text');
 
-        Response::json(['ok' => $messageId > 0, 'message_id' => $messageId], $messageId > 0 ? 200 : 422);
+        try {
+            if (isset($_FILES['image']) && (int) ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                $attachments[] = $this->uploads->storeImage($_FILES['image'], 'messages/chat');
+                $messageType = 'image';
+            }
+
+            $messageId = $this->service->sendMessage(
+                $senderId,
+                (int) Request::input('receiver_id', 0),
+                (string) Request::input('message_text', ''),
+                $messageType,
+                $attachments
+            );
+
+            if ($messageId > 0) {
+                $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId, ['message_type' => $messageType]);
+                Response::json(['ok' => true, 'message_id' => $messageId], 200);
+            }
+
+            foreach ($attachments as $file) {
+                $this->uploads->deleteImageBundle($file);
+            }
+            $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId, ['reason' => 'send_rejected']);
+            Response::json(['ok' => false, 'message_id' => 0], 422);
+        } catch (RuntimeException $exception) {
+            foreach ($attachments as $file) {
+                $this->uploads->deleteImageBundle($file);
+            }
+            $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId, ['reason' => 'upload_rejected']);
+            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 }

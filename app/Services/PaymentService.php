@@ -99,6 +99,8 @@ final class PaymentService extends Model
                 return 'ignored';
             }
 
+            $payment = $this->repairPaymentStateIfRecoverable($payment, $paymentType, $userId);
+
             $currentStatus = (string) ($payment['status'] ?? 'pending');
             $benefitAppliedAt = $payment['benefit_applied_at'] ?? null;
             $benefitStatus = (string) ($payment['benefit_application_status'] ?? 'pending');
@@ -125,6 +127,9 @@ final class PaymentService extends Model
                 }
 
                 if ($benefitAppliedAt !== null || $benefitStatus === 'applied') {
+                    if ($benefitAppliedAt === null && $benefitStatus === 'applied') {
+                        $this->markBenefitApplied($paymentId);
+                    }
                     $this->financialLog->log('benefit_idempotent_skip', $paymentId, ['reason' => 'benefit_already_applied', 'payment_type' => $paymentType]);
                     $this->db->commit();
                     return 'completed';
@@ -166,7 +171,7 @@ final class PaymentService extends Model
 
     public function markPaymentCompleted(int $paymentId, array $statusPayload): void
     {
-        $stmt = $this->db->prepare("UPDATE payments SET status = :status, paid_at = NOW(), gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id AND status = 'pending'");
+        $stmt = $this->db->prepare("UPDATE payments SET status = :status, paid_at = COALESCE(paid_at, NOW()), gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id AND status = 'pending'");
         $stmt->execute([
             ':status' => 'completed',
             ':raw' => json_encode($statusPayload, JSON_THROW_ON_ERROR),
@@ -241,7 +246,7 @@ final class PaymentService extends Model
 
     private function markBenefitApplied(int $paymentId): void
     {
-        $stmt = $this->db->prepare("UPDATE payments SET benefit_application_status='applied', benefit_applied_at=NOW(), updated_at=NOW() WHERE id=:id");
+        $stmt = $this->db->prepare("UPDATE payments SET benefit_application_status='applied', benefit_applied_at=COALESCE(benefit_applied_at, NOW()), updated_at=NOW() WHERE id=:id");
         $stmt->execute([':id' => $paymentId]);
     }
 
@@ -249,6 +254,61 @@ final class PaymentService extends Model
     {
         $stmt = $this->db->prepare('UPDATE payments SET benefit_application_status=:status, updated_at=NOW() WHERE id=:id');
         $stmt->execute([':status' => $status, ':id' => $paymentId]);
+    }
+
+    private function repairPaymentStateIfRecoverable(array $payment, string $paymentType, int $userId): array
+    {
+        $paymentId = (int) ($payment['id'] ?? 0);
+        if ($paymentId <= 0) {
+            return $payment;
+        }
+
+        $status = (string) ($payment['status'] ?? 'pending');
+        $benefitStatus = (string) ($payment['benefit_application_status'] ?? 'pending');
+        $benefitAppliedAt = $payment['benefit_applied_at'] ?? null;
+
+        if ($status === 'completed' && $benefitStatus === 'applied' && $benefitAppliedAt === null) {
+            $this->markBenefitApplied($paymentId);
+            $this->financialLog->log('state_repaired', $paymentId, ['reason' => 'applied_without_timestamp']);
+            $payment['benefit_applied_at'] = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+            $payment['benefit_application_status'] = 'applied';
+            return $payment;
+        }
+
+        if ($status === 'completed' && in_array($benefitStatus, ['pending', 'failed', 'skipped', 'applying'], true) && $benefitAppliedAt !== null) {
+            $this->markBenefitStatus($paymentId, 'applied');
+            $this->financialLog->log('state_repaired', $paymentId, ['reason' => 'timestamp_exists_missing_applied_status']);
+            $payment['benefit_application_status'] = 'applied';
+            return $payment;
+        }
+
+        if ($status === 'completed' && in_array($benefitStatus, ['failed', 'skipped', 'pending'], true) && $benefitAppliedAt === null) {
+            if ($this->paymentBenefitExists($paymentType, $userId, $paymentId)) {
+                $this->markBenefitApplied($paymentId);
+                $this->financialLog->log('state_repaired', $paymentId, ['reason' => 'legacy_benefit_detected']);
+                $payment['benefit_application_status'] = 'applied';
+                $payment['benefit_applied_at'] = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
+            } else {
+                $this->financialLog->log('state_repair_pending', $paymentId, ['reason' => 'recoverable_benefit_missing', 'from_status' => $benefitStatus]);
+                $payment['benefit_application_status'] = 'pending';
+            }
+        }
+
+        if (in_array($status, ['failed', 'cancelled'], true) && ($benefitAppliedAt !== null || $benefitStatus === 'applied')) {
+            $this->financialLog->log('state_repair_rejected', $paymentId, ['reason' => 'failed_or_cancelled_with_benefit_marker', 'status' => $status]);
+        }
+
+        return $payment;
+    }
+
+    private function paymentBenefitExists(string $paymentType, int $userId, int $paymentId): bool
+    {
+        return match ($paymentType) {
+            'activation' => (bool) ($this->fetchOne('SELECT id FROM users WHERE id=:id AND activation_paid_at IS NOT NULL LIMIT 1', [':id' => $userId]) ?: []),
+            'subscription' => (bool) ($this->fetchOne('SELECT id FROM subscriptions WHERE user_id=:user_id AND created_at >= (SELECT created_at FROM payments WHERE id=:payment_id LIMIT 1) LIMIT 1', [':user_id' => $userId, ':payment_id' => $paymentId]) ?: []),
+            'boost' => (bool) ($this->fetchOne('SELECT id FROM user_boosts WHERE payment_id=:payment_id LIMIT 1', [':payment_id' => $paymentId]) ?: []),
+            default => false,
+        };
     }
 
     private function initiatePayment(int $userId, string $phone, string $type, float $amount, string $description): array

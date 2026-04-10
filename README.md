@@ -34,9 +34,10 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/mozambique_locations.sql
    mysql -u root -p < database/seed.sql
    ```
-6. Se a instância já existir, aplique migração incremental:
+6. Se a instância já existir, aplique migrações incrementais:
    ```bash
    mysql -u root -p < database/migrations/20260410_hardening.sql
+   mysql -u root -p < database/migrations/20260410_consolidation_core.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -70,6 +71,7 @@ Fluxos cobertos:
 ### Garantias de idempotência financeira
 - Reconciliação processa cada pagamento em transação com lock (`SELECT ... FOR UPDATE`).
 - Benefícios de pagamento são aplicados apenas uma vez por pagamento através de `benefit_application_status` + `benefit_applied_at`.
+- Auto-recuperação segura para estados legados/inconsistentes (`completed` sem metadata coerente), com logs de reparação/rejeição.
 - Reconciliações repetidas de pagamentos já finalizados são ignoradas com logs explícitos.
 - Pagamentos em estados finais (`completed`, `failed`, `cancelled`) não reexecutam efeitos indevidos.
 
@@ -98,7 +100,7 @@ php scripts/cleanup_temp_uploads.php
 - CSRF obrigatório para `POST/PUT/PATCH/DELETE`, com suporte para campo `_token` e header `X-CSRF-TOKEN`
 - Sessões seguras e regeneração de sessão
 - RBAC admin validado em base por request (`AdminAuthorizationService`), com invalidação imediata de sessão em perda de acesso
-- Throttling com semântica de sucesso/falha para login, feed e mensagens
+- Throttling com semântica de sucesso/falha para login, feed e mensagens, persistido com colunas indexáveis (`rate_limit_key`, `rate_limit_outcome`)
 - Autorização explícita em leitura de conversas (somente participantes)
 - Uploads de imagens via `$_FILES` com validação de MIME real, tamanho máximo e nome aleatório seguro
 - Controle de estado de conta (`pending_activation`, `active`, `expired`, `suspended`, `banned`)
@@ -107,16 +109,21 @@ php scripts/cleanup_temp_uploads.php
 ## Evoluções recentes de performance/produto
 - Discovery sem N+1 para verificação/boost/premium/atividade, com ranking por compatibilidade e refresh incremental de scores.
 - Inbox otimizada com joins agregados para última mensagem e não lidas (sem subqueries correlacionadas por item).
-- Dashboard mais fiel com checklist de perfil, confiança, progresso de verificação e sinais reais (fotos/interesses/preferências).
-- Feed com paginação, payload enriquecido de autor, contadores e base para mídia (`post_images`).
+- Dashboard mais fiel com distinção entre perfil completo vs atrativo, retenção, contexto premium/boost e ações prioritárias.
+- Feed com paginação, payload enriquecido de autor, comentários recentes e upload real de múltiplas imagens.
+- Mensagens com histórico paginado, contexto expandido do outro utilizador e base de anexos (`message_attachments`).
+- Compatibilidade com menor round-trip por cálculo (interesses agregados e reutilização de dados alvo quando disponível).
 
 ## Índices e migração
-A migração `database/migrations/20260410_hardening.sql` adiciona colunas/índices para:
-- pagamentos e idempotência de benefícios;
-- consultas de inbox/messages;
-- discovery/compatibilidade/verificação;
-- feed/posts/comments;
-- consultas de rate limiting e auditoria em `activity_logs`.
+As migrações incrementais atuais são:
+- `database/migrations/20260410_hardening.sql`;
+- `database/migrations/20260410_consolidation_core.sql`.
+
+A segunda migração adiciona:
+- índice de suporte à compatibilidade em `user_interests`;
+- colunas indexáveis de throttling em `activity_logs`;
+- metadados e ordenação de mídia em `post_images`;
+- tabela `message_attachments` para anexos de conversa.
 
 ## Credenciais admin seed
 - Email: `admin@rotadoamor.mz`

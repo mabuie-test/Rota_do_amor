@@ -5,35 +5,33 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use DateTimeImmutable;
 
 final class CompatibilityService extends Model
 {
-    public function calculateCompatibility(int $userId, int $targetId): array
+    public function calculateCompatibility(int $userId, int $targetId, ?array $targetUser = null): array
     {
-        $user = $this->fetchOne('SELECT * FROM users WHERE id=:id', [':id' => $userId]);
-        $target = $this->fetchOne('SELECT * FROM users WHERE id=:id', [':id' => $targetId]);
-        if (!$user || !$target) {
+        $pair = $this->loadPairData($userId, $targetId, $targetUser);
+        if ($pair === null) {
             return ['score' => 0.0, 'breakdown' => []];
         }
 
+        $user = $pair['user'];
+        $target = $pair['target'];
+        $overlap = (int) $pair['common_interests'];
+        $pref = $pair['preferences'];
+
         $location = $user['city_id'] === $target['city_id'] ? 20 : ($user['province_id'] === $target['province_id'] ? 12 : 0);
         $goal = $user['relationship_goal'] === $target['relationship_goal'] ? 20 : 10;
-
-        $interestsUser = $this->fetchAllRows('SELECT interest_name FROM user_interests WHERE user_id=:id', [':id' => $userId]);
-        $interestsTarget = $this->fetchAllRows('SELECT interest_name FROM user_interests WHERE user_id=:id', [':id' => $targetId]);
-        $iu = array_column($interestsUser, 'interest_name');
-        $it = array_column($interestsTarget, 'interest_name');
-        $common = count(array_intersect($iu, $it));
-        $interestScore = min(20, $common * 5);
+        $interestScore = min(20, $overlap * 5);
 
         $prefScore = 0;
-        $pref = $this->fetchOne('SELECT * FROM user_preferences WHERE user_id=:id', [':id' => $userId]);
-        if ($pref) {
-            $age = (int) $this->fetchOne('SELECT TIMESTAMPDIFF(YEAR,birth_date,CURDATE()) age FROM users WHERE id=:id', [':id' => $targetId])['age'];
-            if ($age >= (int) $pref['age_min'] && $age <= (int) $pref['age_max']) {
+        if ($pref !== []) {
+            $age = $this->ageFromBirthDate((string) ($target['birth_date'] ?? ''));
+            if ($age >= (int) ($pref['age_min'] ?? 18) && $age <= (int) ($pref['age_max'] ?? 99)) {
                 $prefScore += 10;
             }
-            if (($pref['interested_in'] === 'all') || ($pref['interested_in'] === $target['gender'])) {
+            if (($pref['interested_in'] ?? 'all') === 'all' || ($pref['interested_in'] ?? '') === ($target['gender'] ?? null)) {
                 $prefScore += 10;
             }
         }
@@ -98,10 +96,55 @@ final class CompatibilityService extends Model
 
     public function refreshScoresForUser(int $userId): void
     {
-        $stmt = $this->db->prepare('SELECT id FROM users WHERE id != :id AND status=:status LIMIT 500');
+        $stmt = $this->db->prepare('SELECT id,birth_date,gender,city_id,province_id,relationship_goal,bio,profile_photo_path,profession,last_activity_at FROM users WHERE id != :id AND status=:status LIMIT 500');
         $stmt->execute([':id' => $userId, ':status' => 'active']);
         foreach ($stmt->fetchAll() as $target) {
-            $this->calculateCompatibility($userId, (int) $target['id']);
+            $this->calculateCompatibility($userId, (int) $target['id'], $target);
+        }
+    }
+
+    private function loadPairData(int $userId, int $targetId, ?array $targetUser = null): ?array
+    {
+        $user = $this->fetchOne('SELECT id,city_id,province_id,relationship_goal FROM users WHERE id=:id LIMIT 1', [':id' => $userId]);
+        if (!$user) {
+            return null;
+        }
+
+        $target = $targetUser;
+        if (!$target || (int) ($target['id'] ?? 0) !== $targetId) {
+            $target = $this->fetchOne('SELECT id,birth_date,gender,city_id,province_id,relationship_goal,bio,profile_photo_path,profession,last_activity_at FROM users WHERE id=:id LIMIT 1', [':id' => $targetId]);
+        }
+        if (!$target) {
+            return null;
+        }
+
+        $pref = $this->fetchOne('SELECT age_min,age_max,interested_in FROM user_preferences WHERE user_id=:id LIMIT 1', [':id' => $userId]) ?: [];
+        $commonInterests = $this->fetchOne(
+            'SELECT COUNT(*) AS common_count
+             FROM user_interests ui
+             INNER JOIN user_interests ti ON ti.interest_name = ui.interest_name
+             WHERE ui.user_id = :user_id AND ti.user_id = :target_id',
+            [':user_id' => $userId, ':target_id' => $targetId]
+        );
+
+        return [
+            'user' => $user,
+            'target' => $target,
+            'preferences' => $pref,
+            'common_interests' => (int) ($commonInterests['common_count'] ?? 0),
+        ];
+    }
+
+    private function ageFromBirthDate(string $birthDate): int
+    {
+        if ($birthDate === '') {
+            return 0;
+        }
+
+        try {
+            return (int) (new DateTimeImmutable($birthDate))->diff(new DateTimeImmutable('today'))->y;
+        } catch (\Exception) {
+            return 0;
         }
     }
 }

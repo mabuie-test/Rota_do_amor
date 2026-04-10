@@ -10,12 +10,15 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\FeedService;
 use App\Services\RateLimiterService;
+use App\Services\UploadService;
+use RuntimeException;
 
 final class FeedController extends Controller
 {
     public function __construct(
         private readonly FeedService $service = new FeedService(),
-        private readonly RateLimiterService $rateLimiter = new RateLimiterService()
+        private readonly RateLimiterService $rateLimiter = new RateLimiterService(),
+        private readonly UploadService $uploads = new UploadService()
     )
     {
     }
@@ -29,18 +32,36 @@ final class FeedController extends Controller
 
     public function post(): void
     {
-        $key = 'feed_post:' . (Auth::id() ?? 0) . ':' . Request::ip();
+        $userId = Auth::id() ?? 0;
+        $key = 'feed_post:' . $userId . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('feed_post', $key, 10, 5)) {
             Response::json(['ok' => false, 'message' => 'Limite de publicações temporariamente atingido.'], 429);
         }
-        $id = $this->service->createPost(Auth::id() ?? 0, (string) Request::input('content', ''));
-        if ($id > 0) {
-            $this->rateLimiter->hitSuccess('feed_post', $key, Auth::id() ?? 0);
-        } else {
-            $this->rateLimiter->hitFailure('feed_post', $key, Auth::id() ?? 0);
-        }
 
-        Response::json(['ok' => $id > 0, 'post_id' => $id], $id > 0 ? 200 : 422);
+        $storedImages = [];
+        try {
+            if (isset($_FILES['images'])) {
+                $storedImages = $this->uploads->storeManyImages($_FILES['images'], 'feed/posts', 4);
+            }
+
+            $id = $this->service->createPost($userId, (string) Request::input('content', ''), $storedImages);
+            if ($id > 0) {
+                $this->rateLimiter->hitSuccess('feed_post', $key, $userId, ['images_count' => count($storedImages)]);
+                Response::json(['ok' => true, 'post_id' => $id, 'images_count' => count($storedImages)]);
+            }
+
+            foreach ($storedImages as $file) {
+                $this->uploads->deleteImageBundle($file);
+            }
+            $this->rateLimiter->hitFailure('feed_post', $key, $userId, ['reason' => 'invalid_post_payload']);
+            Response::json(['ok' => false, 'post_id' => 0], 422);
+        } catch (RuntimeException $exception) {
+            foreach ($storedImages as $file) {
+                $this->uploads->deleteImageBundle($file);
+            }
+            $this->rateLimiter->hitFailure('feed_post', $key, $userId, ['reason' => 'upload_rejected']);
+            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+        }
     }
 
     public function like(): void
