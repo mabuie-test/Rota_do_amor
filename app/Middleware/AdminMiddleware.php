@@ -16,13 +16,15 @@ final class AdminMiddleware
             Response::redirect('/admin/login');
         }
 
-        $stmt = \App\Core\Database::connection()->prepare('SELECT status FROM admins WHERE id = :id LIMIT 1');
+        $stmt = \App\Core\Database::connection()->prepare('SELECT status, role FROM admins WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $adminId]);
         $admin = $stmt->fetch();
         if (!$admin || (string) ($admin['status'] ?? 'inactive') !== 'active') {
             Session::forget('admin_id');
+            Session::forget('admin_role');
             Response::redirect('/admin/login');
         }
+        Session::put('admin_role', (string) ($admin['role'] ?? 'moderator'));
 
         return $next();
     }

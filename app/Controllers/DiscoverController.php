@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Request;
 use App\Services\DiscoveryService;
 
 final class DiscoverController extends Controller
@@ -16,7 +17,17 @@ final class DiscoverController extends Controller
 
     public function index(): void
     {
-        $profiles = $this->service->getSuggestedProfiles(Auth::id() ?? 0);
-        $this->view('discover/index', ['title' => 'Descobrir', 'profiles' => $profiles]);
+        $filters = [
+            'exclude_user_id' => Auth::id() ?? 0,
+            'age_min' => Request::input('age_min'),
+            'age_max' => Request::input('age_max'),
+            'province_id' => Request::input('province_id'),
+            'city_id' => Request::input('city_id'),
+            'relationship_goal' => Request::input('relationship_goal'),
+            'verified_only' => Request::input('verified_only'),
+            'only_online' => Request::input('only_online'),
+        ];
+        $profiles = $this->service->searchProfiles($filters);
+        $this->view('discover/index', ['title' => 'Descobrir', 'profiles' => $profiles, 'filters' => $filters]);
     }
 }

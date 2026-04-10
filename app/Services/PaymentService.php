@@ -6,6 +6,8 @@ namespace App\Services;
 
 use App\Core\Config;
 use App\Core\Model;
+use App\Services\Payments\DebitoMpesaProvider;
+use App\Services\Payments\PaymentProviderInterface;
 use DateTimeImmutable;
 use RuntimeException;
 
@@ -13,7 +15,9 @@ final class PaymentService extends Model
 {
     public function __construct(
         private readonly AccountStateService $accountStateService = new AccountStateService(),
-        private readonly BadgeService $badgeService = new BadgeService()
+        private readonly BadgeService $badgeService = new BadgeService(),
+        private readonly FinancialLogService $financialLog = new FinancialLogService(),
+        private readonly PaymentProviderInterface $provider = new DebitoMpesaProvider()
     ) {
         parent::__construct();
     }
@@ -40,8 +44,9 @@ final class PaymentService extends Model
 
     public function checkPaymentStatus(string $debitoReference): array
     {
-        $url = rtrim((string) Config::env('DEBITO_BASE_URL'), '/') . '/transactions/' . rawurlencode($debitoReference) . '/status';
-        return $this->http('GET', $url, null);
+        $raw = $this->provider->checkStatus($debitoReference);
+        $raw['normalized_status'] = $this->provider->normalizeStatus($raw);
+        return $raw;
     }
 
     public function validateMozambiqueMpesaNumber(string $phone): bool
@@ -81,22 +86,24 @@ final class PaymentService extends Model
 
     public function markPaymentCompleted(int $paymentId, array $statusPayload): void
     {
-        $stmt = $this->db->prepare('UPDATE payments SET status = :status, paid_at = NOW(), gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id');
+        $stmt = $this->db->prepare("UPDATE payments SET status = :status, paid_at = NOW(), gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id AND status = 'pending'");
         $stmt->execute([
             ':status' => 'completed',
             ':raw' => json_encode($statusPayload, JSON_THROW_ON_ERROR),
             ':id' => $paymentId,
         ]);
+        $this->financialLog->log('completed', $paymentId, ['status' => $statusPayload['normalized_status'] ?? $statusPayload['status'] ?? 'completed']);
     }
 
     public function markPaymentFailed(int $paymentId, array $statusPayload): void
     {
-        $stmt = $this->db->prepare('UPDATE payments SET status = :status, gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id');
+        $stmt = $this->db->prepare("UPDATE payments SET status = :status, gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id AND status = 'pending'");
         $stmt->execute([
-            ':status' => 'failed',
+            ':status' => in_array(($statusPayload['normalized_status'] ?? ''), ['cancelled'], true) ? 'cancelled' : 'failed',
             ':raw' => json_encode($statusPayload, JSON_THROW_ON_ERROR),
             ':id' => $paymentId,
         ]);
+        $this->financialLog->log('failed', $paymentId, ['status' => $statusPayload['normalized_status'] ?? $statusPayload['status'] ?? 'failed']);
     }
 
     public function syncUserStatusFromPayment(int $userId, string $paymentType): void
@@ -129,6 +136,16 @@ final class PaymentService extends Model
         $this->badgeService->syncSystemBadges($userId);
     }
 
+    public function applyBenefitForPaymentType(string $paymentType, int $userId, int $paymentId): void
+    {
+        match ($paymentType) {
+            'activation' => $this->syncUserStatusFromPayment($userId, 'activation'),
+            'subscription' => $this->syncSubscriptionFromPayment($userId),
+            'boost' => $this->syncBoostFromPayment($userId, $paymentId),
+            default => null,
+        };
+    }
+
     public function saveGatewayRawResponse(int $paymentId, array $response): void
     {
         $stmt = $this->db->prepare('UPDATE payments SET gateway_raw_response = :raw, updated_at = NOW() WHERE id = :id');
@@ -142,55 +159,19 @@ final class PaymentService extends Model
             throw new RuntimeException('Numero M-Pesa invalido para Mocambique.');
         }
 
-        $body = [
-            'msisdn' => $normalized,
-            'amount' => $amount,
-            'reference_description' => sprintf('%s #%d', $description, $userId),
-        ];
-
-        $url = rtrim((string) Config::env('DEBITO_BASE_URL'), '/') . '/wallets/' . Config::env('DEBITO_WALLET_ID') . '/c2b/mpesa';
-        $gatewayResponse = $this->http('POST', $url, $body);
+        $gatewayResponse = $this->provider->requestPayment(
+            $normalized,
+            $amount,
+            sprintf('%s #%d', $description, $userId),
+            hash('sha256', $userId . '|' . $type . '|' . $normalized . '|' . (string) round($amount, 2))
+        );
         $paymentId = $this->createPendingPayment($userId, $type, $normalized, $amount, $gatewayResponse);
+        $this->financialLog->log('requested', $paymentId, ['type' => $type, 'phone' => $normalized, 'amount' => $amount]);
 
         return [
             'payment_id' => $paymentId,
             'gateway' => $gatewayResponse,
             'requested_at' => (new DateTimeImmutable())->format(DATE_ATOM),
         ];
-    }
-
-    private function http(string $method, string $url, ?array $payload): array
-    {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . Config::env('DEBITO_TOKEN', ''),
-                'Content-Type: application/json',
-            ],
-        ]);
-
-        if ($payload !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_THROW_ON_ERROR));
-        }
-
-        $raw = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        curl_close($ch);
-
-        if ($raw === false || $error !== '') {
-            throw new RuntimeException('Falha ao comunicar com Débito API: ' . $error);
-        }
-
-        $decoded = json_decode((string) $raw, true);
-        if (!is_array($decoded)) {
-            throw new RuntimeException('Resposta inválida da Débito API.');
-        }
-
-        $decoded['_http_status'] = $code;
-        return $decoded;
     }
 }

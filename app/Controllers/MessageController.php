@@ -22,7 +22,10 @@ final class MessageController extends Controller
 
     public function index(): void
     {
-        $this->view('messages/index', ['title' => 'Mensagens']);
+        $userId = Auth::id() ?? 0;
+        $search = trim((string) Request::input('q', ''));
+        $conversations = $this->service->listConversations($userId, $search);
+        $this->view('messages/index', ['title' => 'Mensagens', 'conversations' => $conversations, 'search' => $search]);
     }
 
     public function show(array $params): void

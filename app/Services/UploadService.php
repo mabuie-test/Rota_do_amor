@@ -45,11 +45,27 @@ final class UploadService extends Model
             throw new RuntimeException('Falha ao salvar o upload.');
         }
 
+        $thumbPath = $this->createThumbnailIfPossible($absolutePath, $safeDomain, $extension);
+
         return [
             'path' => 'storage/uploads/' . $safeDomain . '/' . $fileName,
+            'thumbnail_path' => $thumbPath,
             'mime' => $mime,
             'size' => (int) $file['size'],
         ];
+    }
+
+    public function deleteRelativePath(string $relativePath): void
+    {
+        $normalized = ltrim(str_replace('\\', '/', $relativePath), '/');
+        if (!str_starts_with($normalized, 'storage/uploads/')) {
+            return;
+        }
+
+        $absolute = dirname(__DIR__, 2) . '/' . $normalized;
+        if (is_file($absolute)) {
+            @unlink($absolute);
+        }
     }
 
     private function validateUpload(array $file): void
@@ -65,5 +81,51 @@ final class UploadService extends Model
         if (!is_uploaded_file((string) $file['tmp_name'])) {
             throw new RuntimeException('Upload inválido.');
         }
+    }
+
+    private function createThumbnailIfPossible(string $absolutePath, string $domain, string $extension): ?string
+    {
+        if (!extension_loaded('gd')) {
+            return null;
+        }
+
+        $imageRaw = @file_get_contents($absolutePath);
+        if ($imageRaw === false) {
+            return null;
+        }
+        $source = @imagecreatefromstring($imageRaw);
+        if ($source === false) {
+            return null;
+        }
+
+        $width = imagesx($source);
+        $height = imagesy($source);
+        $max = 360;
+        $ratio = min($max / max(1, $width), $max / max(1, $height), 1);
+        $tw = (int) max(1, floor($width * $ratio));
+        $th = (int) max(1, floor($height * $ratio));
+        $thumb = imagecreatetruecolor($tw, $th);
+        imagecopyresampled($thumb, $source, 0, 0, 0, 0, $tw, $th, $width, $height);
+
+        $thumbDir = dirname(__DIR__, 2) . '/storage/uploads/' . $domain . '/thumbs';
+        if (!is_dir($thumbDir) && !mkdir($thumbDir, 0755, true) && !is_dir($thumbDir)) {
+            imagedestroy($source);
+            imagedestroy($thumb);
+            return null;
+        }
+
+        $thumbName = bin2hex(random_bytes(16)) . '.' . $extension;
+        $thumbAbsolute = $thumbDir . '/' . $thumbName;
+        match ($extension) {
+            'jpg' => imagejpeg($thumb, $thumbAbsolute, 82),
+            'png' => imagepng($thumb, $thumbAbsolute, 7),
+            'webp' => imagewebp($thumb, $thumbAbsolute, 82),
+            default => null,
+        };
+
+        imagedestroy($source);
+        imagedestroy($thumb);
+
+        return is_file($thumbAbsolute) ? 'storage/uploads/' . $domain . '/thumbs/' . $thumbName : null;
     }
 }

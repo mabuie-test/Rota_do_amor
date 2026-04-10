@@ -88,6 +88,31 @@ final class MessageService extends Model
         return (int) ($stmt->fetch()['total'] ?? 0);
     }
 
+    public function listConversations(int $userId, string $search = ''): array
+    {
+        $sql = "SELECT c.id,
+                       c.updated_at,
+                       CASE WHEN c.user_one_id = :uid THEN u2.id ELSE u1.id END AS other_user_id,
+                       CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
+                       CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
+                       (SELECT m.message_text FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+                       (SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+                       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.receiver_id = :uid AND m.is_read = 0) AS unread_count
+                FROM conversations c
+                JOIN users u1 ON u1.id = c.user_one_id
+                JOIN users u2 ON u2.id = c.user_two_id
+                WHERE (c.user_one_id = :uid OR c.user_two_id = :uid)";
+
+        $params = [':uid' => $userId];
+        if ($search !== '') {
+            $sql .= " AND (u1.first_name LIKE :search OR u1.last_name LIKE :search OR u2.first_name LIKE :search OR u2.last_name LIKE :search)";
+            $params[':search'] = '%' . $search . '%';
+        }
+
+        $sql .= " ORDER BY COALESCE((SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1), c.updated_at) DESC";
+        return $this->fetchAllRows($sql, $params);
+    }
+
     public function userCanMessage(int $senderId, int $receiverId): bool
     {
         $chatOnlyAfterMatch = filter_var((string) Config::env('ALLOW_CHAT_ONLY_AFTER_MATCH', 'true'), FILTER_VALIDATE_BOOLEAN);

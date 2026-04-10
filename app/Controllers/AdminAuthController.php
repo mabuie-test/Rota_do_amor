@@ -40,6 +40,7 @@ final class AdminAuthController extends Controller
 
         $this->rateLimiter->hit('admin_login', $key, (int) $row['id']);
         Session::put('admin_id', (int) $row['id']);
+        Session::put('admin_role', (string) ($row['role'] ?? 'moderator'));
         Response::redirect('/admin');
     }
 }

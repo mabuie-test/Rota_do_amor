@@ -9,6 +9,7 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\EmailVerificationService;
+use App\Services\RateLimiterService;
 use App\Services\UserService;
 use Throwable;
 use RuntimeException;
@@ -17,7 +18,8 @@ final class RegistrationController extends Controller
 {
     public function __construct(
         private readonly UserService $userService = new UserService(),
-        private readonly EmailVerificationService $emailVerificationService = new EmailVerificationService()
+        private readonly EmailVerificationService $emailVerificationService = new EmailVerificationService(),
+        private readonly RateLimiterService $rateLimiter = new RateLimiterService()
     ) {
     }
 
@@ -32,8 +34,14 @@ final class RegistrationController extends Controller
 
     public function register(): void
     {
+        $key = 'register:' . Request::ip();
+        if ($this->rateLimiter->tooManyAttempts('register', $key, 15, 10)) {
+            Response::json(['ok' => false, 'message' => 'Muitos registos em pouco tempo.'], 429);
+        }
+
         try {
             $userId = $this->userService->createUser(Request::all());
+            $this->rateLimiter->hit('register', $key, $userId);
             $this->emailVerificationService->sendVerification($userId);
 
             if (Request::expectsJson()) {

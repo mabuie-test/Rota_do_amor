@@ -16,6 +16,11 @@ final class ProfileService extends Model
         return $this->fetchOne($sql, [':id' => $userId]);
     }
 
+    public function getUserPhotos(int $userId): array
+    {
+        return $this->fetchAllRows('SELECT * FROM user_photos WHERE user_id=:id ORDER BY is_primary DESC, sort_order ASC, created_at DESC', [':id' => $userId]);
+    }
+
     public function savePhoto(int $userId, string $path, bool $isPrimary = false): int
     {
         if (!$isPrimary) {
@@ -40,5 +45,50 @@ final class ProfileService extends Model
         }
 
         return (int) $this->db->lastInsertId();
+    }
+
+    public function setPrimaryPhoto(int $userId, int $photoId): bool
+    {
+        $photo = $this->fetchOne('SELECT id,image_path FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
+        if (!$photo) {
+            return false;
+        }
+
+        $this->execute('UPDATE user_photos SET is_primary = 0 WHERE user_id = :user_id', [':user_id' => $userId]);
+        $this->execute('UPDATE user_photos SET is_primary = 1 WHERE id = :id AND user_id = :user_id', [':id' => $photoId, ':user_id' => $userId]);
+        $this->execute('UPDATE users SET profile_photo_path = :path WHERE id = :id', [':path' => $photo['image_path'], ':id' => $userId]);
+        return true;
+    }
+
+    public function reorderGallery(int $userId, array $photoIds): void
+    {
+        $order = 1;
+        foreach ($photoIds as $photoId) {
+            $this->execute('UPDATE user_photos SET sort_order = :sort_order WHERE id = :id AND user_id = :user_id', [
+                ':sort_order' => $order++,
+                ':id' => (int) $photoId,
+                ':user_id' => $userId,
+            ]);
+        }
+    }
+
+    public function deletePhoto(int $userId, int $photoId): bool
+    {
+        $photo = $this->fetchOne('SELECT id,image_path,is_primary FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
+        if (!$photo) {
+            return false;
+        }
+
+        $this->execute('DELETE FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
+        if ((int) ($photo['is_primary'] ?? 0) === 1) {
+            $next = $this->fetchOne('SELECT id,image_path FROM user_photos WHERE user_id=:id ORDER BY sort_order ASC, created_at DESC LIMIT 1', [':id' => $userId]);
+            if ($next) {
+                $this->setPrimaryPhoto($userId, (int) $next['id']);
+            } else {
+                $this->execute('UPDATE users SET profile_photo_path=NULL WHERE id=:id', [':id' => $userId]);
+            }
+        }
+
+        return true;
     }
 }

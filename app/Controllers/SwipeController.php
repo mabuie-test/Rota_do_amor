@@ -8,11 +8,15 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\RateLimiterService;
 use App\Services\SwipeService;
 
 final class SwipeController extends Controller
 {
-    public function __construct(private readonly SwipeService $service = new SwipeService())
+    public function __construct(
+        private readonly SwipeService $service = new SwipeService(),
+        private readonly RateLimiterService $rateLimiter = new RateLimiterService()
+    )
     {
     }
 
@@ -24,11 +28,18 @@ final class SwipeController extends Controller
 
     public function action(): void
     {
+        $userId = Auth::id() ?? 0;
+        $key = 'swipe_action:' . $userId . ':' . Request::ip();
+        if ($this->rateLimiter->tooManyAttempts('swipe_action', $key, 120, 10)) {
+            Response::json(['ok' => false, 'message' => 'Muitas acções de swipe.'], 429);
+        }
+
         $id = $this->service->recordSwipe(
-            Auth::id() ?? 0,
+            $userId,
             (int) Request::input('target_id', 0),
             (string) Request::input('action_type', 'pass')
         );
+        $this->rateLimiter->hit('swipe_action', $key, $userId);
 
         Response::json(['ok' => true, 'swipe_id' => $id]);
     }

@@ -103,11 +103,18 @@ php scripts/cleanup_temp_uploads.php
 - CSRF obrigatório para `POST/PUT/PATCH/DELETE`, com suporte para campo `_token` e header `X-CSRF-TOKEN`
 - Sessões seguras e regeneração de sessão
 - Hardening admin: login limitado por tentativas e bloqueio de admins inactivos
+- RBAC administrativo por role (`super_admin`, `moderator`, `finance`) nas rotas críticas
 - Autorização explícita em leitura de conversas (somente participantes)
-- Throttling de envio de mensagens (anti-flood)
+- Throttling expandido para login, registo, reset password, swipes, denúncias, feed e pagamentos
 - Uploads de imagens via `$_FILES` com validação de MIME real, tamanho máximo e nome aleatório seguro
 - Controle de estado de conta (`pending_activation`, `active`, `expired`, `suspended`, `banned`)
 - Logs de atividade e moderação
+
+## Evoluções recentes de produto
+- Discovery com filtros reais (idade, objectivo, verificados) e ranking por compatibilidade + boost + premium + verificação + actividade.
+- Dashboard dinâmico orientado à retenção (estado da conta, dias restantes, badges, alertas, acções recomendadas, completude de perfil).
+- Inbox com lista de conversas, última mensagem, contagem de não lidas, estado online e pesquisa.
+- Base de pagamentos desacoplada com providers (`DebitoMpesaProvider`, `DebitoEmolaProvider`), cliente HTTP dedicado (`DebitoClient`) e reconciliação central (`PaymentReconciliationService`).
 
 ## Credenciais admin seed
 - Email: `admin@rotadoamor.mz`
