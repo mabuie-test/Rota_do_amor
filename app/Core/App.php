@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Middleware\CsrfMiddleware;
 use Throwable;
 
 final class App
@@ -19,6 +20,10 @@ final class App
             require dirname(__DIR__, 2) . '/routes/user.php';
             require dirname(__DIR__, 2) . '/routes/premium.php';
             require dirname(__DIR__, 2) . '/routes/admin.php';
+
+            if (in_array(Request::method(), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+                (new CsrfMiddleware())->handle(static fn () => true);
+            }
 
             $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $_SERVER['REQUEST_URI'] ?? '/');
         } catch (Throwable $exception) {

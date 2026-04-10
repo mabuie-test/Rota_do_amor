@@ -49,6 +49,7 @@ Preços e regras de negócio são carregados por ambiente (sem hardcode operacio
 - `EMAIL_VERIFICATION_REQUIRED`
 - `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES`
 - `EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS`
+- `UPLOAD_MAX_IMAGE_SIZE` (bytes, default 5242880)
 
 ## Débito API (M-Pesa)
 Configurar:
@@ -99,8 +100,12 @@ php scripts/cleanup_temp_uploads.php
 ## Segurança aplicada
 - `password_hash` / `password_verify`
 - Prepared statements via PDO
-- CSRF token helper
+- CSRF obrigatório para `POST/PUT/PATCH/DELETE`, com suporte para campo `_token` e header `X-CSRF-TOKEN`
 - Sessões seguras e regeneração de sessão
+- Hardening admin: login limitado por tentativas e bloqueio de admins inactivos
+- Autorização explícita em leitura de conversas (somente participantes)
+- Throttling de envio de mensagens (anti-flood)
+- Uploads de imagens via `$_FILES` com validação de MIME real, tamanho máximo e nome aleatório seguro
 - Controle de estado de conta (`pending_activation`, `active`, `expired`, `suspended`, `banned`)
 - Logs de atividade e moderação
 

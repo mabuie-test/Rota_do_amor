@@ -7,7 +7,7 @@
       <li><i class="fa-solid fa-circle-check me-2 text-success"></i>Pagamento via M-Pesa (Débito API)</li>
       <li><i class="fa-solid fa-clock me-2 text-warning"></i>Status em tempo real disponível na rota de status</li>
     </ul>
-    <form method="post" action="/activation/pay" class="mt-3">
+    <form method="post" action="/activation/pay" class="mt-3"><?= csrf_field() ?>
       <div class="input-icon-wrap mb-2"><i class="fa-solid fa-phone"></i><input class="form-control" name="phone" placeholder="25884XXXXXXX" required></div>
       <button class="btn btn-rd-primary"><i class="fa-solid fa-bolt me-2"></i>Iniciar Pagamento</button>
     </form>

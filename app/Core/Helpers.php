@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Core\Config;
+use App\Core\Csrf;
 
 if (!function_exists('e')) {
     function e(string $value): string
@@ -31,5 +32,19 @@ if (!function_exists('asset')) {
     function asset(string $path): string
     {
         return url('assets/' . ltrim($path, '/'));
+    }
+}
+
+if (!function_exists('csrf_token')) {
+    function csrf_token(): string
+    {
+        return Csrf::token();
+    }
+}
+
+if (!function_exists('csrf_field')) {
+    function csrf_field(): string
+    {
+        return '<input type="hidden" name="_token" value="' . e(csrf_token()) . '">';
     }
 }

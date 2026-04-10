@@ -5,7 +5,7 @@
         <h3 class="mb-2"><i class="fa-solid fa-user-plus me-2 text-primary"></i>Criar Conta</h3>
         <p class="text-muted mb-4">Preencha seus dados para iniciar sua jornada no Rota do Amor.</p>
         <form method="post" action="<?= e(url('register')) ?>" class="row g-3">
-          <input type="hidden" name="_token" value="<?= e(\App\Core\Csrf::token()) ?>">
+          <?= csrf_field() ?>
           <div class="col-md-6 input-icon-wrap"><i class="fa-regular fa-user"></i><input class="form-control" name="first_name" placeholder="Nome" required></div>
           <div class="col-md-6 input-icon-wrap"><i class="fa-regular fa-user"></i><input class="form-control" name="last_name" placeholder="Apelido" required></div>
           <div class="col-md-6 input-icon-wrap"><i class="fa-regular fa-envelope"></i><input class="form-control" type="email" name="email" placeholder="Email" required></div>

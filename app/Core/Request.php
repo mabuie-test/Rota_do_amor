@@ -50,4 +50,10 @@ final class Request
             || $requestedWith === 'xmlhttprequest'
             || $format === 'json';
     }
+
+    public static function header(string $name, mixed $default = null): mixed
+    {
+        $normalized = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
+        return $_SERVER[$normalized] ?? $default;
+    }
 }

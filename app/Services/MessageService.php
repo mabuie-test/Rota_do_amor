@@ -30,6 +30,15 @@ final class MessageService extends Model
 
     public function sendMessage(int $senderId, int $receiverId, string $messageText, string $messageType = 'text'): int
     {
+        $messageText = trim($messageText);
+        if ($senderId <= 0 || $receiverId <= 0 || $senderId === $receiverId || $messageText === '') {
+            return 0;
+        }
+
+        if (mb_strlen($messageText) > 2000) {
+            return 0;
+        }
+
         if (!$this->userCanMessage($senderId, $receiverId)) {
             return 0;
         }
@@ -45,8 +54,12 @@ final class MessageService extends Model
         return (int) $this->db->lastInsertId();
     }
 
-    public function getConversationMessages(int $conversationId): array
+    public function getConversationMessages(int $conversationId, int $viewerId): array
     {
+        if (!$this->isConversationParticipant($conversationId, $viewerId)) {
+            return [];
+        }
+
         $stmt = $this->db->prepare('SELECT * FROM messages WHERE conversation_id = :id ORDER BY created_at ASC');
         $stmt->execute([':id' => $conversationId]);
         return $stmt->fetchAll();
@@ -54,7 +67,18 @@ final class MessageService extends Model
 
     public function markAsRead(int $conversationId, int $readerId): void
     {
+        if (!$this->isConversationParticipant($conversationId, $readerId)) {
+            return;
+        }
+
         $this->db->prepare('UPDATE messages SET is_read = 1 WHERE conversation_id = :conversation_id AND receiver_id = :reader_id AND is_read = 0')->execute([':conversation_id' => $conversationId, ':reader_id' => $readerId]);
+    }
+
+    public function isConversationParticipant(int $conversationId, int $userId): bool
+    {
+        $stmt = $this->db->prepare('SELECT id FROM conversations WHERE id = :id AND (user_one_id = :user_id OR user_two_id = :user_id) LIMIT 1');
+        $stmt->execute([':id' => $conversationId, ':user_id' => $userId]);
+        return (bool) $stmt->fetch();
     }
 
     public function getUnreadCount(int $userId): int
