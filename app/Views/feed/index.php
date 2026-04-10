@@ -33,10 +33,41 @@
         <?php endforeach; ?>
       </div>
     <?php endif; ?>
-    <div class="d-flex gap-2">
-      <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-heart"></i></button>
-      <button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-comment"></i></button>
-      <button class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-flag"></i></button>
+    <div class="d-flex flex-wrap gap-2 align-items-start">
+      <form method="post" action="/feed/like" class="m-0">
+        <?= csrf_field() ?>
+        <input type="hidden" name="post_id" value="<?= (int) $post['id'] ?>">
+        <button class="btn btn-sm <?= (int) ($post['liked_by_viewer'] ?? 0) === 1 ? 'btn-danger' : 'btn-outline-danger' ?>" title="Gostar">
+          <i class="fa-solid fa-heart me-1"></i><?= (int) ($post['liked_by_viewer'] ?? 0) === 1 ? 'Gostado' : 'Gostar' ?>
+        </button>
+      </form>
+      <details class="m-0">
+        <summary class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-comment me-1"></i>Comentar</summary>
+        <form method="post" action="/feed/comment" class="mt-2 d-flex gap-2">
+          <?= csrf_field() ?>
+          <input type="hidden" name="post_id" value="<?= (int) $post['id'] ?>">
+          <input class="form-control form-control-sm" name="comment" maxlength="600" placeholder="Escreva um comentário..." required>
+          <button class="btn btn-sm btn-rd-primary">Enviar</button>
+        </form>
+      </details>
+      <details class="m-0">
+        <summary class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-flag me-1"></i>Denunciar</summary>
+        <form method="post" action="/report" class="mt-2">
+          <?= csrf_field() ?>
+          <input type="hidden" name="report_type" value="post">
+          <input type="hidden" name="target_post_id" value="<?= (int) $post['id'] ?>">
+          <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" name="reason" required>
+              <option value="">Motivo...</option>
+              <option value="spam">Spam</option>
+              <option value="abuse">Abuso</option>
+              <option value="adult_content">Conteúdo impróprio</option>
+              <option value="fake_profile">Perfil falso</option>
+            </select>
+            <button class="btn btn-sm btn-warning">Enviar</button>
+          </div>
+        </form>
+      </details>
       <?php if ((int) ($post['user_id'] ?? 0) === $viewerId): ?>
         <form method="post" action="/feed/delete"><?= csrf_field() ?><input type="hidden" name="post_id" value="<?= (int) $post['id'] ?>"><button class="btn btn-sm btn-outline-dark">Apagar</button></form>
       <?php endif; ?>

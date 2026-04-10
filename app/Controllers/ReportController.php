@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\RateLimiterService;
@@ -25,7 +26,12 @@ final class ReportController extends Controller
         $userId = Auth::id() ?? 0;
         $key = 'report_create:' . $userId . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('report_create', $key, 10, 10)) {
-            Response::json(['ok' => false, 'message' => 'Muitas denúncias em pouco tempo.'], 429);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => 'Muitas denúncias em pouco tempo.'], 429);
+            }
+
+            Flash::set('error', 'Muitas denúncias em pouco tempo.');
+            Response::redirect('/feed');
         }
 
         $id = $this->service->createReport(
@@ -41,6 +47,11 @@ final class ReportController extends Controller
         );
         $this->rateLimiter->hit('report_create', $key, $userId);
 
-        Response::json(['ok' => true, 'report_id' => $id]);
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true, 'report_id' => $id]);
+        }
+
+        Flash::set('success', 'Denúncia enviada para revisão.');
+        Response::redirect('/feed');
     }
 }

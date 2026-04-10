@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\MessageService;
@@ -44,6 +45,7 @@ final class MessageController extends Controller
 
         $this->view('messages/index', [
             'title' => 'Mensagens',
+            'viewer_id' => $userId,
             'conversations' => $conversations,
             'search' => $search,
             'active_conversation_id' => $activeConversationId,
@@ -65,7 +67,7 @@ final class MessageController extends Controller
         $conversation = $this->service->getConversationMessages($conversationId, $userId, $page, 40);
         $context = $this->service->getConversationContext($conversationId, $userId);
         $this->service->markAsRead($conversationId, $userId);
-        $this->view('messages/show', ['title' => 'Conversa', 'messages' => $conversation['items'], 'pagination' => $conversation['pagination'], 'context' => $context]);
+        $this->view('messages/show', ['title' => 'Conversa', 'viewer_id' => $userId, 'messages' => $conversation['items'], 'pagination' => $conversation['pagination'], 'context' => $context]);
     }
 
     public function send(): void
@@ -77,7 +79,11 @@ final class MessageController extends Controller
             || $this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 18, 1, 'success')
             || $this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 10, 1, 'failed')
         ) {
-            Response::json(['ok' => false, 'message' => 'Muitas mensagens em pouco tempo.'], 429);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => 'Muitas mensagens em pouco tempo.'], 429);
+            }
+            Flash::set('error', 'Muitas mensagens em pouco tempo.');
+            Response::redirect('/messages');
         }
         $this->rateLimiter->hit('chat_send', $rateLimitKey, $senderId);
 
@@ -100,20 +106,33 @@ final class MessageController extends Controller
 
             if ($messageId > 0) {
                 $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId, ['message_type' => $messageType]);
-                Response::json(['ok' => true, 'message_id' => $messageId], 200);
+                if (Request::expectsJson()) {
+                    Response::json(['ok' => true, 'message_id' => $messageId], 200);
+                }
+
+                $redirectConversation = $this->service->getOrCreateConversation($senderId, (int) Request::input('receiver_id', 0));
+                Response::redirect('/messages?conversation=' . $redirectConversation);
             }
 
             foreach ($attachments as $file) {
                 $this->uploads->deleteImageBundle($file);
             }
             $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId, ['reason' => 'send_rejected']);
-            Response::json(['ok' => false, 'message_id' => 0], 422);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message_id' => 0], 422);
+            }
+            Flash::set('error', 'Não foi possível enviar a mensagem.');
+            Response::redirect('/messages');
         } catch (RuntimeException $exception) {
             foreach ($attachments as $file) {
                 $this->uploads->deleteImageBundle($file);
             }
             $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId, ['reason' => 'upload_rejected']);
-            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+            }
+            Flash::set('error', $exception->getMessage());
+            Response::redirect('/messages');
         }
     }
 }

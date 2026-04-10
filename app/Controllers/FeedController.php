@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\FeedService;
@@ -36,7 +37,12 @@ final class FeedController extends Controller
         $userId = Auth::id() ?? 0;
         $key = 'feed_post:' . $userId . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('feed_post', $key, 10, 5)) {
-            Response::json(['ok' => false, 'message' => 'Limite de publicações temporariamente atingido.'], 429);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => 'Limite de publicações temporariamente atingido.'], 429);
+            }
+
+            Flash::set('error', 'Limite de publicações temporariamente atingido.');
+            Response::redirect('/feed');
         }
 
         $storedImages = [];
@@ -48,20 +54,35 @@ final class FeedController extends Controller
             $id = $this->service->createPost($userId, (string) Request::input('content', ''), $storedImages);
             if ($id > 0) {
                 $this->rateLimiter->hitSuccess('feed_post', $key, $userId, ['images_count' => count($storedImages)]);
-                Response::json(['ok' => true, 'post_id' => $id, 'images_count' => count($storedImages)]);
+                if (Request::expectsJson()) {
+                    Response::json(['ok' => true, 'post_id' => $id, 'images_count' => count($storedImages)]);
+                }
+
+                Flash::set('success', 'Publicação criada com sucesso.');
+                Response::redirect('/feed');
             }
 
             foreach ($storedImages as $file) {
                 $this->uploads->deleteImageBundle($file);
             }
             $this->rateLimiter->hitFailure('feed_post', $key, $userId, ['reason' => 'invalid_post_payload']);
-            Response::json(['ok' => false, 'post_id' => 0], 422);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'post_id' => 0], 422);
+            }
+
+            Flash::set('error', 'Não foi possível publicar este conteúdo.');
+            Response::redirect('/feed');
         } catch (RuntimeException $exception) {
             foreach ($storedImages as $file) {
                 $this->uploads->deleteImageBundle($file);
             }
             $this->rateLimiter->hitFailure('feed_post', $key, $userId, ['reason' => 'upload_rejected']);
-            Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+            }
+
+            Flash::set('error', $exception->getMessage());
+            Response::redirect('/feed');
         }
     }
 
@@ -69,22 +90,40 @@ final class FeedController extends Controller
     {
         $key = 'feed_like:' . (Auth::id() ?? 0) . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('feed_like', $key, 60, 5)) {
-            Response::json(['ok' => false, 'message' => 'Muitos likes em curto período.'], 429);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => 'Muitos likes em curto período.'], 429);
+            }
+
+            Flash::set('error', 'Muitos likes em curto período.');
+            Response::redirect('/feed');
         }
         $this->service->likePost((int) Request::input('post_id', 0), Auth::id() ?? 0);
         $this->rateLimiter->hitSuccess('feed_like', $key, Auth::id() ?? 0);
-        Response::json(['ok' => true]);
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true]);
+        }
+
+        Response::redirect('/feed');
     }
 
     public function comment(): void
     {
         $key = 'feed_comment:' . (Auth::id() ?? 0) . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('feed_comment', $key, 25, 5)) {
-            Response::json(['ok' => false, 'message' => 'Muitos comentários em curto período.'], 429);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => 'Muitos comentários em curto período.'], 429);
+            }
+
+            Flash::set('error', 'Muitos comentários em curto período.');
+            Response::redirect('/feed');
         }
         $this->service->commentPost((int) Request::input('post_id', 0), Auth::id() ?? 0, (string) Request::input('comment', ''));
         $this->rateLimiter->hitSuccess('feed_comment', $key, Auth::id() ?? 0);
-        Response::json(['ok' => true]);
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true]);
+        }
+
+        Response::redirect('/feed');
     }
 
     public function delete(): void
@@ -92,10 +131,20 @@ final class FeedController extends Controller
         $userId = Auth::id() ?? 0;
         $postId = (int) Request::input('post_id', 0);
         if ($postId <= 0) {
-            Response::json(['ok' => false, 'message' => 'Post inválido.'], 422);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => 'Post inválido.'], 422);
+            }
+
+            Flash::set('error', 'Post inválido.');
+            Response::redirect('/feed');
         }
 
         $this->service->deletePost($postId, $userId);
-        Response::json(['ok' => true]);
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true]);
+        }
+
+        Flash::set('success', 'Publicação removida.');
+        Response::redirect('/feed');
     }
 }

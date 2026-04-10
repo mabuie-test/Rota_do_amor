@@ -6,7 +6,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Registo, autenticação segura, logout, recuperação de senha e verificação de email.
 - Ativação da conta por pagamento inicial, subscrição mensal e boost pago.
 - Descoberta, swipe, match, mensagens, favoritos, bloqueios, denúncias e notificações.
-- Feed social com posts, likes, comentários, paginação e media (upload múltiplo com thumbnails e ordenação).
+- Feed social com posts, likes, comentários, denúncia, paginação e media (upload múltiplo com thumbnails e ordenação).
 - Verificação de identidade e badges de confiança.
 - Painel admin com dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
 - Scripts CLI para reconciliação de pagamentos, expiração de subscrições/boosts e envio de lembretes.
@@ -103,6 +103,7 @@ php scripts/cleanup_temp_uploads.php
 - Throttling com logs de tentativa/sucesso/falha para login, feed e mensagens, persistido com colunas indexáveis (`rate_limit_key`, `rate_limit_outcome`)
 - Autorização explícita em leitura de conversas (somente participantes)
 - Uploads de imagens via `$_FILES` com validação de MIME real, tamanho máximo e nome aleatório seguro
+- Política de ciclo de vida de media explícita: rollback limpa ficheiros em falha; soft delete mantém media para auditoria/restauro; purge físico fica reservado para rotina administrativa.
 - Controle de estado de conta (`pending_activation`, `active`, `expired`, `suspended`, `banned`)
 - Logs de atividade, auditoria e logs financeiros
 
@@ -110,8 +111,8 @@ php scripts/cleanup_temp_uploads.php
 - Discovery sem N+1 para verificação/boost/premium/atividade, com ranking por compatibilidade e refresh incremental de scores.
 - Inbox otimizada com joins agregados para última mensagem e não lidas (sem subqueries correlacionadas por item).
 - Dashboard com distinção entre perfil completo vs atrativo, impacto de boost, progresso de verificação, contexto premium e ações prioritárias.
-- Feed com paginação, payload enriquecido de autor, comentários recentes, upload real de múltiplas imagens e limpeza de media ao apagar post.
-- Mensagens com histórico paginado, conversa ativa na inbox, contexto consistente do outro utilizador e anexos (`message_attachments`).
+- Feed com paginação, payload enriquecido de autor, comentários recentes e ações de UI ligadas ao backend (like/comentário/denúncia/apagar).
+- Mensagens com histórico paginado, conversa ativa na inbox, contexto consistente do outro utilizador, anexos (`message_attachments`) e apresentação visual humanizada.
 - Compatibilidade com menor round-trip por cálculo (interesses agregados e reutilização de dados alvo quando disponível).
 
 ## Índices e migração

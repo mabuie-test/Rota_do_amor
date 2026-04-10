@@ -1,5 +1,10 @@
 <?php $d = $dashboard ?? []; $signals = $d['profile_signals'] ?? []; $verification = $d['verification_progress'] ?? []; $retention = $d['retention_context'] ?? []; $boostImpact = $d['boost_impact'] ?? []; $premium = $d['premium_context'] ?? []; ?>
 <h3 class="mb-3">Dashboard</h3>
+<?php if (!empty($d['primary_focus'])): ?>
+<div class="alert alert-primary py-2 px-3 mb-3">
+  <strong>Foco de hoje:</strong> <?= e((string) $d['primary_focus']) ?>
+</div>
+<?php endif; ?>
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Estado da Conta</div><div class="value"><?= e((string) ($d['account_status'] ?? 'pending')) ?></div></div></div></div>
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Subscrição</div><div class="value"><?= !empty($d['subscription_active']) ? 'Activa' : 'Inactiva' ?></div><small><?= (int) ($d['days_remaining'] ?? 0) ?> dias restantes</small></div></div></div>
@@ -10,7 +15,7 @@
 <div class="row g-3">
   <div class="col-lg-6">
     <div class="rd-card"><div class="card-body">
-      <h6>Qualidade e Atratividade do Perfil</h6>
+      <h6>Perfil: completude e atratividade</h6>
       <div class="progress mb-2"><div class="progress-bar" role="progressbar" style="width: <?= (int) ($d['profile_completion_percent'] ?? 0) ?>%"></div></div>
       <p class="small text-muted mb-1">Completude: <strong><?= (int) ($d['profile_completion_percent'] ?? 0) ?>%</strong> · Atratividade: <strong><?= (int) ($d['profile_attractiveness_percent'] ?? 0) ?>%</strong></p>
       <p class="small text-muted mb-2">Confiança: <strong><?= e((string) ($d['trust_indicator'] ?? 'Baixa')) ?></strong></p>
@@ -21,13 +26,13 @@
   </div>
   <div class="col-lg-6">
     <div class="rd-card"><div class="card-body">
-      <h6>Retenção & Premium</h6>
-      <p class="small mb-1">Boost activo: <strong><?= !empty($d['boost_active']) ? 'Sim' : 'Não' ?></strong> <?php if (!empty($boostImpact['next_ends_at'])): ?>· termina em <?= e((string) $boostImpact['next_ends_at']) ?><?php endif; ?></p>
+      <h6>Boost, verificação e retenção</h6>
+      <p class="small mb-1">Boost activo: <strong class="<?= !empty($d['boost_active']) ? 'text-success' : 'text-warning' ?>"><?= !empty($d['boost_active']) ? 'Sim' : 'Não' ?></strong> <?php if (!empty($boostImpact['next_ends_at'])): ?>· termina em <?= e((string) $boostImpact['next_ends_at']) ?><?php endif; ?></p>
       <p class="small mb-1">Impacto estimado do boost: <strong><?= e((string) ($premium['boost_estimated_impact'] ?? 'visibilidade normal')) ?></strong></p>
       <p class="small mb-1">Readiness para boost: <strong><?= (int) ($premium['boost_readiness_score'] ?? 0) ?>%</strong> · boosts activos: <strong><?= (int) ($premium['boost_active_count'] ?? 0) ?></strong></p>
       <p class="small mb-1">Compatibilidade média: <strong><?= e((string) ($d['avg_compatibility'] ?? '0')) ?>%</strong></p>
       <p class="small mb-1">Fotos: <strong><?= (int) ($signals['photos_count'] ?? 0) ?></strong> · Interesses: <strong><?= (int) ($signals['interests_count'] ?? 0) ?></strong></p>
-      <p class="small mb-1">Verificação: <strong><?= e((string) ($verification['label'] ?? 'Não iniciada')) ?></strong> <?php if (!empty($verification['updated_at'])): ?>· actualizada em <?= e((string) $verification['updated_at']) ?><?php endif; ?></p>
+      <p class="small mb-1">Verificação: <strong class="<?= (($verification['status'] ?? 'not_started') === 'approved') ? 'text-success' : 'text-warning' ?>"><?= e((string) ($verification['label'] ?? 'Não iniciada')) ?></strong> <?php if (!empty($verification['updated_at'])): ?>· actualizada em <?= e((string) $verification['updated_at']) ?><?php endif; ?></p>
       <p class="small mb-1">Contexto premium: <strong><?= e((string) ($premium['subscription_state'] ?? 'expirada')) ?></strong> · urgência <strong><?= e((string) ($premium['subscription_urgency'] ?? 'alta')) ?></strong></p>
       <p class="small mb-1">Risco de retenção: <strong><?= e((string) ($retention['risk_level'] ?? 'baixo')) ?></strong> · Engajamento: <strong><?= e((string) ($retention['engagement_signal'] ?? 'frio')) ?></strong></p>
       <p class="small mb-3">Última actividade: <?= e((string) ($d['last_activity_at'] ?? '---')) ?></p>
