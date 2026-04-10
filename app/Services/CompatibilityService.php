@@ -9,6 +9,12 @@ use DateTimeImmutable;
 
 final class CompatibilityService extends Model
 {
+    public function __construct(
+        private readonly ConnectionModeService $connectionModes = new ConnectionModeService()
+    ) {
+        parent::__construct();
+    }
+
     public function calculateCompatibility(int $userId, int $targetId, ?array $targetUser = null): array
     {
         $pair = $this->loadPairData($userId, $targetId, $targetUser);
@@ -42,7 +48,7 @@ final class CompatibilityService extends Model
         $profileCompletion += !empty($target['profession']) ? 5 : 0;
         $profileCompletion += !empty($target['last_activity_at']) ? 5 : 0;
 
-        $breakdown = [
+        $structuralBreakdown = [
             'location' => $location,
             'interests' => $interestScore,
             'relationship_goal' => $goal,
@@ -50,7 +56,24 @@ final class CompatibilityService extends Model
             'profile_activity' => $profileCompletion,
         ];
 
-        $score = (float) min(100, array_sum($breakdown));
+        $intentionAlignment = $this->connectionModes->calculateIntentionAlignment(
+            isset($user['current_intention']) ? (string) $user['current_intention'] : null,
+            isset($target['current_intention']) ? (string) $target['current_intention'] : null
+        );
+        $paceAlignment = $this->connectionModes->calculatePaceAlignment(
+            isset($user['relational_pace']) ? (string) $user['relational_pace'] : null,
+            isset($target['relational_pace']) ? (string) $target['relational_pace'] : null
+        );
+
+        $breakdown = [];
+        foreach ($structuralBreakdown as $key => $value) {
+            $breakdown[$key] = round((float) $value * 0.65, 2);
+        }
+
+        $breakdown['current_intention'] = round($intentionAlignment * 0.20, 2);
+        $breakdown['relational_pace'] = round($paceAlignment * 0.15, 2);
+
+        $score = round((float) min(100, array_sum($breakdown)), 2);
         $this->db->prepare('INSERT INTO compatibility_scores (user_id,target_user_id,score,breakdown_json,calculated_at) VALUES (:user_id,:target_user_id,:score,:breakdown,NOW()) ON DUPLICATE KEY UPDATE score=VALUES(score),breakdown_json=VALUES(breakdown_json),calculated_at=NOW()')->execute([
             ':user_id' => $userId,
             ':target_user_id' => $targetId,
@@ -75,14 +98,16 @@ final class CompatibilityService extends Model
         }
 
         $placeholders = implode(',', array_fill(0, count($targetIds), '?'));
-        $stmt = $this->db->prepare("SELECT target_user_id, score, calculated_at FROM compatibility_scores WHERE user_id = ? AND target_user_id IN ($placeholders)");
+        $stmt = $this->db->prepare("SELECT target_user_id, score, calculated_at, breakdown_json FROM compatibility_scores WHERE user_id = ? AND target_user_id IN ($placeholders)");
         $stmt->execute([$userId, ...array_values($targetIds)]);
 
         $scores = [];
         foreach ($stmt->fetchAll() as $row) {
+            $breakdown = json_decode((string) ($row['breakdown_json'] ?? '{}'), true);
             $scores[(int) $row['target_user_id']] = [
                 'score' => (float) ($row['score'] ?? 0),
                 'calculated_at' => (string) ($row['calculated_at'] ?? ''),
+                'breakdown' => is_array($breakdown) ? $breakdown : [],
             ];
         }
 
@@ -105,14 +130,14 @@ final class CompatibilityService extends Model
 
     private function loadPairData(int $userId, int $targetId, ?array $targetUser = null): ?array
     {
-        $user = $this->fetchOne('SELECT id,city_id,province_id,relationship_goal FROM users WHERE id=:id LIMIT 1', [':id' => $userId]);
+        $user = $this->fetchOne('SELECT u.id,u.city_id,u.province_id,u.relationship_goal,ucm.current_intention,ucm.relational_pace FROM users u LEFT JOIN user_connection_modes ucm ON ucm.user_id = u.id WHERE u.id=:id LIMIT 1', [':id' => $userId]);
         if (!$user) {
             return null;
         }
 
         $target = $targetUser;
         if (!$target || (int) ($target['id'] ?? 0) !== $targetId) {
-            $target = $this->fetchOne('SELECT id,birth_date,gender,city_id,province_id,relationship_goal,bio,profile_photo_path,profession,last_activity_at FROM users WHERE id=:id LIMIT 1', [':id' => $targetId]);
+            $target = $this->fetchOne('SELECT u.id,u.birth_date,u.gender,u.city_id,u.province_id,u.relationship_goal,u.bio,u.profile_photo_path,u.profession,u.last_activity_at,ucm.current_intention,ucm.relational_pace FROM users u LEFT JOIN user_connection_modes ucm ON ucm.user_id = u.id WHERE u.id=:id LIMIT 1', [':id' => $targetId]);
         }
         if (!$target) {
             return null;

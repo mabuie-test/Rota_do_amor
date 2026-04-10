@@ -1,8 +1,8 @@
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h3 class="mb-0">Descobrir Pessoas</h3>
-  <form method="get" class="d-flex gap-2 align-items-center">
-    <input class="form-control form-control-sm" style="width:90px" type="number" name="age_min" placeholder="Idade min" value="<?= e((string) ($filters['age_min'] ?? '')) ?>">
-    <input class="form-control form-control-sm" style="width:90px" type="number" name="age_max" placeholder="Idade max" value="<?= e((string) ($filters['age_max'] ?? '')) ?>">
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h3 class="mb-0"><i class="fa-solid fa-compass me-2"></i>Descobrir Pessoas</h3>
+  <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+    <input class="form-control form-control-sm" style="width:96px" type="number" name="age_min" placeholder="Idade min" value="<?= e((string) ($filters['age_min'] ?? '')) ?>">
+    <input class="form-control form-control-sm" style="width:96px" type="number" name="age_max" placeholder="Idade max" value="<?= e((string) ($filters['age_max'] ?? '')) ?>">
     <select class="form-select form-select-sm" name="relationship_goal">
       <option value="">Objectivo</option>
       <?php foreach (['friendship' => 'Amizade', 'dating' => 'Namoro', 'marriage' => 'Casamento'] as $key => $label): ?>
@@ -13,20 +13,46 @@
     <button class="btn btn-sm btn-rd-soft"><i class="fa-solid fa-sliders me-2"></i>Filtrar</button>
   </form>
 </div>
+
 <div class="row g-3">
 <?php if (empty($profiles ?? [])): ?>
   <div class="col-12"><?php $title='Sem sugestões por agora'; $description='Volte em alguns instantes para novos perfis.'; require dirname(__DIR__).'/partials/empty-state.php'; ?></div>
 <?php endif; ?>
 <?php foreach (($profiles ?? []) as $profile): ?>
   <div class="col-md-6 col-xl-4">
-    <div class="rd-card h-100">
+    <div class="rd-card rd-discovery-card h-100">
       <div class="card-body">
-        <h5><?= e(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')) ?></h5>
-        <p class="small text-muted"><i class="fa-solid fa-location-dot me-1"></i><?= e((string) ($profile['city_id'] ?? '')) ?></p>
-        <p class="small"><?= e($profile['relationship_goal'] ?? '') ?></p>
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="rd-name"><?= e(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')) ?></div>
+            <p class="rd-meta mb-1"><i class="fa-solid fa-location-dot me-1"></i><?= e((string) ($profile['city_name'] ?? '')) ?>, <?= e((string) ($profile['province_name'] ?? '')) ?></p>
+          </div>
+          <span class="rd-badge rd-compat-pill">Compatibilidade <?= (int) (($profile['_compatibility'] ?? 0)) ?>%</span>
+        </div>
+
+        <p class="small mb-2"><i class="fa-solid fa-star me-1"></i><?= e((string) ($profile['relationship_goal'] ?? '')) ?></p>
+
+        <div class="rd-heart-mode-card mb-3">
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <span class="rd-heart-chip"><i class="fa-solid <?= e((string) ($profile['_intention_icon'] ?? 'fa-heart-pulse')) ?>"></i><?= e((string) ($profile['_intention_label'] ?? 'Conhecer sem pressão')) ?></span>
+            <span class="rd-heart-chip"><i class="fa-solid <?= e((string) ($profile['_pace_icon'] ?? 'fa-wave-square')) ?>"></i><?= e((string) ($profile['_pace_label'] ?? 'Equilibrado')) ?></span>
+          </div>
+          <div class="small text-muted">
+            Intenção: <strong><?= e((string) ($profile['_intention_alignment_label'] ?? 'Moderada')) ?></strong> ·
+            Ritmo: <strong><?= e((string) ($profile['_pace_alignment_label'] ?? 'Moderada')) ?></strong>
+          </div>
+        </div>
+
         <div class="d-flex justify-content-between align-items-center">
-          <span class="rd-badge badge-active">Compatibilidade <?= (int) (($profile['_compatibility'] ?? 0)) ?>%</span>
-          <div class="d-flex gap-1"><button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-heart"></i></button><button class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-star"></i></button></div>
+          <div>
+            <?php if (!empty($profile['_intention_is_aligned'])): ?>
+              <span class="rd-badge badge-aligned"><i class="fa-solid fa-sparkles"></i>Intenção alinhada</span>
+            <?php endif; ?>
+          </div>
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-danger" title="Gostar"><i class="fa-solid fa-heart"></i></button>
+            <button class="btn btn-sm btn-outline-primary" title="Super destaque"><i class="fa-solid fa-star"></i></button>
+          </div>
         </div>
       </div>
     </div>

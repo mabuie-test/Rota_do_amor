@@ -2,7 +2,7 @@
   <div class="col-xl-9">
     <div class="rd-card fade-in">
       <div class="card-body p-4 p-md-5">
-        <h3 class="mb-2"><i class="fa-solid fa-user-plus me-2 text-primary"></i>Criar Conta</h3>
+        <h3 class="mb-2"><i class="fa-solid fa-sparkles me-2 text-primary"></i>Criar Conta</h3>
         <p class="text-muted mb-4">Preencha seus dados para iniciar sua jornada no Rota do Amor.</p>
         <form method="post" action="<?= e(url('register')) ?>" class="row g-3">
           <?= csrf_field() ?>

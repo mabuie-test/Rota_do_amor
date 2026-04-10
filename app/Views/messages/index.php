@@ -6,6 +6,10 @@ $context = $context ?? [];
 $otherId = (int) ($context['other_user_id'] ?? 0);
 $pg = $pagination ?? ['page' => 1, 'has_more' => false];
 $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online agora' : 'Offline';
+$otherIntentionRaw = (string) ($context['other_current_intention'] ?? '');
+$otherPaceRaw = (string) ($context['other_relational_pace'] ?? '');
+$otherIntention = $otherIntentionRaw !== '' ? ucwords(str_replace('_', ' ', $otherIntentionRaw)) : '';
+$otherPace = $otherPaceRaw !== '' ? ucwords(str_replace('_', ' ', $otherPaceRaw)) : '';
 ?>
 <div class="row g-3">
   <div class="col-lg-4"><div class="rd-card"><div class="card-body"><h6>Conversas</h6>
@@ -36,6 +40,8 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
           · <?= $otherStatusLabel ?>
           <?php if ((int) ($context['other_is_verified'] ?? 0) === 1): ?>· Conta verificada<?php endif; ?>
           <?php if (!empty($context['other_last_activity_at'])): ?>· Última atividade: <?= e((string) $context['other_last_activity_at']) ?><?php endif; ?>
+          <?php if ($otherIntention !== ''): ?><span class="rd-heart-chip ms-2"><i class="fa-solid fa-heart-pulse"></i><?= e($otherIntention) ?></span><?php endif; ?>
+          <?php if ($otherPace !== ''): ?><span class="rd-heart-chip ms-1"><i class="fa-solid fa-wave-square"></i><?= e($otherPace) ?></span><?php endif; ?>
         </div>
         <?php if (!empty($pg['has_more'])): ?><a class="btn btn-sm btn-outline-secondary mb-2" href="/messages?conversation=<?= $activeConversationId ?>&page=<?= (int) ($pg['page'] + 1) ?>">Carregar mensagens anteriores (página <?= (int) ($pg['page'] + 1) ?>)</a><?php endif; ?>
         <div class="border rounded p-3 mb-3" style="max-height:420px; overflow:auto;">

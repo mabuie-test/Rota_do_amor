@@ -4,6 +4,10 @@ $viewerId = (int) ($viewer_id ?? 0);
 $otherId = (int) ($context['other_user_id'] ?? 0);
 $pg = $pagination ?? ['page' => 1, 'has_more' => false];
 $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online agora' : 'Offline';
+$otherIntentionRaw = (string) ($context['other_current_intention'] ?? '');
+$otherPaceRaw = (string) ($context['other_relational_pace'] ?? '');
+$otherIntention = $otherIntentionRaw !== '' ? ucwords(str_replace('_', ' ', $otherIntentionRaw)) : '';
+$otherPace = $otherPaceRaw !== '' ? ucwords(str_replace('_', ' ', $otherPaceRaw)) : '';
 ?>
 <h3 class="mb-3">Conversa com <?= e((string) ($context['other_user_name'] ?? 'Utilizador')) ?></h3>
 <div class="small text-muted mb-2 p-2 border rounded bg-light-subtle">
@@ -11,6 +15,8 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
   <?php if ((int) ($context['other_is_verified'] ?? 0) === 1): ?>· Conta verificada<?php endif; ?>
   <?php if (!empty($context['other_last_activity_at'])): ?>· Última atividade: <?= e((string) $context['other_last_activity_at']) ?><?php endif; ?>
   <?php if (!empty($context['other_user_status'])): ?>· Estado da conta: <?= e((string) $context['other_user_status']) ?><?php endif; ?>
+  <?php if ($otherIntention !== ''): ?><span class="rd-heart-chip ms-2"><i class="fa-solid fa-heart-pulse"></i><?= e($otherIntention) ?></span><?php endif; ?>
+  <?php if ($otherPace !== ''): ?><span class="rd-heart-chip ms-1"><i class="fa-solid fa-wave-square"></i><?= e($otherPace) ?></span><?php endif; ?>
 </div>
 <a class="btn btn-sm btn-outline-secondary mb-2" href="/messages?conversation=<?= (int) ($context['id'] ?? 0) ?>">Abrir vista completa da inbox</a>
 <?php if (!empty($pg['has_more'])): ?><a class="btn btn-sm btn-outline-secondary mb-2" href="?page=<?= (int) ($pg['page'] + 1) ?>">Carregar mensagens anteriores (página <?= (int) ($pg['page'] + 1) ?>)</a><?php endif; ?>

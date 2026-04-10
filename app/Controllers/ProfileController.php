@@ -6,9 +6,11 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\BadgeService;
+use App\Services\ConnectionModeService;
 use App\Services\ProfileService;
 use App\Services\UploadService;
 use App\Services\UserService;
@@ -20,7 +22,8 @@ final class ProfileController extends Controller
         private readonly ProfileService $profileService = new ProfileService(),
         private readonly UserService $userService = new UserService(),
         private readonly BadgeService $badgeService = new BadgeService(),
-        private readonly UploadService $uploads = new UploadService()
+        private readonly UploadService $uploads = new UploadService(),
+        private readonly ConnectionModeService $connectionModes = new ConnectionModeService()
     ) {
     }
 
@@ -30,13 +33,36 @@ final class ProfileController extends Controller
         $profile = $this->profileService->getProfile($userId);
         $photos = $this->profileService->getUserPhotos($userId);
         $badges = $this->badgeService->getUserBadges($userId);
-        $this->view('profile/index', ['title' => 'Meu Perfil', 'profile' => $profile, 'photos' => $photos, 'badges' => $badges]);
+        $mode = $this->connectionModes->getForUser($userId);
+
+        $this->view('profile/index', [
+            'title' => 'Meu Perfil',
+            'profile' => $profile,
+            'photos' => $photos,
+            'badges' => $badges,
+            'connection_mode' => $mode,
+            'intention_options' => $this->connectionModes->intentionOptions(),
+            'pace_options' => $this->connectionModes->paceOptions(),
+            'openness_options' => $this->connectionModes->opennessOptions(),
+        ]);
     }
 
     public function update(): void
     {
         $ok = $this->userService->updateProfile(Auth::id() ?? 0, Request::all());
         Response::json(['ok' => $ok]);
+    }
+
+    public function updateConnectionMode(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $ok = $this->connectionModes->upsertForUser($userId, Request::all());
+
+        Flash::set($ok ? 'success' : 'error', $ok
+            ? 'Modo do Coração e Ritmo Relacional atualizados com sucesso.'
+            : 'Não foi possível atualizar o Modo do Coração.');
+
+        Response::redirect('/profile');
     }
 
     public function photo(): void

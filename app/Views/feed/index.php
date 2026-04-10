@@ -1,5 +1,5 @@
 <?php $pg = $pagination ?? ['page' => 1, 'total_pages' => 1]; $viewerId = (int) ($viewer_id ?? 0); ?>
-<h3 class="mb-3"><i class="fa-solid fa-newspaper me-2"></i>Feed Social</h3>
+<h3 class="mb-3"><i class="fa-solid fa-sparkles me-2"></i>Feed Social</h3>
 <form method="post" action="/feed/post" class="rd-card mb-3" enctype="multipart/form-data"><?= csrf_field() ?><div class="card-body"><textarea class="form-control mb-2" name="content" maxlength="2000" placeholder="Partilhe algo com a comunidade..."></textarea><input class="form-control form-control-sm mb-2" type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple><small class="text-muted d-block mb-2">Até 4 imagens por post.</small><button class="btn btn-rd-primary">Publicar</button></div></form>
 <?php if (!empty($feed)): foreach (($feed ?? []) as $post): ?>
   <div class="rd-card mb-2"><div class="card-body">

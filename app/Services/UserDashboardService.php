@@ -14,7 +14,8 @@ final class UserDashboardService extends Model
         private readonly SubscriptionService $subscriptions = new SubscriptionService(),
         private readonly BoostService $boosts = new BoostService(),
         private readonly BadgeService $badges = new BadgeService(),
-        private readonly CompatibilityService $compatibility = new CompatibilityService()
+        private readonly CompatibilityService $compatibility = new CompatibilityService(),
+        private readonly ConnectionModeService $connectionModes = new ConnectionModeService()
     ) {
         parent::__construct();
     }
@@ -36,6 +37,8 @@ final class UserDashboardService extends Model
         $completion = $this->profileCompletion($user, $profileSignals);
         $compatibilityAverage = $this->averageCompatibility($userId);
         $boostImpact = $this->boostImpact($userId);
+        $heartMode = $this->connectionModes->getForUser($userId);
+        $momentAlignment = $this->averageMomentAlignment($userId);
 
         return [
             'account_status' => $accountStatus,
@@ -54,6 +57,10 @@ final class UserDashboardService extends Model
             'trust_indicator' => $this->buildTrustIndicator($profileSignals, $completion['percent']),
             'verification_progress' => $this->buildVerificationProgress($userId),
             'avg_compatibility' => $compatibilityAverage,
+            'heart_mode' => $heartMode,
+            'avg_intention_alignment' => $momentAlignment['intention'],
+            'avg_pace_alignment' => $momentAlignment['pace'],
+            'heart_mode_should_refresh' => $momentAlignment['suggest_refresh'],
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),
@@ -114,6 +121,25 @@ final class UserDashboardService extends Model
         return round((float) ($row['avg_score'] ?? 0), 1);
     }
 
+
+    private function averageMomentAlignment(int $userId): array
+    {
+        $row = $this->fetchOne("SELECT
+                    AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(breakdown_json, '$.current_intention')) AS DECIMAL(6,2))) AS avg_intention_points,
+                    AVG(CAST(JSON_UNQUOTE(JSON_EXTRACT(breakdown_json, '$.relational_pace')) AS DECIMAL(6,2))) AS avg_pace_points
+                FROM compatibility_scores
+                WHERE user_id = :id", [':id' => $userId]) ?: [];
+
+        $mode = $this->fetchOne('SELECT updated_at FROM user_connection_modes WHERE user_id = :id LIMIT 1', [':id' => $userId]) ?: [];
+        $updatedAt = isset($mode['updated_at']) ? strtotime((string) $mode['updated_at']) : 0;
+        $suggestRefresh = $updatedAt <= 0 || $updatedAt < strtotime('-21 days');
+
+        return [
+            'intention' => min(100.0, round(((float) ($row['avg_intention_points'] ?? 0)) / 0.20, 1)),
+            'pace' => min(100.0, round(((float) ($row['avg_pace_points'] ?? 0)) / 0.15, 1)),
+            'suggest_refresh' => $suggestRefresh,
+        ];
+    }
     private function boostImpact(int $userId): array
     {
         $row = $this->fetchOne('SELECT COUNT(*) AS active_count, MAX(ends_at) AS ends_at FROM user_boosts WHERE user_id=:id AND status = :status AND ends_at > NOW()', [':id' => $userId, ':status' => 'active']) ?: [];
