@@ -1,7 +1,7 @@
-<?php $pg = $pagination ?? ['page' => 1, 'total_pages' => 1]; ?>
+<?php $pg = $pagination ?? ['page' => 1, 'total_pages' => 1]; $viewerId = (int) ($viewer_id ?? 0); ?>
 <h3 class="mb-3"><i class="fa-solid fa-newspaper me-2"></i>Feed Social</h3>
 <form method="post" action="/feed/post" class="rd-card mb-3" enctype="multipart/form-data"><?= csrf_field() ?><div class="card-body"><textarea class="form-control mb-2" name="content" maxlength="2000" placeholder="Partilhe algo com a comunidade..."></textarea><input class="form-control form-control-sm mb-2" type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple><small class="text-muted d-block mb-2">Até 4 imagens por post.</small><button class="btn btn-rd-primary">Publicar</button></div></form>
-<?php foreach (($feed ?? []) as $post): ?>
+<?php if (!empty($feed)): foreach (($feed ?? []) as $post): ?>
   <div class="rd-card mb-2"><div class="card-body">
     <div class="d-flex justify-content-between">
       <div>
@@ -33,9 +33,16 @@
         <?php endforeach; ?>
       </div>
     <?php endif; ?>
-    <div class="d-flex gap-2"><button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-heart"></i></button><button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-comment"></i></button><button class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-flag"></i></button></div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-heart"></i></button>
+      <button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-comment"></i></button>
+      <button class="btn btn-sm btn-outline-warning"><i class="fa-solid fa-flag"></i></button>
+      <?php if ((int) ($post['user_id'] ?? 0) === $viewerId): ?>
+        <form method="post" action="/feed/delete"><?= csrf_field() ?><input type="hidden" name="post_id" value="<?= (int) $post['id'] ?>"><button class="btn btn-sm btn-outline-dark">Apagar</button></form>
+      <?php endif; ?>
+    </div>
   </div></div>
-<?php endforeach; ?>
+<?php endforeach; else: $title='Feed vazio'; $description='Ainda não há publicações ativas para mostrar.'; require dirname(__DIR__).'/partials/empty-state.php'; endif; ?>
 
 <?php if (($pg['total_pages'] ?? 1) > 1): ?>
 <nav class="mt-3"><ul class="pagination pagination-sm">

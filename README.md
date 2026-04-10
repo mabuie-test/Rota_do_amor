@@ -6,7 +6,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Registo, autenticação segura, logout, recuperação de senha e verificação de email.
 - Ativação da conta por pagamento inicial, subscrição mensal e boost pago.
 - Descoberta, swipe, match, mensagens, favoritos, bloqueios, denúncias e notificações.
-- Feed social com posts, likes, comentários e paginação.
+- Feed social com posts, likes, comentários, paginação e media (upload múltiplo com thumbnails e ordenação).
 - Verificação de identidade e badges de confiança.
 - Painel admin com dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
 - Scripts CLI para reconciliação de pagamentos, expiração de subscrições/boosts e envio de lembretes.
@@ -71,7 +71,7 @@ Fluxos cobertos:
 ### Garantias de idempotência financeira
 - Reconciliação processa cada pagamento em transação com lock (`SELECT ... FOR UPDATE`).
 - Benefícios de pagamento são aplicados apenas uma vez por pagamento através de `benefit_application_status` + `benefit_applied_at`.
-- Auto-recuperação segura para estados legados/inconsistentes (`completed` sem metadata coerente), com logs de reparação/rejeição.
+- Recuperação de estados legados só marca benefício como aplicado quando existe evidência forte (ex.: boost ligado por `payment_id` ou marca temporal consistente), mantendo pendente quando a evidência é fraca.
 - Reconciliações repetidas de pagamentos já finalizados são ignoradas com logs explícitos.
 - Pagamentos em estados finais (`completed`, `failed`, `cancelled`) não reexecutam efeitos indevidos.
 
@@ -100,7 +100,7 @@ php scripts/cleanup_temp_uploads.php
 - CSRF obrigatório para `POST/PUT/PATCH/DELETE`, com suporte para campo `_token` e header `X-CSRF-TOKEN`
 - Sessões seguras e regeneração de sessão
 - RBAC admin validado em base por request (`AdminAuthorizationService`), com invalidação imediata de sessão em perda de acesso
-- Throttling com semântica de sucesso/falha para login, feed e mensagens, persistido com colunas indexáveis (`rate_limit_key`, `rate_limit_outcome`)
+- Throttling com logs de tentativa/sucesso/falha para login, feed e mensagens, persistido com colunas indexáveis (`rate_limit_key`, `rate_limit_outcome`)
 - Autorização explícita em leitura de conversas (somente participantes)
 - Uploads de imagens via `$_FILES` com validação de MIME real, tamanho máximo e nome aleatório seguro
 - Controle de estado de conta (`pending_activation`, `active`, `expired`, `suspended`, `banned`)
@@ -109,9 +109,9 @@ php scripts/cleanup_temp_uploads.php
 ## Evoluções recentes de performance/produto
 - Discovery sem N+1 para verificação/boost/premium/atividade, com ranking por compatibilidade e refresh incremental de scores.
 - Inbox otimizada com joins agregados para última mensagem e não lidas (sem subqueries correlacionadas por item).
-- Dashboard mais fiel com distinção entre perfil completo vs atrativo, retenção, contexto premium/boost e ações prioritárias.
-- Feed com paginação, payload enriquecido de autor, comentários recentes e upload real de múltiplas imagens.
-- Mensagens com histórico paginado, contexto expandido do outro utilizador e base de anexos (`message_attachments`).
+- Dashboard com distinção entre perfil completo vs atrativo, impacto de boost, progresso de verificação, contexto premium e ações prioritárias.
+- Feed com paginação, payload enriquecido de autor, comentários recentes, upload real de múltiplas imagens e limpeza de media ao apagar post.
+- Mensagens com histórico paginado, conversa ativa na inbox, contexto consistente do outro utilizador e anexos (`message_attachments`).
 - Compatibilidade com menor round-trip por cálculo (interesses agregados e reutilização de dados alvo quando disponível).
 
 ## Índices e migração

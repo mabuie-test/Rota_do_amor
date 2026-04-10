@@ -25,9 +25,10 @@ final class FeedController extends Controller
 
     public function index(): void
     {
+        $viewerId = Auth::id() ?? 0;
         $page = max(1, (int) Request::input('page', 1));
-        $feed = $this->service->getFeedForUser(Auth::id() ?? 0, $page, 15);
-        $this->view('feed/index', ['title' => 'Feed', 'feed' => $feed['items'], 'pagination' => $feed['pagination']]);
+        $feed = $this->service->getFeedForUser($viewerId, $page, 15);
+        $this->view('feed/index', ['title' => 'Feed', 'feed' => $feed['items'], 'pagination' => $feed['pagination'], 'viewer_id' => $viewerId]);
     }
 
     public function post(): void
@@ -83,6 +84,18 @@ final class FeedController extends Controller
         }
         $this->service->commentPost((int) Request::input('post_id', 0), Auth::id() ?? 0, (string) Request::input('comment', ''));
         $this->rateLimiter->hitSuccess('feed_comment', $key, Auth::id() ?? 0);
+        Response::json(['ok' => true]);
+    }
+
+    public function delete(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $postId = (int) Request::input('post_id', 0);
+        if ($postId <= 0) {
+            Response::json(['ok' => false, 'message' => 'Post inválido.'], 422);
+        }
+
+        $this->service->deletePost($postId, $userId);
         Response::json(['ok' => true]);
     }
 }

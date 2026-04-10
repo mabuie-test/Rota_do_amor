@@ -27,8 +27,30 @@ final class MessageController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $search = trim((string) Request::input('q', ''));
+        $activeConversationId = (int) Request::input('conversation', 0);
+        $page = max(1, (int) Request::input('page', 1));
         $conversations = $this->service->listConversations($userId, $search);
-        $this->view('messages/index', ['title' => 'Mensagens', 'conversations' => $conversations, 'search' => $search]);
+        if ($activeConversationId <= 0 && $conversations !== []) {
+            $activeConversationId = (int) ($conversations[0]['id'] ?? 0);
+        }
+
+        $activeConversation = ['items' => [], 'pagination' => ['page' => 1, 'per_page' => 40, 'has_more' => false]];
+        $activeContext = [];
+        if ($activeConversationId > 0 && $this->service->isConversationParticipant($activeConversationId, $userId)) {
+            $activeConversation = $this->service->getConversationMessages($activeConversationId, $userId, $page, 40);
+            $activeContext = $this->service->getConversationContext($activeConversationId, $userId);
+            $this->service->markAsRead($activeConversationId, $userId);
+        }
+
+        $this->view('messages/index', [
+            'title' => 'Mensagens',
+            'conversations' => $conversations,
+            'search' => $search,
+            'active_conversation_id' => $activeConversationId,
+            'messages' => $activeConversation['items'] ?? [],
+            'pagination' => $activeConversation['pagination'] ?? [],
+            'context' => $activeContext,
+        ]);
     }
 
     public function show(array $params): void
@@ -50,9 +72,14 @@ final class MessageController extends Controller
     {
         $senderId = Auth::id() ?? 0;
         $rateLimitKey = 'chat_send:' . $senderId . ':' . Request::ip();
-        if ($this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 20, 1, 'failed')) {
+        if (
+            $this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 30, 1, 'any')
+            || $this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 18, 1, 'success')
+            || $this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 10, 1, 'failed')
+        ) {
             Response::json(['ok' => false, 'message' => 'Muitas mensagens em pouco tempo.'], 429);
         }
+        $this->rateLimiter->hit('chat_send', $rateLimitKey, $senderId);
 
         $attachments = [];
         $messageType = (string) Request::input('message_type', 'text');

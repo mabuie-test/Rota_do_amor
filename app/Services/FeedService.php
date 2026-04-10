@@ -9,6 +9,11 @@ use Throwable;
 
 final class FeedService extends Model
 {
+    public function __construct(private readonly UploadService $uploads = new UploadService())
+    {
+        parent::__construct();
+    }
+
     public function createPost(int $userId, string $content, array $images = []): int
     {
         $normalized = trim($content);
@@ -34,9 +39,14 @@ final class FeedService extends Model
             $postId = (int) $this->db->lastInsertId();
 
             foreach ($images as $position => $image) {
+                $path = trim((string) ($image['path'] ?? ''));
+                if ($path === '') {
+                    throw new \RuntimeException('Imagem inválida no payload do post.');
+                }
+
                 $this->db->prepare('INSERT INTO post_images (post_id,image_path,thumbnail_path,mime_type,file_size,sort_order,created_by_user_id,created_at) VALUES (:post_id,:path,:thumbnail,:mime,:size,:sort_order,:user_id,NOW())')->execute([
                     ':post_id' => $postId,
-                    ':path' => $image['path'] ?? '',
+                    ':path' => $path,
                     ':thumbnail' => $image['thumbnail_path'] ?? null,
                     ':mime' => $image['mime'] ?? null,
                     ':size' => (int) ($image['size'] ?? 0),
@@ -58,7 +68,28 @@ final class FeedService extends Model
 
     public function deletePost(int $postId, int $userId): void
     {
-        $this->db->prepare("UPDATE posts SET status='deleted', updated_at=NOW() WHERE id=:id AND user_id=:user_id")->execute([':id' => $postId, ':user_id' => $userId]);
+        $this->db->beginTransaction();
+        try {
+            $post = $this->fetchOne('SELECT id FROM posts WHERE id=:id AND user_id=:user_id AND status <> :status LIMIT 1 FOR UPDATE', [':id' => $postId, ':user_id' => $userId, ':status' => 'deleted']);
+            if ($post === null) {
+                $this->db->rollBack();
+                return;
+            }
+
+            $images = $this->fetchAllRows('SELECT image_path,thumbnail_path FROM post_images WHERE post_id=:post_id', [':post_id' => $postId]);
+            $this->db->prepare("UPDATE posts SET status='deleted', updated_at=NOW() WHERE id=:id AND user_id=:user_id")->execute([':id' => $postId, ':user_id' => $userId]);
+            $this->db->prepare('DELETE FROM post_images WHERE post_id=:post_id')->execute([':post_id' => $postId]);
+            $this->db->commit();
+        } catch (Throwable) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            return;
+        }
+
+        foreach ($images ?? [] as $image) {
+            $this->uploads->deleteImageBundle(['path' => $image['image_path'] ?? null, 'thumbnail_path' => $image['thumbnail_path'] ?? null]);
+        }
     }
 
     public function likePost(int $postId, int $userId): void

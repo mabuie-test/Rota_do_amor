@@ -283,13 +283,18 @@ final class PaymentService extends Model
         }
 
         if ($status === 'completed' && in_array($benefitStatus, ['failed', 'skipped', 'pending'], true) && $benefitAppliedAt === null) {
-            if ($this->paymentBenefitExists($paymentType, $userId, $paymentId)) {
+            $evidence = $this->detectBenefitEvidence($paymentType, $userId, $paymentId);
+            if (($evidence['exists'] ?? false) === true && ($evidence['strength'] ?? 'none') === 'strong') {
                 $this->markBenefitApplied($paymentId);
-                $this->financialLog->log('state_repaired', $paymentId, ['reason' => 'legacy_benefit_detected']);
+                $this->financialLog->log('state_repaired', $paymentId, ['reason' => 'legacy_benefit_detected', 'evidence' => $evidence]);
                 $payment['benefit_application_status'] = 'applied';
                 $payment['benefit_applied_at'] = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
             } else {
-                $this->financialLog->log('state_repair_pending', $paymentId, ['reason' => 'recoverable_benefit_missing', 'from_status' => $benefitStatus]);
+                $this->financialLog->log('state_repair_pending', $paymentId, [
+                    'reason' => 'recoverable_benefit_missing_or_weak_evidence',
+                    'from_status' => $benefitStatus,
+                    'evidence' => $evidence,
+                ]);
                 $payment['benefit_application_status'] = 'pending';
             }
         }
@@ -301,14 +306,54 @@ final class PaymentService extends Model
         return $payment;
     }
 
-    private function paymentBenefitExists(string $paymentType, int $userId, int $paymentId): bool
+    private function detectBenefitEvidence(string $paymentType, int $userId, int $paymentId): array
     {
         return match ($paymentType) {
-            'activation' => (bool) ($this->fetchOne('SELECT id FROM users WHERE id=:id AND activation_paid_at IS NOT NULL LIMIT 1', [':id' => $userId]) ?: []),
-            'subscription' => (bool) ($this->fetchOne('SELECT id FROM subscriptions WHERE user_id=:user_id AND created_at >= (SELECT created_at FROM payments WHERE id=:payment_id LIMIT 1) LIMIT 1', [':user_id' => $userId, ':payment_id' => $paymentId]) ?: []),
-            'boost' => (bool) ($this->fetchOne('SELECT id FROM user_boosts WHERE payment_id=:payment_id LIMIT 1', [':payment_id' => $paymentId]) ?: []),
-            default => false,
+            'activation' => $this->detectActivationEvidence($userId, $paymentId),
+            'subscription' => $this->detectSubscriptionEvidence($userId, $paymentId),
+            'boost' => $this->detectBoostEvidence($paymentId),
+            default => ['exists' => false, 'strength' => 'none', 'reason' => 'unknown_payment_type'],
         };
+    }
+
+    private function detectBoostEvidence(int $paymentId): array
+    {
+        $boost = $this->fetchOne('SELECT id FROM user_boosts WHERE payment_id=:payment_id LIMIT 1', [':payment_id' => $paymentId]);
+        return [
+            'exists' => $boost !== null,
+            'strength' => $boost !== null ? 'strong' : 'none',
+            'reason' => $boost !== null ? 'boost_linked_by_payment_id' : 'boost_not_found_by_payment_id',
+        ];
+    }
+
+    private function detectActivationEvidence(int $userId, int $paymentId): array
+    {
+        $row = $this->fetchOne('SELECT u.activation_paid_at, p.paid_at, p.created_at FROM users u JOIN payments p ON p.id=:payment_id WHERE u.id=:user_id LIMIT 1', [':user_id' => $userId, ':payment_id' => $paymentId]);
+        if ($row === null || empty($row['activation_paid_at'])) {
+            return ['exists' => false, 'strength' => 'none', 'reason' => 'activation_marker_missing'];
+        }
+
+        if (!empty($row['paid_at']) && abs(strtotime((string) $row['activation_paid_at']) - strtotime((string) $row['paid_at'])) <= 3600) {
+            return ['exists' => true, 'strength' => 'strong', 'reason' => 'activation_paid_at_matches_paid_at'];
+        }
+
+        return ['exists' => true, 'strength' => 'weak', 'reason' => 'activation_marker_without_time_match'];
+    }
+
+    private function detectSubscriptionEvidence(int $userId, int $paymentId): array
+    {
+        $row = $this->fetchOne('SELECT paid_at, created_at FROM payments WHERE id=:payment_id LIMIT 1', [':payment_id' => $paymentId]) ?: [];
+        $anchor = $row['paid_at'] ?? $row['created_at'] ?? null;
+        if ($anchor === null) {
+            return ['exists' => false, 'strength' => 'none', 'reason' => 'missing_payment_anchor_time'];
+        }
+
+        $subscription = $this->fetchOne('SELECT id, created_at FROM subscriptions WHERE user_id=:user_id AND created_at BETWEEN DATE_SUB(:anchor, INTERVAL 15 MINUTE) AND DATE_ADD(:anchor, INTERVAL 15 MINUTE) ORDER BY id DESC LIMIT 1', [':user_id' => $userId, ':anchor' => $anchor]);
+        if ($subscription === null) {
+            return ['exists' => false, 'strength' => 'none', 'reason' => 'subscription_not_found_in_safe_window'];
+        }
+
+        return ['exists' => true, 'strength' => 'weak', 'reason' => 'subscription_time_window_match_without_payment_fk'];
     }
 
     private function initiatePayment(int $userId, string $phone, string $type, float $amount, string $description): array

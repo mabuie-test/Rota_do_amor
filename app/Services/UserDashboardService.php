@@ -57,6 +57,7 @@ final class UserDashboardService extends Model
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),
+            'premium_context' => $this->premiumContext($daysRemaining, $isBoosted, $boostImpact, $completion['attractiveness_percent']),
             'last_activity_at' => $user['last_activity_at'] ?? null,
         ];
     }
@@ -127,6 +128,18 @@ final class UserDashboardService extends Model
             'risk_level' => $daysRemaining <= 0 ? 'alto' : ($daysRemaining <= 3 ? 'médio' : 'baixo'),
             'engagement_signal' => $unread > 0 || $matches > 0 ? 'engajado' : 'frio',
             'premium_opportunity' => !$boostActive || $daysRemaining <= 3,
+        ];
+    }
+
+    private function premiumContext(int $daysRemaining, bool $boostActive, array $boostImpact, int $attractivenessPercent): array
+    {
+        $boostScore = min(100, $attractivenessPercent + ($boostActive ? 25 : 0));
+        return [
+            'subscription_state' => $daysRemaining > 0 ? 'ativa' : 'expirada',
+            'subscription_urgency' => $daysRemaining <= 0 ? 'alta' : ($daysRemaining <= 3 ? 'média' : 'baixa'),
+            'boost_estimated_impact' => $boostActive ? 'alta visibilidade nas próximas horas' : 'visibilidade normal (sem boost ativo)',
+            'boost_readiness_score' => $boostScore,
+            'boost_active_count' => (int) ($boostImpact['active_count'] ?? 0),
         ];
     }
 
