@@ -49,8 +49,10 @@ final class MessageService extends Model
             ':sender_id' => $senderId,
             ':receiver_id' => $receiverId,
             ':message_text' => $messageText,
-            ':message_type' => $messageType,
+            ':message_type' => in_array($messageType, ['text', 'image', 'system'], true) ? $messageType : 'text',
         ]);
+        $this->db->prepare('UPDATE conversations SET updated_at = NOW() WHERE id = :id')->execute([':id' => $conversationId]);
+
         return (int) $this->db->lastInsertId();
     }
 
@@ -60,9 +62,34 @@ final class MessageService extends Model
             return [];
         }
 
-        $stmt = $this->db->prepare('SELECT * FROM messages WHERE conversation_id = :id ORDER BY created_at ASC');
+        $stmt = $this->db->prepare('SELECT id,conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at FROM messages WHERE conversation_id = :id ORDER BY created_at ASC');
         $stmt->execute([':id' => $conversationId]);
         return $stmt->fetchAll();
+    }
+
+    public function getConversationContext(int $conversationId, int $viewerId): array
+    {
+        if (!$this->isConversationParticipant($conversationId, $viewerId)) {
+            return [];
+        }
+
+        $sql = "SELECT c.id,
+                       c.created_at,
+                       c.updated_at,
+                       CASE WHEN c.user_one_id = :uid THEN u2.id ELSE u1.id END AS other_user_id,
+                       CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
+                       CASE WHEN c.user_one_id = :uid THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
+                       CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
+                       CASE WHEN c.user_one_id = :uid THEN u2.last_activity_at ELSE u1.last_activity_at END AS other_last_activity_at
+                FROM conversations c
+                JOIN users u1 ON u1.id = c.user_one_id
+                JOIN users u2 ON u2.id = c.user_two_id
+                WHERE c.id = :conversation_id
+                LIMIT 1";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':uid' => $viewerId, ':conversation_id' => $conversationId]);
+        return $stmt->fetch() ?: [];
     }
 
     public function markAsRead(int $conversationId, int $readerId): void
@@ -95,21 +122,37 @@ final class MessageService extends Model
                        CASE WHEN c.user_one_id = :uid THEN u2.id ELSE u1.id END AS other_user_id,
                        CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
                        CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
-                       (SELECT m.message_text FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
-                       (SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
-                       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.receiver_id = :uid AND m.is_read = 0) AS unread_count
+                       CASE WHEN c.user_one_id = :uid THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
+                       lm.message_text AS last_message,
+                       lm.created_at AS last_message_at,
+                       IFNULL(um.unread_count, 0) AS unread_count
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id
+                LEFT JOIN (
+                    SELECT m.conversation_id, m.message_text, m.created_at
+                    FROM messages m
+                    INNER JOIN (
+                        SELECT conversation_id, MAX(id) AS last_message_id
+                        FROM messages
+                        GROUP BY conversation_id
+                    ) latest ON latest.last_message_id = m.id
+                ) lm ON lm.conversation_id = c.id
+                LEFT JOIN (
+                    SELECT conversation_id, COUNT(*) AS unread_count
+                    FROM messages
+                    WHERE receiver_id = :uid AND is_read = 0
+                    GROUP BY conversation_id
+                ) um ON um.conversation_id = c.id
                 WHERE (c.user_one_id = :uid OR c.user_two_id = :uid)";
 
         $params = [':uid' => $userId];
         if ($search !== '') {
-            $sql .= " AND (u1.first_name LIKE :search OR u1.last_name LIKE :search OR u2.first_name LIKE :search OR u2.last_name LIKE :search)";
+            $sql .= " AND (CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END LIKE :search)";
             $params[':search'] = '%' . $search . '%';
         }
 
-        $sql .= " ORDER BY COALESCE((SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1), c.updated_at) DESC";
+        $sql .= ' ORDER BY COALESCE(lm.created_at, c.updated_at) DESC';
         return $this->fetchAllRows($sql, $params);
     }
 

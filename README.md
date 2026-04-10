@@ -1,12 +1,12 @@
 # Rota do Amor
 
-Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+**, **MySQL**, **MVC**, **OOP/SOLID**, integração **Débito API (M-Pesa)** e emails transacionais com **PHPMailer**.
+Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+**, **MySQL 8**, **MVC**, **OOP/SOLID**, integração **Débito API (M-Pesa)** e emails transacionais com **PHPMailer**.
 
 ## Funcionalidades implementadas
 - Registo, autenticação segura, logout, recuperação de senha e verificação de email.
 - Ativação da conta por pagamento inicial, subscrição mensal e boost pago.
 - Descoberta, swipe, match, mensagens, favoritos, bloqueios, denúncias e notificações.
-- Feed social com posts, likes e comentários.
+- Feed social com posts, likes, comentários e paginação.
 - Verificação de identidade e badges de confiança.
 - Painel admin com dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
 - Scripts CLI para reconciliação de pagamentos, expiração de subscrições/boosts e envio de lembretes.
@@ -34,7 +34,11 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/mozambique_locations.sql
    mysql -u root -p < database/seed.sql
    ```
-6. Suba servidor local:
+6. Se a instância já existir, aplique migração incremental:
+   ```bash
+   mysql -u root -p < database/migrations/20260410_hardening.sql
+   ```
+7. Suba servidor local:
    ```bash
    php -S localhost:8000 -t public
    ```
@@ -63,6 +67,12 @@ Fluxos cobertos:
 - Compra de boost
 - Consulta de estado por referência
 
+### Garantias de idempotência financeira
+- Reconciliação processa cada pagamento em transação com lock (`SELECT ... FOR UPDATE`).
+- Benefícios de pagamento são aplicados apenas uma vez por pagamento através de `benefit_application_status` + `benefit_applied_at`.
+- Reconciliações repetidas de pagamentos já finalizados são ignoradas com logs explícitos.
+- Pagamentos em estados finais (`completed`, `failed`, `cancelled`) não reexecutam efeitos indevidos.
+
 ## PHPMailer / SMTP
 Configurar:
 - `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_ENCRYPTION`
@@ -82,39 +92,31 @@ php scripts/send_subscription_reminders.php
 php scripts/cleanup_temp_uploads.php
 ```
 
-## Fluxo de negócio principal
-1. Utilizador registra-se.
-2. Recebe email de verificação.
-3. Verifica email.
-4. Efetua pagamento de ativação.
-5. Conta ativa e subscrição inicial inicia.
-6. Pode usar descoberta, swipe, match, chat, feed e recursos premium.
-
-
-## Consistência de estados (revisão final)
-- `AccountStateService` centraliza regras de estado entre email verificado, ativação paga, subscrição e bloqueios administrativos.
-- Middlewares de conta/subscrição/email garantem permissões coerentes por rota.
-- Reconciliação de pagamentos atualiza estados internos e badges.
-- Expiração de subscrições/boosts sincroniza estado do utilizador e badges automaticamente.
-
 ## Segurança aplicada
 - `password_hash` / `password_verify`
 - Prepared statements via PDO
 - CSRF obrigatório para `POST/PUT/PATCH/DELETE`, com suporte para campo `_token` e header `X-CSRF-TOKEN`
 - Sessões seguras e regeneração de sessão
-- Hardening admin: login limitado por tentativas e bloqueio de admins inactivos
-- RBAC administrativo por role (`super_admin`, `moderator`, `finance`) nas rotas críticas
+- RBAC admin validado em base por request (`AdminAuthorizationService`), com invalidação imediata de sessão em perda de acesso
+- Throttling com semântica de sucesso/falha para login, feed e mensagens
 - Autorização explícita em leitura de conversas (somente participantes)
-- Throttling expandido para login, registo, reset password, swipes, denúncias, feed e pagamentos
 - Uploads de imagens via `$_FILES` com validação de MIME real, tamanho máximo e nome aleatório seguro
 - Controle de estado de conta (`pending_activation`, `active`, `expired`, `suspended`, `banned`)
-- Logs de atividade e moderação
+- Logs de atividade, auditoria e logs financeiros
 
-## Evoluções recentes de produto
-- Discovery com filtros reais (idade, objectivo, verificados) e ranking por compatibilidade + boost + premium + verificação + actividade.
-- Dashboard dinâmico orientado à retenção (estado da conta, dias restantes, badges, alertas, acções recomendadas, completude de perfil).
-- Inbox com lista de conversas, última mensagem, contagem de não lidas, estado online e pesquisa.
-- Base de pagamentos desacoplada com providers (`DebitoMpesaProvider`, `DebitoEmolaProvider`), cliente HTTP dedicado (`DebitoClient`) e reconciliação central (`PaymentReconciliationService`).
+## Evoluções recentes de performance/produto
+- Discovery sem N+1 para verificação/boost/premium/atividade, com ranking por compatibilidade e refresh incremental de scores.
+- Inbox otimizada com joins agregados para última mensagem e não lidas (sem subqueries correlacionadas por item).
+- Dashboard mais fiel com checklist de perfil, confiança, progresso de verificação e sinais reais (fotos/interesses/preferências).
+- Feed com paginação, payload enriquecido de autor, contadores e base para mídia (`post_images`).
+
+## Índices e migração
+A migração `database/migrations/20260410_hardening.sql` adiciona colunas/índices para:
+- pagamentos e idempotência de benefícios;
+- consultas de inbox/messages;
+- discovery/compatibilidade/verificação;
+- feed/posts/comments;
+- consultas de rate limiting e auditoria em `activity_logs`.
 
 ## Credenciais admin seed
 - Email: `admin@rotadoamor.mz`
@@ -126,5 +128,5 @@ php scripts/cleanup_temp_uploads.php
 - `app/Services`: regras de negócio e integrações externas
 - `app/Models`: modelos/entidades
 - `app/Views`: interface web
-- `database/`: schema e seeds
+- `database/`: schema, seeds e migrações
 - `scripts/`: automações operacionais

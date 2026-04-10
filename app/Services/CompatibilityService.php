@@ -70,6 +70,27 @@ final class CompatibilityService extends Model
         return (float) ($stmt->fetch()['score'] ?? 0.0);
     }
 
+    public function getCompatibilityScoresForTargets(int $userId, array $targetIds): array
+    {
+        if ($targetIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($targetIds), '?'));
+        $stmt = $this->db->prepare("SELECT target_user_id, score, calculated_at FROM compatibility_scores WHERE user_id = ? AND target_user_id IN ($placeholders)");
+        $stmt->execute([$userId, ...array_values($targetIds)]);
+
+        $scores = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $scores[(int) $row['target_user_id']] = [
+                'score' => (float) ($row['score'] ?? 0),
+                'calculated_at' => (string) ($row['calculated_at'] ?? ''),
+            ];
+        }
+
+        return $scores;
+    }
+
     public function generateBreakdown(int $userId, int $targetId): array
     {
         return $this->calculateCompatibility($userId, $targetId);
