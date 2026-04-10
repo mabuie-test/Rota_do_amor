@@ -283,17 +283,17 @@ final class PaymentService extends Model
         }
 
         if ($status === 'completed' && in_array($benefitStatus, ['failed', 'skipped', 'pending'], true) && $benefitAppliedAt === null) {
-            $evidence = $this->detectBenefitEvidence($paymentType, $userId, $paymentId);
-            if (($evidence['exists'] ?? false) === true && ($evidence['strength'] ?? 'none') === 'strong') {
+            $benefitCheck = $this->paymentBenefitExists($paymentType, $userId, $paymentId);
+            if (($benefitCheck['exists'] ?? false) === true && ($benefitCheck['confidence'] ?? 'none') === 'strong') {
                 $this->markBenefitApplied($paymentId);
-                $this->financialLog->log('state_repaired', $paymentId, ['reason' => 'legacy_benefit_detected', 'evidence' => $evidence]);
+                $this->financialLog->log('state_repaired', $paymentId, ['reason' => 'legacy_benefit_detected', 'evidence' => $benefitCheck]);
                 $payment['benefit_application_status'] = 'applied';
                 $payment['benefit_applied_at'] = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
             } else {
-                $this->financialLog->log('state_repair_pending', $paymentId, [
-                    'reason' => 'recoverable_benefit_missing_or_weak_evidence',
+                $this->financialLog->log('state_repair_rejected', $paymentId, [
+                    'reason' => 'recoverable_benefit_missing_or_insufficient_evidence',
                     'from_status' => $benefitStatus,
-                    'evidence' => $evidence,
+                    'evidence' => $benefitCheck,
                 ]);
                 $payment['benefit_application_status'] = 'pending';
             }
@@ -314,6 +314,18 @@ final class PaymentService extends Model
             'boost' => $this->detectBoostEvidence($paymentId),
             default => ['exists' => false, 'strength' => 'none', 'reason' => 'unknown_payment_type'],
         };
+    }
+
+    private function paymentBenefitExists(string $paymentType, int $userId, int $paymentId): array
+    {
+        $evidence = $this->detectBenefitEvidence($paymentType, $userId, $paymentId);
+        $strength = (string) ($evidence['strength'] ?? 'none');
+
+        return [
+            'exists' => (bool) ($evidence['exists'] ?? false),
+            'confidence' => $strength,
+            'evidence' => $evidence,
+        ];
     }
 
     private function detectBoostEvidence(int $paymentId): array
@@ -348,12 +360,27 @@ final class PaymentService extends Model
             return ['exists' => false, 'strength' => 'none', 'reason' => 'missing_payment_anchor_time'];
         }
 
-        $subscription = $this->fetchOne('SELECT id, created_at FROM subscriptions WHERE user_id=:user_id AND created_at BETWEEN DATE_SUB(:anchor, INTERVAL 15 MINUTE) AND DATE_ADD(:anchor, INTERVAL 15 MINUTE) ORDER BY id DESC LIMIT 1', [':user_id' => $userId, ':anchor' => $anchor]);
+        $subscription = $this->fetchOne('SELECT id, created_at FROM subscriptions WHERE user_id=:user_id AND created_at BETWEEN DATE_SUB(:anchor, INTERVAL 10 MINUTE) AND DATE_ADD(:anchor, INTERVAL 10 MINUTE) ORDER BY id DESC LIMIT 1', [':user_id' => $userId, ':anchor' => $anchor]);
         if ($subscription === null) {
             return ['exists' => false, 'strength' => 'none', 'reason' => 'subscription_not_found_in_safe_window'];
         }
 
-        return ['exists' => true, 'strength' => 'weak', 'reason' => 'subscription_time_window_match_without_payment_fk'];
+        $ambiguousCount = (int) (($this->fetchOne(
+            "SELECT COUNT(*) AS total
+             FROM payments
+             WHERE user_id = :user_id
+               AND payment_type = 'subscription'
+               AND status = 'completed'
+               AND id <> :payment_id
+               AND COALESCE(paid_at, created_at) BETWEEN DATE_SUB(:anchor, INTERVAL 20 MINUTE) AND DATE_ADD(:anchor, INTERVAL 20 MINUTE)",
+            [':user_id' => $userId, ':payment_id' => $paymentId, ':anchor' => $anchor]
+        ) ?: [])['total'] ?? 0);
+
+        if ($ambiguousCount > 0) {
+            return ['exists' => true, 'strength' => 'weak', 'reason' => 'ambiguous_subscription_window_multiple_completed_payments'];
+        }
+
+        return ['exists' => true, 'strength' => 'strong', 'reason' => 'subscription_window_match_without_ambiguous_completed_payments'];
     }
 
     private function initiatePayment(int $userId, string $phone, string $type, float $amount, string $description): array

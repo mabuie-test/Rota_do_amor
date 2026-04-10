@@ -59,6 +59,7 @@ final class UserDashboardService extends Model
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),
             'premium_context' => $this->premiumContext($daysRemaining, $isBoosted, $boostImpact, $completion['attractiveness_percent']),
             'last_activity_at' => $user['last_activity_at'] ?? null,
+            'primary_focus' => $this->buildPrimaryFocus($accountStatus, $daysRemaining, $completion['percent'], $profileSignals, $isBoosted),
         ];
     }
 
@@ -197,21 +198,47 @@ final class UserDashboardService extends Model
     {
         $actions = [];
         if ($accountStatus !== 'active') {
-            $actions[] = ['label' => 'Concluir activação', 'url' => '/activation'];
+            $actions[] = ['label' => 'Concluir activação', 'url' => '/activation', 'priority' => 1];
         }
         if ($daysRemaining <= 0) {
-            $actions[] = ['label' => 'Renovar subscrição', 'url' => '/subscription/status'];
-        }
-        if (!$boostActive) {
-            $actions[] = ['label' => 'Activar boost', 'url' => '/premium'];
+            $actions[] = ['label' => 'Renovar subscrição', 'url' => '/subscription/status', 'priority' => 2];
         }
         if ((int) ($signals['identity_verified'] ?? 0) === 0) {
-            $actions[] = ['label' => 'Verificar identidade', 'url' => '/verification'];
+            $actions[] = ['label' => 'Verificar identidade', 'url' => '/verification', 'priority' => 3];
         }
         if ($missingProfileItems !== []) {
-            $actions[] = ['label' => 'Completar perfil', 'url' => '/profile'];
+            $actions[] = ['label' => 'Completar perfil', 'url' => '/profile', 'priority' => 4];
+        }
+        if (!$boostActive) {
+            $actions[] = ['label' => 'Activar boost', 'url' => '/premium', 'priority' => 5];
         }
 
-        return $actions;
+        usort($actions, static fn(array $a, array $b): int => ((int) ($a['priority'] ?? 99)) <=> ((int) ($b['priority'] ?? 99)));
+        return array_slice($actions, 0, 4);
+    }
+
+    private function buildPrimaryFocus(string $accountStatus, int $daysRemaining, int $completionPercent, array $signals, bool $boostActive): string
+    {
+        if ($accountStatus !== 'active') {
+            return 'Concluir activação para desbloquear a conta.';
+        }
+
+        if ($daysRemaining <= 0) {
+            return 'Renovar subscrição para retomar visibilidade e mensagens.';
+        }
+
+        if ((int) ($signals['identity_verified'] ?? 0) === 0) {
+            return 'Verificar identidade para elevar confiança no perfil.';
+        }
+
+        if ($completionPercent < 80) {
+            return 'Completar perfil para melhorar taxa de match.';
+        }
+
+        if (!$boostActive) {
+            return 'Activar boost para aumentar alcance agora.';
+        }
+
+        return 'Manter consistência de mensagens e atividade diária.';
     }
 }

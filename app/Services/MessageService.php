@@ -9,7 +9,12 @@ use App\Core\Model;
 
 final class MessageService extends Model
 {
-    public function __construct(private readonly MatchService $matchService = new MatchService(), private readonly SubscriptionService $subscriptions = new SubscriptionService(), private readonly BlockService $blocks = new BlockService())
+    public function __construct(
+        private readonly MatchService $matchService = new MatchService(),
+        private readonly SubscriptionService $subscriptions = new SubscriptionService(),
+        private readonly BlockService $blocks = new BlockService(),
+        private readonly UploadService $uploads = new UploadService()
+    )
     {
         parent::__construct();
     }
@@ -265,5 +270,29 @@ final class MessageService extends Model
         }
 
         return $rows;
+    }
+
+    /**
+     * Gancho administrativo para remover anexos físicos e vínculos de mensagens apagadas.
+     */
+    public function purgeMessageAttachments(array $messageIds): int
+    {
+        if ($messageIds === []) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+        $stmt = $this->db->prepare("SELECT file_path FROM message_attachments WHERE message_id IN ($placeholders)");
+        $stmt->execute(array_values($messageIds));
+        $attachments = $stmt->fetchAll();
+
+        $deleteStmt = $this->db->prepare("DELETE FROM message_attachments WHERE message_id IN ($placeholders)");
+        $deleteStmt->execute(array_values($messageIds));
+
+        foreach ($attachments as $attachment) {
+            $this->uploads->deleteImageBundle(['path' => $attachment['file_path'] ?? null]);
+        }
+
+        return count($attachments);
     }
 }

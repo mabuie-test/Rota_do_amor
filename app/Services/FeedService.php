@@ -66,6 +66,11 @@ final class FeedService extends Model
         }
     }
 
+    /**
+     * Política de media do feed:
+     * - Soft delete do post mantém os ficheiros e metadados de imagem para auditoria e eventual restauração.
+     * - Limpeza física fica reservada para operações administrativas de purge.
+     */
     public function deletePost(int $postId, int $userId): void
     {
         $this->db->beginTransaction();
@@ -76,25 +81,33 @@ final class FeedService extends Model
                 return;
             }
 
-            $images = $this->fetchAllRows('SELECT image_path,thumbnail_path FROM post_images WHERE post_id=:post_id', [':post_id' => $postId]);
             $this->db->prepare("UPDATE posts SET status='deleted', updated_at=NOW() WHERE id=:id AND user_id=:user_id")->execute([':id' => $postId, ':user_id' => $userId]);
-            $this->db->prepare('DELETE FROM post_images WHERE post_id=:post_id')->execute([':post_id' => $postId]);
             $this->db->commit();
         } catch (Throwable) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            return;
-        }
-
-        foreach ($images ?? [] as $image) {
-            $this->uploads->deleteImageBundle(['path' => $image['image_path'] ?? null, 'thumbnail_path' => $image['thumbnail_path'] ?? null]);
         }
     }
 
     public function likePost(int $postId, int $userId): void
     {
         $this->db->prepare('INSERT IGNORE INTO post_likes (post_id,user_id,created_at) VALUES (:post_id,:user_id,NOW())')->execute([':post_id' => $postId, ':user_id' => $userId]);
+    }
+
+    /**
+     * Gancho administrativo para purge físico de media de um post já removido.
+     */
+    public function purgePostMedia(int $postId): int
+    {
+        $images = $this->fetchAllRows('SELECT image_path,thumbnail_path FROM post_images WHERE post_id=:post_id', [':post_id' => $postId]);
+        $this->execute('DELETE FROM post_images WHERE post_id=:post_id', [':post_id' => $postId]);
+
+        foreach ($images as $image) {
+            $this->uploads->deleteImageBundle(['path' => $image['image_path'] ?? null, 'thumbnail_path' => $image['thumbnail_path'] ?? null]);
+        }
+
+        return count($images);
     }
 
     public function commentPost(int $postId, int $userId, string $comment): void
