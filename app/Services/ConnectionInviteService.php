@@ -35,6 +35,7 @@ final class ConnectionInviteService extends Model
         }
 
         $snapshot = $this->buildSnapshot($senderId, $receiverId);
+        $senderName = $this->getUserDisplayName($senderId);
         $expiresAt = $this->resolveExpirationDate()->format('Y-m-d H:i:s');
 
         $this->db->beginTransaction();
@@ -69,16 +70,27 @@ final class ConnectionInviteService extends Model
                 $receiverId,
                 $normalizedType === 'priority' ? 'invite_priority_received' : 'invite_received',
                 $normalizedType === 'priority' ? 'Convite prioritário recebido' : 'Novo convite com intenção',
-                'Alguém demonstrou interesse com contexto do momento.',
+                $normalizedType === 'priority'
+                    ? sprintf('%s enviou-te um convite prioritário com intenção séria.', $senderName)
+                    : sprintf('%s enviou-te um convite com intenção e ritmo do momento.', $senderName),
                 ['invite_id' => $inviteId, 'sender_id' => $senderId, 'invitation_type' => $normalizedType]
             );
 
             return ['ok' => true, 'invite_id' => $inviteId];
-        } catch (\Throwable) {
+        } catch (\PDOException $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
 
+            if ((int) $exception->getCode() === 23000) {
+                return ['ok' => false, 'message' => 'Já existe um convite pendente para este perfil.'];
+            }
+
+            return ['ok' => false, 'message' => 'Não foi possível enviar o convite agora.'];
+        } catch (\Throwable) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             return ['ok' => false, 'message' => 'Não foi possível enviar o convite agora.'];
         }
     }
@@ -101,7 +113,15 @@ final class ConnectionInviteService extends Model
         }
 
         $orderBy = 'ORDER BY (ci.invitation_type = "priority") DESC, ci.compatibility_score_snapshot DESC, ci.created_at DESC';
-        $limit = $this->premium->userHasPremium($userId) ? 200 : 25;
+        $isPremium = $this->premium->userHasPremium($userId);
+        $maxPerPage = $isPremium ? 100 : 25;
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $requestedPerPage = (int) ($filters['per_page'] ?? 12);
+        $perPage = min($maxPerPage, max(5, $requestedPerPage));
+        $offset = ($page - 1) * $perPage;
+
+        $countSql = "SELECT COUNT(*) AS total FROM connection_invites ci WHERE $where";
+        $total = (int) (($this->fetchOne($countSql, $params)['total'] ?? 0));
 
         $sql = "SELECT ci.*,
                        CONCAT(u.first_name, ' ', u.last_name) AS sender_name,
@@ -110,9 +130,25 @@ final class ConnectionInviteService extends Model
                 JOIN users u ON u.id = ci.sender_user_id
                 WHERE $where
                 $orderBy
-                LIMIT $limit";
+                LIMIT :limit OFFSET :offset";
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        $items = $this->presentInvites($stmt->fetchAll());
 
-        return $this->presentInvites($this->fetchAllRows($sql, $params));
+        return [
+            'items' => $items,
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => ($offset + $perPage) < $total,
+            ],
+        ];
     }
 
     public function listSent(int $userId, array $filters = []): array
@@ -125,50 +161,89 @@ final class ConnectionInviteService extends Model
             $params[':status'] = (string) $filters['status'];
         }
 
+        $isPremium = $this->premium->userHasPremium($userId);
+        $maxPerPage = $isPremium ? 100 : 30;
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $requestedPerPage = (int) ($filters['per_page'] ?? 12);
+        $perPage = min($maxPerPage, max(5, $requestedPerPage));
+        $offset = ($page - 1) * $perPage;
+
+        $countSql = "SELECT COUNT(*) AS total FROM connection_invites ci WHERE $where";
+        $total = (int) (($this->fetchOne($countSql, $params)['total'] ?? 0));
+
         $sql = "SELECT ci.*,
                        CONCAT(u.first_name, ' ', u.last_name) AS receiver_name,
                        u.profile_photo_path AS receiver_photo
                 FROM connection_invites ci
                 JOIN users u ON u.id = ci.receiver_user_id
                 WHERE $where
-                ORDER BY ci.created_at DESC
-                LIMIT 200";
+                ORDER BY (ci.invitation_type = 'priority') DESC, ci.created_at DESC
+                LIMIT :limit OFFSET :offset";
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        $items = $this->presentInvites($stmt->fetchAll());
 
-        return $this->presentInvites($this->fetchAllRows($sql, $params));
+        return [
+            'items' => $items,
+            'pagination' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => ($offset + $perPage) < $total,
+            ],
+        ];
     }
 
     public function acceptInvite(int $inviteId, int $receiverId): array
     {
-        $invite = $this->fetchOne('SELECT * FROM connection_invites WHERE id = :id LIMIT 1', [':id' => $inviteId]);
-        if (!$invite || (int) $invite['receiver_user_id'] !== $receiverId) {
-            return ['ok' => false, 'message' => 'Convite não encontrado.'];
-        }
-
-        if ((string) $invite['status'] !== 'pending') {
-            return ['ok' => false, 'message' => 'Este convite já foi respondido.'];
-        }
-
-        if ($this->isExpired($invite)) {
-            $this->execute("UPDATE connection_invites SET status='expired',updated_at=NOW() WHERE id=:id", [':id' => $inviteId]);
-            return ['ok' => false, 'message' => 'Este convite expirou.'];
-        }
-
-        $senderId = (int) $invite['sender_user_id'];
         $this->db->beginTransaction();
         try {
-            $this->execute("UPDATE connection_invites SET status='accepted',responded_at=NOW(),updated_at=NOW() WHERE id=:id AND status='pending'", [':id' => $inviteId]);
+            $stmt = $this->db->prepare('SELECT * FROM connection_invites WHERE id = :id LIMIT 1 FOR UPDATE');
+            $stmt->execute([':id' => $inviteId]);
+            $invite = $stmt->fetch();
+
+            if (!$invite || (int) $invite['receiver_user_id'] !== $receiverId) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Convite não encontrado.'];
+            }
+
+            if ((string) $invite['status'] !== 'pending') {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Este convite já foi respondido.'];
+            }
+
+            if ($this->isExpired($invite)) {
+                $this->execute("UPDATE connection_invites SET status='expired',updated_at=NOW() WHERE id=:id", [':id' => $inviteId]);
+                $this->db->commit();
+                return ['ok' => false, 'message' => 'Este convite expirou.'];
+            }
+
+            $senderId = (int) $invite['sender_user_id'];
+            $updated = $this->execute("UPDATE connection_invites SET status='accepted',responded_at=NOW(),updated_at=NOW() WHERE id=:id AND status='pending'", [':id' => $inviteId]);
+            if (!$updated) {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Este convite já foi respondido.'];
+            }
+
             $this->matches->createMatch($senderId, $receiverId, 'connection');
             $conversationId = $this->messages->getOrCreateConversation($senderId, $receiverId);
 
             $opening = trim((string) ($invite['opening_message'] ?? ''));
             if ($opening !== '') {
-                $contextMessage = 'Convite aceite: "' . mb_substr($opening, 0, 350) . '"';
+                $contextMessage = 'Contexto do convite aceite: "' . mb_substr($opening, 0, 350) . '"';
                 $this->messages->sendMessage($senderId, $receiverId, $contextMessage, 'system');
             }
 
             $this->db->commit();
 
-            $this->notifications->create($senderId, 'invite_accepted', 'Convite aceite', 'Seu convite foi aceite e a conversa está aberta.', [
+            $receiverName = $this->getUserDisplayName($receiverId);
+            $acceptedType = (string) ($invite['invitation_type'] ?? 'standard') === 'priority' ? 'prioritário' : 'com intenção';
+            $this->notifications->create($senderId, 'invite_accepted', 'Convite aceite', sprintf('O teu convite %s para %s foi aceite. A conversa já está pronta.', $acceptedType, $receiverName), [
                 'invite_id' => $inviteId,
                 'receiver_id' => $receiverId,
                 'conversation_id' => $conversationId,
@@ -186,7 +261,7 @@ final class ConnectionInviteService extends Model
 
     public function declineInvite(int $inviteId, int $receiverId): array
     {
-        $invite = $this->fetchOne('SELECT id,status,receiver_user_id,sender_user_id FROM connection_invites WHERE id=:id LIMIT 1', [':id' => $inviteId]);
+        $invite = $this->fetchOne('SELECT id,status,receiver_user_id,sender_user_id,invitation_type FROM connection_invites WHERE id=:id LIMIT 1', [':id' => $inviteId]);
         if (!$invite || (int) $invite['receiver_user_id'] !== $receiverId) {
             return ['ok' => false, 'message' => 'Convite não encontrado.'];
         }
@@ -197,7 +272,9 @@ final class ConnectionInviteService extends Model
 
         $ok = $this->execute("UPDATE connection_invites SET status='declined',responded_at=NOW(),updated_at=NOW() WHERE id=:id AND status='pending'", [':id' => $inviteId]);
         if ($ok) {
-            $this->notifications->create((int) $invite['sender_user_id'], 'invite_declined', 'Convite recusado', 'O destinatário recusou o convite enviado.', ['invite_id' => $inviteId]);
+            $receiverName = $this->getUserDisplayName($receiverId);
+            $inviteType = ((string) ($invite['invitation_type'] ?? 'standard') === 'priority') ? 'prioritário' : 'com intenção';
+            $this->notifications->create((int) $invite['sender_user_id'], 'invite_declined', 'Convite recusado', sprintf('%s recusou o teu convite %s.', $receiverName, $inviteType), ['invite_id' => $inviteId]);
         }
 
         return ['ok' => $ok, 'message' => $ok ? 'Convite recusado.' : 'Não foi possível recusar o convite.'];
@@ -361,5 +438,15 @@ final class ConnectionInviteService extends Model
     private function rateLimitKey(int $senderId): string
     {
         return 'invite_send:' . $senderId;
+    }
+
+    private function getUserDisplayName(int $userId): string
+    {
+        $row = $this->fetchOne('SELECT first_name,last_name FROM users WHERE id = :id LIMIT 1', [':id' => $userId]);
+        if (!$row) {
+            return 'Alguém';
+        }
+
+        return trim(((string) ($row['first_name'] ?? '')) . ' ' . ((string) ($row['last_name'] ?? ''))) ?: 'Alguém';
     }
 }

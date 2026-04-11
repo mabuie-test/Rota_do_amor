@@ -1,7 +1,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
-    <h3 class="mb-1"><i class="fa-solid fa-envelope-open-heart me-2"></i>Quem Gostou de Mim</h3>
-    <p class="text-muted mb-0">Interesse qualificado com intenção, ritmo e compatibilidade do momento.</p>
+    <h3 class="mb-1"><i class="fa-solid fa-envelope-open-heart me-2"></i>Convites Recebidos com Intenção</h3>
+    <p class="text-muted mb-0">Aqui aparecem apenas perfis que te enviaram um convite real, com contexto de intenção e compatibilidade.</p>
   </div>
   <a class="btn btn-sm btn-rd-soft" href="/invites/sent"><i class="fa-solid fa-paper-plane me-1"></i>Ver enviados</a>
 </div>
@@ -18,6 +18,11 @@
     <option value="standard" <?= (($filters['invitation_type'] ?? '') === 'standard') ? 'selected' : '' ?>>Convite standard</option>
     <option value="priority" <?= (($filters['invitation_type'] ?? '') === 'priority') ? 'selected' : '' ?>>Convite prioritário</option>
   </select>
+  <select name="per_page" class="form-select form-select-sm" style="width:130px">
+    <?php foreach ([8, 12, 20, 25] as $size): ?>
+      <option value="<?= $size ?>" <?= ((int) ($filters['per_page'] ?? 12) === $size) ? 'selected' : '' ?>><?= $size ?> por página</option>
+    <?php endforeach; ?>
+  </select>
   <button class="btn btn-sm btn-rd-soft"><i class="fa-solid fa-filter me-1"></i>Filtrar</button>
 </form>
 
@@ -33,7 +38,7 @@
           <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
             <div>
               <div class="fw-semibold fs-5"><?= e((string) ($invite['sender_name'] ?? 'Perfil')) ?></div>
-              <div class="small text-muted">Compatibilidade <strong><?= (float) ($invite['compatibility_score_snapshot'] ?? 0) ?>%</strong></div>
+              <div class="small text-muted">Compatibilidade no envio: <strong><?= (float) ($invite['compatibility_score_snapshot'] ?? 0) ?>%</strong></div>
             </div>
             <?php if (!empty($invite['is_priority'])): ?><span class="rd-badge badge-premium"><i class="fa-solid fa-crown"></i>Prioritário</span><?php endif; ?>
           </div>
@@ -43,10 +48,18 @@
               <span class="rd-heart-chip"><i class="fa-solid <?= e((string) ($invite['intention_icon'] ?? 'fa-heart-pulse')) ?>"></i><?= e((string) ($invite['intention_label'] ?? '')) ?></span>
               <span class="rd-heart-chip"><i class="fa-solid <?= e((string) ($invite['pace_icon'] ?? 'fa-wave-square')) ?>"></i><?= e((string) ($invite['pace_label'] ?? '')) ?></span>
             </div>
-            <?php if (!empty($invite['opening_message'])): ?><p class="small mb-0">“<?= e((string) $invite['opening_message']) ?>”</p><?php endif; ?>
+            <?php if (!empty($invite['opening_message'])): ?>
+              <p class="small mb-0"><span class="text-muted">Mensagem de abertura:</span> “<?= e((string) $invite['opening_message']) ?>”</p>
+            <?php else: ?>
+              <p class="small mb-0 text-muted">Sem mensagem de abertura.</p>
+            <?php endif; ?>
           </div>
 
-          <div class="small text-muted mb-2">Estado: <strong><?= e((string) ($invite['status'] ?? 'pending')) ?></strong> · recebido em <?= e((string) ($invite['created_at'] ?? '')) ?></div>
+          <div class="small text-muted mb-2">
+            Estado: <strong><?= e((string) ($invite['status'] ?? 'pending')) ?></strong>
+            · recebido em <?= e((string) ($invite['created_at'] ?? '')) ?>
+            <?php if (!empty($invite['responded_at'])): ?> · respondido em <?= e((string) $invite['responded_at']) ?><?php endif; ?>
+          </div>
 
           <?php if (!empty($invite['is_pending'])): ?>
           <div class="d-flex gap-2">
@@ -65,3 +78,21 @@
     </div>
   <?php endforeach; ?>
 </div>
+
+<?php $page = (int) ($pagination['page'] ?? 1); ?>
+<?php $perPage = (int) ($pagination['per_page'] ?? 12); ?>
+<?php $total = (int) ($pagination['total'] ?? 0); ?>
+<?php $hasMore = !empty($pagination['has_more']); ?>
+<?php if ($total > 0): ?>
+  <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+    <small class="text-muted">Página <?= $page ?> · <?= $perPage ?> por página · <?= $total ?> total</small>
+    <div class="d-flex gap-2">
+      <?php if ($page > 1): ?>
+        <a class="btn btn-sm btn-rd-soft" href="?<?= e(http_build_query(array_merge($filters, ['page' => $page - 1]))) ?>"><i class="fa-solid fa-chevron-left me-1"></i>Anterior</a>
+      <?php endif; ?>
+      <?php if ($hasMore): ?>
+        <a class="btn btn-sm btn-rd-soft" href="?<?= e(http_build_query(array_merge($filters, ['page' => $page + 1]))) ?>">Próxima<i class="fa-solid fa-chevron-right ms-1"></i></a>
+      <?php endif; ?>
+    </div>
+  </div>
+<?php endif; ?>
