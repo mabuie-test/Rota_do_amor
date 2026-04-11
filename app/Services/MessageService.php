@@ -35,12 +35,6 @@ final class MessageService extends Model
 
     public function sendMessage(int $senderId, int $receiverId, string $messageText, string $messageType = 'text', array $attachments = []): int
     {
-        /**
-         * Política de media em mensagens:
-         * - anexos entram na BD apenas após INSERT da mensagem dentro de transação;
-         * - qualquer rollback devolve 0 para o controller limpar ficheiros recém-uploaded;
-         * - sem soft delete de mensagens no produto atual, portanto media mantém-se enquanto a mensagem existir.
-         */
         $messageText = trim($messageText);
         $sanitizedType = in_array($messageType, ['text', 'image', 'system'], true) ? $messageType : 'text';
 
@@ -67,7 +61,7 @@ final class MessageService extends Model
         $conversationId = $this->getOrCreateConversation($senderId, $receiverId);
         $this->db->beginTransaction();
         try {
-            $this->db->prepare('INSERT INTO messages (conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at) VALUES (:conversation_id,:sender_id,:receiver_id,:message_text,:message_type,0,NOW())')->execute([
+            $this->db->prepare('INSERT INTO messages (conversation_id,sender_id,receiver_id,message_text,message_type,is_read,sent_at,created_at) VALUES (:conversation_id,:sender_id,:receiver_id,:message_text,:message_type,0,NOW(),NOW())')->execute([
                 ':conversation_id' => $conversationId,
                 ':sender_id' => $senderId,
                 ':receiver_id' => $receiverId,
@@ -98,6 +92,17 @@ final class MessageService extends Model
         }
     }
 
+    public function getMessageById(int $messageId, int $viewerId): array
+    {
+        $item = $this->fetchOne('SELECT id,conversation_id,sender_id,receiver_id,message_text,message_type,is_read,sent_at,delivered_at,read_at,created_at FROM messages WHERE id = :id LIMIT 1', [':id' => $messageId]) ?: [];
+        if ($item === [] || !$this->isConversationParticipant((int) $item['conversation_id'], $viewerId)) {
+            return [];
+        }
+        $item['attachments'] = $this->attachmentsByMessageIds([$messageId])[$messageId] ?? [];
+
+        return $item;
+    }
+
     public function getConversationMessages(int $conversationId, int $viewerId, int $page = 1, int $perPage = 40): array
     {
         if (!$this->isConversationParticipant($conversationId, $viewerId)) {
@@ -108,7 +113,7 @@ final class MessageService extends Model
         $perPage = min(100, max(10, $perPage));
         $offset = ($page - 1) * $perPage;
 
-        $stmt = $this->db->prepare('SELECT id,conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at FROM messages WHERE conversation_id = :id ORDER BY id DESC LIMIT :limit OFFSET :offset');
+        $stmt = $this->db->prepare('SELECT id,conversation_id,sender_id,receiver_id,message_text,message_type,is_read,sent_at,delivered_at,read_at,created_at FROM messages WHERE conversation_id = :id ORDER BY id DESC LIMIT :limit OFFSET :offset');
         $stmt->bindValue(':id', $conversationId, \PDO::PARAM_INT);
         $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
         $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
@@ -152,18 +157,10 @@ final class MessageService extends Model
                        CASE WHEN c.user_one_id = :uid_case_6 THEN u2.status ELSE u1.status END AS other_user_status,
                        CASE
                            WHEN c.user_one_id = :uid_case_7 THEN EXISTS (
-                               SELECT 1
-                               FROM identity_verifications iv
-                               WHERE iv.user_id = u2.id
-                                 AND iv.status = 'approved'
-                               LIMIT 1
+                               SELECT 1 FROM identity_verifications iv WHERE iv.user_id = u2.id AND iv.status = 'approved' LIMIT 1
                            )
                            ELSE EXISTS (
-                               SELECT 1
-                               FROM identity_verifications iv
-                               WHERE iv.user_id = u1.id
-                                 AND iv.status = 'approved'
-                               LIMIT 1
+                               SELECT 1 FROM identity_verifications iv WHERE iv.user_id = u1.id AND iv.status = 'approved' LIMIT 1
                            )
                        END AS other_is_verified,
                        CASE WHEN c.user_one_id = :uid_case_8 THEN cm2.current_intention ELSE cm1.current_intention END AS other_current_intention,
@@ -192,13 +189,86 @@ final class MessageService extends Model
         return $stmt->fetch() ?: [];
     }
 
+    public function markAsDelivered(int $conversationId, int $receiverId): void
+    {
+        if (!$this->isConversationParticipant($conversationId, $receiverId)) {
+            return;
+        }
+
+        $this->db->prepare('UPDATE messages SET delivered_at = IFNULL(delivered_at, NOW()) WHERE conversation_id = :conversation_id AND receiver_id = :receiver_id')->execute([
+            ':conversation_id' => $conversationId,
+            ':receiver_id' => $receiverId,
+        ]);
+    }
+
     public function markAsRead(int $conversationId, int $readerId): void
     {
         if (!$this->isConversationParticipant($conversationId, $readerId)) {
             return;
         }
 
-        $this->db->prepare('UPDATE messages SET is_read = 1 WHERE conversation_id = :conversation_id AND receiver_id = :reader_id AND is_read = 0')->execute([':conversation_id' => $conversationId, ':reader_id' => $readerId]);
+        $this->db->prepare('UPDATE messages SET is_read = 1, delivered_at = IFNULL(delivered_at, NOW()), read_at = IFNULL(read_at, NOW()) WHERE conversation_id = :conversation_id AND receiver_id = :reader_id AND is_read = 0')->execute([':conversation_id' => $conversationId, ':reader_id' => $readerId]);
+    }
+
+    public function setTypingState(int $conversationId, int $userId, bool $isTyping): void
+    {
+        if (!$this->isConversationParticipant($conversationId, $userId)) {
+            return;
+        }
+
+        if (!$isTyping) {
+            $this->execute('DELETE FROM message_typing_states WHERE conversation_id=:c AND user_id=:u', [':c' => $conversationId, ':u' => $userId]);
+            return;
+        }
+
+        $this->execute('INSERT INTO message_typing_states (conversation_id,user_id,expires_at,updated_at,created_at) VALUES (:c,:u,DATE_ADD(NOW(), INTERVAL 6 SECOND),NOW(),NOW())
+            ON DUPLICATE KEY UPDATE expires_at=VALUES(expires_at), updated_at=NOW()', [':c' => $conversationId, ':u' => $userId]);
+    }
+
+    public function getTypingParticipants(int $conversationId, int $viewerId): array
+    {
+        return $this->fetchAllRows('SELECT mts.user_id, CONCAT(u.first_name, " ", u.last_name) AS user_name
+            FROM message_typing_states mts
+            JOIN users u ON u.id = mts.user_id
+            WHERE mts.conversation_id=:c AND mts.user_id <> :viewer AND mts.expires_at > NOW()
+            ORDER BY mts.updated_at DESC', [':c' => $conversationId, ':viewer' => $viewerId]);
+    }
+
+    public function touchPresence(int $userId): void
+    {
+        $this->execute('UPDATE users SET online_status = 1, last_activity_at = NOW() WHERE id = :id', [':id' => $userId]);
+    }
+
+    public function getConversationUpdates(int $conversationId, int $viewerId, int $afterMessageId): array
+    {
+        if (!$this->isConversationParticipant($conversationId, $viewerId)) {
+            return ['messages' => [], 'typing' => []];
+        }
+
+        $stmt = $this->db->prepare('SELECT id,conversation_id,sender_id,receiver_id,message_text,message_type,is_read,sent_at,delivered_at,read_at,created_at
+            FROM messages WHERE conversation_id = :conversation_id AND id > :after_id ORDER BY id ASC');
+        $stmt->execute([':conversation_id' => $conversationId, ':after_id' => $afterMessageId]);
+        $messages = $stmt->fetchAll() ?: [];
+
+        $attachmentMap = $this->attachmentsByMessageIds(array_map(static fn(array $row): int => (int) $row['id'], $messages));
+        foreach ($messages as &$message) {
+            $message['attachments'] = $attachmentMap[(int) $message['id']] ?? [];
+        }
+        unset($message);
+
+        return [
+            'messages' => $messages,
+            'typing' => $this->getTypingParticipants($conversationId, $viewerId),
+            'read_receipts' => $this->latestReadByOther($conversationId, $viewerId),
+        ];
+    }
+
+    public function latestReadByOther(int $conversationId, int $viewerId): array
+    {
+        return $this->fetchAllRows('SELECT id, read_at, delivered_at FROM messages WHERE conversation_id=:c AND sender_id=:viewer AND (delivered_at IS NOT NULL OR read_at IS NOT NULL) ORDER BY id DESC LIMIT 50', [
+            ':c' => $conversationId,
+            ':viewer' => $viewerId,
+        ]);
     }
 
     public function isConversationParticipant(int $conversationId, int $userId): bool
@@ -302,9 +372,6 @@ final class MessageService extends Model
         return $rows;
     }
 
-    /**
-     * Gancho administrativo para remover anexos físicos e vínculos de mensagens apagadas.
-     */
     public function purgeMessageAttachments(array $messageIds): int
     {
         if ($messageIds === []) {

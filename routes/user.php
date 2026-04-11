@@ -36,6 +36,8 @@ $router->add('POST', '/swipe/action', [SwipeController::class, 'action'], $coreA
 $router->add('GET', '/matches', [MatchController::class, 'index'], $coreAccess);
 $router->add('GET', '/profile', [ProfileController::class, 'index'], $coreAccess);
 $router->add('POST', '/profile/update', [ProfileController::class, 'update'], $coreAccess);
+$router->add('POST', '/profile/interests', [ProfileController::class, 'updateInterests'], $coreAccess);
+$router->add('POST', '/profile/preferences', [ProfileController::class, 'updatePreferences'], $coreAccess);
 $router->add('POST', '/profile/connection-mode', [ProfileController::class, 'updateConnectionMode'], $coreAccess);
 $router->add('POST', '/profile/photo', [ProfileController::class, 'photo'], $coreAccess);
 $router->add('POST', '/profile/gallery', [ProfileController::class, 'gallery'], $coreAccess);
@@ -43,7 +45,8 @@ $router->add('POST', '/profile/photo/primary', [ProfileController::class, 'setPr
 $router->add('POST', '/profile/photo/delete', [ProfileController::class, 'deletePhoto'], $coreAccess);
 $router->add('POST', '/profile/gallery/reorder', [ProfileController::class, 'reorderGallery'], $coreAccess);
 $router->add('GET', '/messages', [MessageController::class, 'index'], $coreAccess);
-$router->add('GET', '/messages/{conversation}', [MessageController::class, 'show'], $coreAccess);
+$router->add('GET', '/messages/stream', [MessageController::class, 'stream'], $coreAccess);
+$router->add('POST', '/messages/typing', [MessageController::class, 'typing'], $coreAccess);
 $router->add('POST', '/messages/send', [MessageController::class, 'send'], $coreAccess);
 $router->add('GET', '/feed', [FeedController::class, 'index'], $coreAccess);
 $router->add('POST', '/feed/post', [FeedController::class, 'post'], $coreAccess);

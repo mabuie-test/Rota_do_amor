@@ -6,29 +6,48 @@ namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
-use App\Core\Request;
+use App\Core\Flash;
 use App\Core\Response;
 use App\Services\IdentityVerificationService;
+use App\Services\UploadService;
+use RuntimeException;
 
 final class VerificationController extends Controller
 {
-    public function __construct(private readonly IdentityVerificationService $service = new IdentityVerificationService())
-    {
+    public function __construct(
+        private readonly IdentityVerificationService $service = new IdentityVerificationService(),
+        private readonly UploadService $uploads = new UploadService()
+    ) {
     }
 
     public function index(): void
     {
-        $this->view('verification/index', ['title' => 'Verificação de Identidade']);
+        $userId = Auth::id() ?? 0;
+        $this->view('verification/index', [
+            'title' => 'Verificação de Identidade',
+            'latest' => $this->service->latestForUser($userId),
+        ]);
     }
 
     public function submit(): void
     {
-        $id = $this->service->submitVerification(
-            Auth::id() ?? 0,
-            (string) Request::input('document_image_path', ''),
-            (string) Request::input('selfie_image_path', '')
-        );
+        $userId = Auth::id() ?? 0;
 
-        Response::json(['ok' => true, 'verification_id' => $id]);
+        try {
+            $document = $this->uploads->storeImage($_FILES['document_image'] ?? [], 'verification/documents');
+            $selfie = $this->uploads->storeImage($_FILES['selfie_image'] ?? [], 'verification/selfies');
+
+            $id = $this->service->submitVerification(
+                $userId,
+                (string) ($document['path'] ?? ''),
+                (string) ($selfie['path'] ?? '')
+            );
+
+            Flash::set('success', 'Verificação enviada com sucesso. Aguarde a análise da equipa.');
+            Response::redirect('/verification');
+        } catch (RuntimeException $exception) {
+            Flash::set('error', $exception->getMessage());
+            Response::redirect('/verification');
+        }
     }
 }

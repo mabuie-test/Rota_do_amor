@@ -16,6 +16,72 @@ final class ProfileService extends Model
         return $this->fetchOne($sql, [':id' => $userId]);
     }
 
+
+
+    public function getInterests(int $userId): array
+    {
+        return $this->fetchAllRows('SELECT interest_name FROM user_interests WHERE user_id = :id ORDER BY interest_name ASC', [':id' => $userId]);
+    }
+
+    public function syncInterests(int $userId, array $interests): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            $this->execute('DELETE FROM user_interests WHERE user_id = :id', [':id' => $userId]);
+            foreach (array_slice($interests, 0, 20) as $interest) {
+                $this->execute('INSERT INTO user_interests (user_id, interest_name, created_at) VALUES (:user_id, :interest_name, NOW())', [
+                    ':user_id' => $userId,
+                    ':interest_name' => $interest,
+                ]);
+            }
+            $this->db->commit();
+
+            return true;
+        } catch (\Throwable) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            return false;
+        }
+    }
+
+    public function getPreferences(int $userId): array
+    {
+        return $this->fetchOne('SELECT * FROM user_preferences WHERE user_id = :id LIMIT 1', [':id' => $userId]) ?: [];
+    }
+
+    public function upsertPreferences(int $userId, array $payload): bool
+    {
+        $interestedIn = (string) ($payload['interested_in'] ?? 'all');
+        if (!in_array($interestedIn, ['male', 'female', 'all'], true)) {
+            $interestedIn = 'all';
+        }
+
+        $preferredGoal = (string) ($payload['preferred_goal'] ?? 'any');
+        if (!in_array($preferredGoal, ['friendship', 'dating', 'marriage', 'any'], true)) {
+            $preferredGoal = 'any';
+        }
+
+        $ageMin = max(18, min(90, (int) ($payload['age_min'] ?? 18)));
+        $ageMax = max($ageMin, min(99, (int) ($payload['age_max'] ?? 70)));
+
+        $provinceId = (int) ($payload['preferred_province_id'] ?? 0);
+        $cityId = (int) ($payload['preferred_city_id'] ?? 0);
+
+        return $this->execute('INSERT INTO user_preferences (user_id, interested_in, age_min, age_max, preferred_province_id, preferred_city_id, preferred_goal, updated_at, created_at)
+            VALUES (:user_id, :interested_in, :age_min, :age_max, :preferred_province_id, :preferred_city_id, :preferred_goal, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE interested_in = VALUES(interested_in), age_min = VALUES(age_min), age_max = VALUES(age_max), preferred_province_id = VALUES(preferred_province_id), preferred_city_id = VALUES(preferred_city_id), preferred_goal = VALUES(preferred_goal), updated_at = NOW()', [
+            ':user_id' => $userId,
+            ':interested_in' => $interestedIn,
+            ':age_min' => $ageMin,
+            ':age_max' => $ageMax,
+            ':preferred_province_id' => $provinceId > 0 ? $provinceId : null,
+            ':preferred_city_id' => $cityId > 0 ? $cityId : null,
+            ':preferred_goal' => $preferredGoal,
+        ]);
+    }
+
     public function getUserPhotos(int $userId): array
     {
         return $this->fetchAllRows('SELECT * FROM user_photos WHERE user_id=:id ORDER BY is_primary DESC, sort_order ASC, created_at DESC', [':id' => $userId]);

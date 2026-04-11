@@ -43,6 +43,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260410_connection_modes.sql
    mysql -u root -p < database/migrations/20260411_connection_invites.sql
    mysql -u root -p < database/migrations/20260411_connection_invites_pending_uniqueness.sql
+   mysql -u root -p < database/migrations/20260411_chat_realtime_receipts.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -123,6 +124,7 @@ php scripts/cleanup_temp_uploads.php
 - Dashboard com distinção entre perfil completo vs atrativo, impacto de boost, progresso de verificação, contexto premium e ações prioritárias.
 - Feed com paginação, payload enriquecido de autor, comentários recentes e ações de UI ligadas ao backend (like/comentário/denúncia/apagar).
 - Mensagens com histórico paginado, conversa ativa na inbox, contexto do outro utilizador (presença/verificação/última atividade), anexos (`message_attachments`) e acabamento visual final.
+- Chat em tempo real por SSE, recibos de envio/entrega/leitura (`sent_at`, `delivered_at`, `read_at`) e indicador de digitação efémero (`message_typing_states`).
 - Compatibilidade com menor round-trip por cálculo (interesses agregados e reutilização de dados alvo quando disponível).
 
 
@@ -176,7 +178,8 @@ As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260410_consolidation_core.sql`;
 - `database/migrations/20260410_connection_modes.sql`;
 - `database/migrations/20260411_connection_invites.sql`;
-- `database/migrations/20260411_connection_invites_pending_uniqueness.sql`.
+- `database/migrations/20260411_connection_invites_pending_uniqueness.sql`;
+- `database/migrations/20260411_chat_realtime_receipts.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;

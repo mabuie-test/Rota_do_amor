@@ -27,6 +27,8 @@ final class MessageController extends Controller
     public function index(): void
     {
         $userId = Auth::id() ?? 0;
+        $this->service->touchPresence($userId);
+
         $search = trim((string) Request::input('q', ''));
         $activeConversationId = (int) Request::input('conversation', 0);
         $page = max(1, (int) Request::input('page', 1));
@@ -40,6 +42,7 @@ final class MessageController extends Controller
         if ($activeConversationId > 0 && $this->service->isConversationParticipant($activeConversationId, $userId)) {
             $activeConversation = $this->service->getConversationMessages($activeConversationId, $userId, $page, 40);
             $activeContext = $this->service->getConversationContext($activeConversationId, $userId);
+            $this->service->markAsDelivered($activeConversationId, $userId);
             $this->service->markAsRead($activeConversationId, $userId);
         }
 
@@ -53,21 +56,6 @@ final class MessageController extends Controller
             'pagination' => $activeConversation['pagination'] ?? [],
             'context' => $activeContext,
         ]);
-    }
-
-    public function show(array $params): void
-    {
-        $conversationId = (int) ($params['conversation'] ?? 0);
-        $userId = Auth::id() ?? 0;
-        if (!$this->service->isConversationParticipant($conversationId, $userId)) {
-            Response::abort(403, 'Acesso negado');
-        }
-
-        $page = max(1, (int) Request::input('page', 1));
-        $conversation = $this->service->getConversationMessages($conversationId, $userId, $page, 40);
-        $context = $this->service->getConversationContext($conversationId, $userId);
-        $this->service->markAsRead($conversationId, $userId);
-        $this->view('messages/show', ['title' => 'Conversa', 'viewer_id' => $userId, 'messages' => $conversation['items'], 'pagination' => $conversation['pagination'], 'context' => $context]);
     }
 
     public function send(): void
@@ -89,6 +77,7 @@ final class MessageController extends Controller
 
         $attachments = [];
         $messageType = (string) Request::input('message_type', 'text');
+        $receiverId = (int) Request::input('receiver_id', 0);
 
         try {
             if (isset($_FILES['image']) && (int) ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
@@ -98,7 +87,7 @@ final class MessageController extends Controller
 
             $messageId = $this->service->sendMessage(
                 $senderId,
-                (int) Request::input('receiver_id', 0),
+                $receiverId,
                 (string) Request::input('message_text', ''),
                 $messageType,
                 $attachments
@@ -107,10 +96,10 @@ final class MessageController extends Controller
             if ($messageId > 0) {
                 $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId, ['message_type' => $messageType]);
                 if (Request::expectsJson()) {
-                    Response::json(['ok' => true, 'message_id' => $messageId], 200);
+                    Response::json(['ok' => true, 'message_id' => $messageId, 'message' => $this->service->getMessageById($messageId, $senderId)], 200);
                 }
 
-                $redirectConversation = $this->service->getOrCreateConversation($senderId, (int) Request::input('receiver_id', 0));
+                $redirectConversation = $this->service->getOrCreateConversation($senderId, $receiverId);
                 Response::redirect('/messages?conversation=' . $redirectConversation);
             }
 
@@ -134,5 +123,62 @@ final class MessageController extends Controller
             Flash::set('error', $exception->getMessage());
             Response::redirect('/messages');
         }
+    }
+
+    public function stream(): never
+    {
+        $userId = Auth::id() ?? 0;
+        $conversationId = (int) Request::input('conversation_id', 0);
+        $afterId = max(0, (int) Request::input('after_id', 0));
+
+        if (!$this->service->isConversationParticipant($conversationId, $userId)) {
+            Response::abort(403, 'Acesso negado');
+        }
+
+        $this->service->touchPresence($userId);
+        $this->service->markAsDelivered($conversationId, $userId);
+        $this->service->markAsRead($conversationId, $userId);
+
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('X-Accel-Buffering: no');
+
+        $startedAt = time();
+        while (time() - $startedAt < 25) {
+            $this->service->markAsDelivered($conversationId, $userId);
+            $updates = $this->service->getConversationUpdates($conversationId, $userId, $afterId);
+            $messages = $updates['messages'] ?? [];
+            if ($messages !== []) {
+                $afterId = (int) end($messages)['id'];
+            }
+
+            $payload = [
+                'messages' => $messages,
+                'typing' => $updates['typing'] ?? [],
+                'read_receipts' => $updates['read_receipts'] ?? [],
+            ];
+            echo "event: chat\n";
+            echo 'data: ' . json_encode($payload, JSON_UNESCAPED_UNICODE) . "\n\n";
+            @ob_flush();
+            flush();
+            sleep(2);
+        }
+
+        exit;
+    }
+
+    public function typing(): never
+    {
+        $userId = Auth::id() ?? 0;
+        $conversationId = (int) Request::input('conversation_id', 0);
+        $typing = (bool) Request::input('typing', false);
+
+        if (!$this->service->isConversationParticipant($conversationId, $userId)) {
+            Response::json(['ok' => false], 403);
+        }
+
+        $this->service->setTypingState($conversationId, $userId, $typing);
+        $this->service->touchPresence($userId);
+        Response::json(['ok' => true]);
     }
 }
