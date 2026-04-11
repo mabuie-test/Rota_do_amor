@@ -40,7 +40,7 @@ final class ConnectionInviteService extends Model
 
         $this->db->beginTransaction();
         try {
-            if ($this->hasPendingInvite($senderId, $receiverId)) {
+            if ($this->hasPendingInviteForUpdate($senderId, $receiverId)) {
                 $this->db->rollBack();
                 return ['ok' => false, 'message' => 'Já existe um convite pendente para este perfil.'];
             }
@@ -82,7 +82,7 @@ final class ConnectionInviteService extends Model
                 $this->db->rollBack();
             }
 
-            if ((int) $exception->getCode() === 23000) {
+            if ($this->isPendingInviteUniqueViolation($exception)) {
                 return ['ok' => false, 'message' => 'Já existe um convite pendente para este perfil.'];
             }
 
@@ -357,10 +357,22 @@ final class ConnectionInviteService extends Model
         );
     }
 
+    private function hasPendingInviteForUpdate(int $senderId, int $receiverId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id FROM connection_invites WHERE sender_user_id=:sender AND receiver_user_id=:receiver AND status='pending' LIMIT 1 FOR UPDATE"
+        );
+        $stmt->execute([':sender' => $senderId, ':receiver' => $receiverId]);
+        return (bool) $stmt->fetch();
+    }
+
     private function hasPolicyBlock(int $senderId, int $receiverId): bool
     {
         $blockedStatuses = ['suspended', 'banned', 'pending_activation', 'pending_verification'];
-        $users = $this->fetchAllRows('SELECT id,status FROM users WHERE id IN (:sender,:receiver)', [':sender' => $senderId, ':receiver' => $receiverId]);
+        $users = $this->fetchAllRows(
+            'SELECT id,status FROM users WHERE id = :sender OR id = :receiver',
+            [':sender' => $senderId, ':receiver' => $receiverId]
+        );
 
         foreach ($users as $user) {
             if (in_array((string) ($user['status'] ?? ''), $blockedStatuses, true)) {
@@ -448,5 +460,18 @@ final class ConnectionInviteService extends Model
         }
 
         return trim(((string) ($row['first_name'] ?? '')) . ' ' . ((string) ($row['last_name'] ?? ''))) ?: 'Alguém';
+    }
+
+    private function isPendingInviteUniqueViolation(\PDOException $exception): bool
+    {
+        $sqlState = (string) $exception->getCode();
+        $driverCode = (int) ($exception->errorInfo[1] ?? 0);
+        $driverMessage = (string) ($exception->errorInfo[2] ?? '');
+
+        if ($sqlState !== '23000' || $driverCode !== 1062) {
+            return false;
+        }
+
+        return str_contains($driverMessage, 'uq_connection_invites_pending_once');
     }
 }
