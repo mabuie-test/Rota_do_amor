@@ -22,6 +22,7 @@ $navItems = [
     '/swipe' => ['label' => 'Swipe', 'icon' => 'fa-bolt'],
     '/matches' => ['label' => 'Matches', 'icon' => 'fa-stars'],
     '/messages' => ['label' => 'Mensagens', 'icon' => 'fa-comments'],
+    '/invites/received' => ['label' => 'Gostaram de Mim', 'icon' => 'fa-envelope-open-heart'],
     '/feed' => ['label' => 'Feed', 'icon' => 'fa-sparkles'],
     '/notifications' => ['label' => 'Notificações', 'icon' => 'fa-circle-check'],
     '/profile' => ['label' => 'Perfil', 'icon' => 'fa-heart-pulse'],

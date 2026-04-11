@@ -69,6 +69,19 @@ $opennessOptions = $openness_options ?? [];
 </div>
 
 <div class="rd-card mt-3">
+  <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+      <h5 class="mb-1 rd-serif"><i class="fa-solid fa-envelope-open-heart me-2"></i>Convites com Intenção</h5>
+      <p class="small text-muted mb-0">No seu perfil público, outros membros podem usar o botão <strong>Convidar para Conversa</strong> para abrir conexões mais humanas.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/invites/received" class="btn btn-sm btn-rd-primary"><i class="fa-solid fa-heart me-1"></i>Quem gostou de mim</a>
+      <a href="/invites/sent" class="btn btn-sm btn-rd-soft"><i class="fa-solid fa-paper-plane me-1"></i>Convites enviados</a>
+    </div>
+  </div>
+</div>
+
+<div class="rd-card mt-3">
   <div class="card-body">
     <h6>Galeria</h6>
     <div class="row g-2 mb-3">

@@ -1,18 +1,22 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h3 class="mb-0"><i class="fa-solid fa-compass me-2"></i>Descobrir Pessoas</h3>
-  <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
-    <input class="form-control form-control-sm" style="width:96px" type="number" name="age_min" placeholder="Idade min" value="<?= e((string) ($filters['age_min'] ?? '')) ?>">
-    <input class="form-control form-control-sm" style="width:96px" type="number" name="age_max" placeholder="Idade max" value="<?= e((string) ($filters['age_max'] ?? '')) ?>">
-    <select class="form-select form-select-sm" name="relationship_goal">
-      <option value="">Objectivo</option>
-      <?php foreach (['friendship' => 'Amizade', 'dating' => 'Namoro', 'marriage' => 'Casamento'] as $key => $label): ?>
-        <option value="<?= e($key) ?>" <?= (($filters['relationship_goal'] ?? '') === $key) ? 'selected' : '' ?>><?= e($label) ?></option>
-      <?php endforeach; ?>
-    </select>
-    <label class="small"><input type="checkbox" name="verified_only" value="1" <?= !empty($filters['verified_only']) ? 'checked' : '' ?>> Verificado</label>
-    <button class="btn btn-sm btn-rd-soft"><i class="fa-solid fa-sliders me-2"></i>Filtrar</button>
-  </form>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-rd-soft" href="/invites/received"><i class="fa-solid fa-envelope-open-heart me-1"></i>Quem Gostou de Mim</a>
+    <a class="btn btn-sm btn-rd-soft" href="/invites/sent"><i class="fa-solid fa-paper-plane me-1"></i>Convites Enviados</a>
+  </div>
 </div>
+<form method="get" class="d-flex gap-2 align-items-center flex-wrap mb-3">
+  <input class="form-control form-control-sm" style="width:96px" type="number" name="age_min" placeholder="Idade min" value="<?= e((string) ($filters['age_min'] ?? '')) ?>">
+  <input class="form-control form-control-sm" style="width:96px" type="number" name="age_max" placeholder="Idade max" value="<?= e((string) ($filters['age_max'] ?? '')) ?>">
+  <select class="form-select form-select-sm" name="relationship_goal">
+    <option value="">Objectivo</option>
+    <?php foreach (['friendship' => 'Amizade', 'dating' => 'Namoro', 'marriage' => 'Casamento'] as $key => $label): ?>
+      <option value="<?= e($key) ?>" <?= (($filters['relationship_goal'] ?? '') === $key) ? 'selected' : '' ?>><?= e($label) ?></option>
+    <?php endforeach; ?>
+  </select>
+  <label class="small"><input type="checkbox" name="verified_only" value="1" <?= !empty($filters['verified_only']) ? 'checked' : '' ?>> Verificado</label>
+  <button class="btn btn-sm btn-rd-soft"><i class="fa-solid fa-sliders me-2"></i>Filtrar</button>
+</form>
 
 <div class="row g-3">
 <?php if (empty($profiles ?? [])): ?>
@@ -31,6 +35,7 @@
         </div>
 
         <p class="small mb-2"><i class="fa-solid fa-star me-1"></i><?= e((string) ($profile['relationship_goal'] ?? '')) ?></p>
+        <p class="small text-muted mb-2">Convidar para Conversa: envie uma abertura com intenção real.</p>
 
         <div class="rd-heart-mode-card mb-3">
           <div class="d-flex flex-wrap gap-2 mb-2">
@@ -43,7 +48,21 @@
           </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center">
+        <form method="post" action="/invites/send" class="mb-2"><?= csrf_field() ?>
+          <input type="hidden" name="receiver_user_id" value="<?= (int) ($profile['id'] ?? 0) ?>">
+          <input type="hidden" name="invitation_type" value="standard">
+          <textarea name="opening_message" maxlength="500" rows="2" class="form-control form-control-sm mb-2" placeholder="Mensagem de abertura (opcional)"></textarea>
+          <button class="btn btn-sm btn-rd-primary w-100"><i class="fa-solid fa-envelope me-1"></i>Enviar Convite</button>
+        </form>
+
+        <form method="post" action="/invites/send" class="mb-2"><?= csrf_field() ?>
+          <input type="hidden" name="receiver_user_id" value="<?= (int) ($profile['id'] ?? 0) ?>">
+          <input type="hidden" name="invitation_type" value="priority">
+          <textarea name="opening_message" maxlength="500" rows="2" class="form-control form-control-sm mb-2" placeholder="Convite Prioritário: mensagem obrigatória"></textarea>
+          <button class="btn btn-sm btn-outline-warning w-100"><i class="fa-solid fa-crown me-1"></i>Convite Prioritário</button>
+        </form>
+
+        <div class="d-flex justify-content-between align-items-center mt-2">
           <div>
             <?php if (!empty($profile['_intention_is_aligned'])): ?>
               <span class="rd-badge badge-aligned"><i class="fa-solid fa-sparkles"></i>Intenção alinhada</span>

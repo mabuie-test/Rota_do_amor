@@ -233,3 +233,8 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
   .admin-layout { grid-template-columns: 1fr; }
   .admin-sidebar { min-height: auto; position: static; }
 }
+
+.rd-invite-card {
+  border: 1px solid #e7cfd7;
+  background: linear-gradient(180deg, #fff, #fff7fa);
+}
