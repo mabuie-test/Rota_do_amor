@@ -16,12 +16,17 @@ final class SwipeService extends Model
     public function getNextSwipeCandidate(int $userId): ?array
     {
         $stmt = $this->db->prepare("SELECT u.* FROM users u
-            WHERE u.id != :user_id
+            WHERE u.id != :viewer_exclude
               AND u.status = 'active'
-              AND NOT EXISTS (SELECT 1 FROM swipe_actions s WHERE s.actor_user_id = :user_id AND s.target_user_id = u.id)
-              AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.actor_user_id = :user_id AND b.target_user_id = u.id) OR (b.actor_user_id = u.id AND b.target_user_id = :user_id))
+              AND NOT EXISTS (SELECT 1 FROM swipe_actions s WHERE s.actor_user_id = :viewer_swipe_actor AND s.target_user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.actor_user_id = :viewer_block_1 AND b.target_user_id = u.id) OR (b.actor_user_id = u.id AND b.target_user_id = :viewer_block_2))
             ORDER BY u.last_activity_at DESC LIMIT 1");
-        $stmt->execute([':user_id' => $userId]);
+        $stmt->execute([
+            ':viewer_exclude' => $userId,
+            ':viewer_swipe_actor' => $userId,
+            ':viewer_block_1' => $userId,
+            ':viewer_block_2' => $userId,
+        ]);
         $candidate = $stmt->fetch();
 
         return $candidate ?: null;
@@ -51,8 +56,13 @@ final class SwipeService extends Model
 
     public function hasMutualLike(int $userId, int $targetId): bool
     {
-        $stmt = $this->db->prepare("SELECT COUNT(*) total FROM swipe_actions WHERE ((actor_user_id=:user_id AND target_user_id=:target_id) OR (actor_user_id=:target_id AND target_user_id=:user_id)) AND action_type IN ('like','super_like')");
-        $stmt->execute([':user_id' => $userId, ':target_id' => $targetId]);
+        $stmt = $this->db->prepare("SELECT COUNT(*) total FROM swipe_actions WHERE ((actor_user_id=:user_id_1 AND target_user_id=:target_id_1) OR (actor_user_id=:target_id_2 AND target_user_id=:user_id_2)) AND action_type IN ('like','super_like')");
+        $stmt->execute([
+            ':user_id_1' => $userId,
+            ':target_id_1' => $targetId,
+            ':target_id_2' => $targetId,
+            ':user_id_2' => $userId,
+        ]);
         return (int) ($stmt->fetch()['total'] ?? 0) >= 2;
     }
 
@@ -68,11 +78,14 @@ final class SwipeService extends Model
     public function getSwipeQueue(int $userId): array
     {
         $stmt = $this->db->prepare("SELECT u.id,u.first_name,u.last_name FROM users u
-            WHERE u.id != :id
+            WHERE u.id != :viewer_exclude
               AND u.status = 'active'
-              AND NOT EXISTS (SELECT 1 FROM swipe_actions s WHERE s.actor_user_id = :id AND s.target_user_id = u.id)
+              AND NOT EXISTS (SELECT 1 FROM swipe_actions s WHERE s.actor_user_id = :viewer_swipe_actor AND s.target_user_id = u.id)
             LIMIT 50");
-        $stmt->execute([':id' => $userId]);
+        $stmt->execute([
+            ':viewer_exclude' => $userId,
+            ':viewer_swipe_actor' => $userId,
+        ]);
         return $stmt->fetchAll();
     }
 }
