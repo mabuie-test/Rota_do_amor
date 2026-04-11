@@ -16,7 +16,8 @@ final class UserDashboardService extends Model
         private readonly BoostService $boosts = new BoostService(),
         private readonly BadgeService $badges = new BadgeService(),
         private readonly CompatibilityService $compatibility = new CompatibilityService(),
-        private readonly ConnectionModeService $connectionModes = new ConnectionModeService()
+        private readonly ConnectionModeService $connectionModes = new ConnectionModeService(),
+        private readonly ConnectionInviteService $invites = new ConnectionInviteService()
     ) {
         parent::__construct();
     }
@@ -40,6 +41,7 @@ final class UserDashboardService extends Model
         $boostImpact = $this->boostImpact($userId);
         $heartMode = $this->safeConnectionMode($userId);
         $momentAlignment = $this->averageMomentAlignment($userId);
+        $inviteSignals = $this->inviteSignals($userId);
 
         return [
             'account_status' => $accountStatus,
@@ -62,6 +64,10 @@ final class UserDashboardService extends Model
             'avg_intention_alignment' => $momentAlignment['intention'],
             'avg_pace_alignment' => $momentAlignment['pace'],
             'heart_mode_should_refresh' => $momentAlignment['suggest_refresh'],
+            'pending_received_invites' => $inviteSignals['pending_received'],
+            'pending_priority_invites' => $inviteSignals['pending_priority'],
+            'accepted_invites_total' => $inviteSignals['accepted_total'],
+            'likes_me_preview' => $inviteSignals['likes_me_preview'],
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),
@@ -168,6 +174,23 @@ final class UserDashboardService extends Model
             'boost_estimated_impact' => $boostActive ? 'alta visibilidade nas próximas horas' : 'visibilidade normal (sem boost ativo)',
             'boost_readiness_score' => $boostScore,
             'boost_active_count' => (int) ($boostImpact['active_count'] ?? 0),
+        ];
+    }
+
+
+
+    private function inviteSignals(int $userId): array
+    {
+        $received = $this->invites->listReceived($userId, ['status' => 'pending']);
+        $sentAccepted = $this->invites->listSent($userId, ['status' => 'accepted']);
+
+        $pendingPriority = count(array_filter($received, static fn(array $invite): bool => (string) ($invite['invitation_type'] ?? 'standard') === 'priority'));
+
+        return [
+            'pending_received' => count($received),
+            'pending_priority' => $pendingPriority,
+            'accepted_total' => count($sentAccepted),
+            'likes_me_preview' => array_slice($received, 0, 5),
         ];
     }
 

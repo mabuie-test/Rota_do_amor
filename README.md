@@ -6,6 +6,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Registo, autenticação segura, logout, recuperação de senha e verificação de email.
 - Ativação da conta por pagamento inicial, subscrição mensal e boost pago.
 - Descoberta, swipe, match, mensagens, favoritos, bloqueios, denúncias e notificações.
+- Convite com Intenção + Quem Gostou de Mim (convites standard/prioritário com snapshot de intenção, ritmo e compatibilidade).
 - Modo do Coração + Ritmo Relacional (camada de momento) com edição no perfil, chips na descoberta e contexto no dashboard/chat.
 - Feed social com posts, likes, comentários, denúncia, paginação e media (upload múltiplo com thumbnails e ordenação).
 - Verificação de identidade e badges de confiança.
@@ -40,6 +41,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260410_hardening.sql
    mysql -u root -p < database/migrations/20260410_consolidation_core.sql
    mysql -u root -p < database/migrations/20260410_connection_modes.sql
+   mysql -u root -p < database/migrations/20260411_connection_invites.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -146,13 +148,33 @@ Tabela adicionada:
   - `openness_level` (opcional)
   - timestamps + índices por intenção/ritmo
 
+
+## Convite com Intenção + Quem Gostou de Mim
+Fluxo complementar (sem substituir swipe/match) para interesse qualificado:
+- `POST /invites/send`: envio de convite com snapshot do momento (`current_intention`, `relational_pace`, `compatibility_score`, `breakdown`).
+- `GET /invites/received`: área **Quem Gostou de Mim** para aceitar/recusar e priorizar convites.
+- `GET /invites/sent`: acompanhamento dos convites enviados.
+- `POST /invites/accept`: aceita convite e cria/reactiva `match` + conversa.
+- `POST /invites/decline`: recusa convite.
+
+Regras aplicadas:
+- bloqueia auto-convite, duplicado pendente, bloqueios entre utilizadores, utilizador inativo e throttling por hora/dia;
+- convites prioritários exigem premium + mensagem de abertura;
+- expiração configurável por `site_settings.invites_expiration_days` (default 7 dias);
+- notificações para convite recebido, prioritário recebido, aceite e recusa.
+
+Camada premium preparada:
+- `invitation_type` (`standard`, `priority`) pronto para destaque e ordenação avançada;
+- free vê recebidos com limite; premium vê lista completa e prioridade no topo.
+
 ## Índices e migração
 `database/schema.sql` já inclui o estado consolidado atual (incluindo `user_connection_modes`, `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images` e `message_attachments`) para instalações novas.
 
 As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260410_hardening.sql`;
 - `database/migrations/20260410_consolidation_core.sql`;
-- `database/migrations/20260410_connection_modes.sql`.
+- `database/migrations/20260410_connection_modes.sql`;
+- `database/migrations/20260411_connection_invites.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;

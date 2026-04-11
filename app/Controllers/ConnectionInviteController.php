@@ -1,0 +1,96 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Core\Auth;
+use App\Core\Controller;
+use App\Core\Flash;
+use App\Core\Request;
+use App\Core\Response;
+use App\Services\ConnectionInviteService;
+
+final class ConnectionInviteController extends Controller
+{
+    public function __construct(private readonly ConnectionInviteService $service = new ConnectionInviteService())
+    {
+    }
+
+    public function received(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $filters = [
+            'status' => Request::input('status'),
+            'invitation_type' => Request::input('invitation_type'),
+        ];
+
+        $invites = $this->service->listReceived($userId, $filters);
+        $this->view('invites/received', [
+            'title' => 'Quem Gostou de Mim',
+            'invites' => $invites,
+            'filters' => $filters,
+        ]);
+    }
+
+    public function sent(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $filters = [
+            'status' => Request::input('status'),
+        ];
+
+        $invites = $this->service->listSent($userId, $filters);
+        $this->view('invites/sent', [
+            'title' => 'Convites Enviados',
+            'invites' => $invites,
+            'filters' => $filters,
+        ]);
+    }
+
+    public function send(): void
+    {
+        $result = $this->service->sendInvite(
+            Auth::id() ?? 0,
+            (int) Request::input('receiver_user_id', 0),
+            (string) Request::input('invitation_type', 'standard'),
+            Request::input('opening_message') !== null ? (string) Request::input('opening_message') : null
+        );
+
+        if (Request::expectsJson()) {
+            Response::json($result, !empty($result['ok']) ? 200 : 422);
+        }
+
+        Flash::set(!empty($result['ok']) ? 'success' : 'error', (string) ($result['message'] ?? (!empty($result['ok']) ? 'Convite enviado com sucesso.' : 'Não foi possível enviar convite.')));
+        Response::redirect((string) ($_SERVER['HTTP_REFERER'] ?? '/discover'));
+    }
+
+    public function accept(): void
+    {
+        $result = $this->service->acceptInvite((int) Request::input('invite_id', 0), Auth::id() ?? 0);
+
+        if (Request::expectsJson()) {
+            Response::json($result, !empty($result['ok']) ? 200 : 422);
+        }
+
+        if (!empty($result['ok'])) {
+            Flash::set('success', 'Convite aceite. Conversa pronta para começar.');
+            Response::redirect('/messages?conversation=' . (int) ($result['conversation_id'] ?? 0));
+        }
+
+        Flash::set('error', (string) ($result['message'] ?? 'Não foi possível aceitar o convite.'));
+        Response::redirect('/invites/received');
+    }
+
+    public function decline(): void
+    {
+        $result = $this->service->declineInvite((int) Request::input('invite_id', 0), Auth::id() ?? 0);
+
+        if (Request::expectsJson()) {
+            Response::json($result, !empty($result['ok']) ? 200 : 422);
+        }
+
+        Flash::set(!empty($result['ok']) ? 'success' : 'error', (string) ($result['message'] ?? 'Não foi possível recusar o convite.'));
+        Response::redirect('/invites/received');
+    }
+}

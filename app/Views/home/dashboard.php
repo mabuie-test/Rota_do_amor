@@ -12,6 +12,30 @@
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Total de Matches</div><div class="value"><?= (int) ($d['total_matches'] ?? 0) ?></div></div></div></div>
 </div>
 
+<div class="row g-3 mb-3 mt-1">
+  <div class="col-lg-12">
+    <div class="rd-card"><div class="card-body">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h6 class="mb-0">Convites com Intenção + Quem Gostou de Mim</h6>
+        <div class="d-flex gap-2">
+          <a class="btn btn-sm btn-rd-primary" href="/invites/received"><i class="fa-solid fa-heart me-1"></i>Ver recebidos</a>
+          <a class="btn btn-sm btn-rd-soft" href="/invites/sent"><i class="fa-solid fa-paper-plane me-1"></i>Ver enviados</a>
+        </div>
+      </div>
+      <p class="small mb-2">Pendentes recebidos: <strong><?= (int) ($d['pending_received_invites'] ?? 0) ?></strong> · Prioritários: <strong><?= (int) ($d['pending_priority_invites'] ?? 0) ?></strong> · Convites aceites enviados: <strong><?= (int) ($d['accepted_invites_total'] ?? 0) ?></strong></p>
+      <?php if (!empty($d['likes_me_preview'])): ?>
+        <div class="d-flex flex-wrap gap-2">
+          <?php foreach (($d['likes_me_preview'] ?? []) as $preview): ?>
+            <span class="rd-badge badge-active"><i class="fa-solid fa-user-heart"></i><?= e((string) ($preview['sender_name'] ?? 'Perfil')) ?> · <?= (float) ($preview['compatibility_score_snapshot'] ?? 0) ?>%</span>
+          <?php endforeach; ?>
+        </div>
+      <?php else: ?>
+        <div class="small text-muted">Ainda sem convites pendentes no momento.</div>
+      <?php endif; ?>
+    </div></div>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-lg-6">
     <div class="rd-card"><div class="card-body">

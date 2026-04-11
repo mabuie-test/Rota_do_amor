@@ -284,6 +284,31 @@ CREATE TABLE connections (
   UNIQUE KEY uq_connection_pair (requester_id, receiver_id)
 );
 
+
+
+CREATE TABLE connection_invites (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  sender_user_id BIGINT NOT NULL,
+  receiver_user_id BIGINT NOT NULL,
+  status ENUM('pending','accepted','declined','expired','cancelled') NOT NULL DEFAULT 'pending',
+  invitation_type ENUM('standard','priority') NOT NULL DEFAULT 'standard',
+  opening_message VARCHAR(500) NULL,
+  current_intention_snapshot VARCHAR(60) NOT NULL,
+  relational_pace_snapshot VARCHAR(40) NOT NULL,
+  compatibility_score_snapshot DECIMAL(5,2) NOT NULL DEFAULT 0,
+  compatibility_breakdown_snapshot JSON NULL,
+  responded_at DATETIME NULL,
+  expires_at DATETIME NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  CONSTRAINT fk_connection_invites_sender FOREIGN KEY (sender_user_id) REFERENCES users(id),
+  CONSTRAINT fk_connection_invites_receiver FOREIGN KEY (receiver_user_id) REFERENCES users(id),
+  INDEX idx_connection_invites_receiver_status_created (receiver_user_id, status, created_at),
+  INDEX idx_connection_invites_sender_status_created (sender_user_id, status, created_at),
+  INDEX idx_connection_invites_type_status (invitation_type, status),
+  INDEX idx_connection_invites_pending_guard (sender_user_id, receiver_user_id, status)
+);
+
 CREATE TABLE conversations (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_one_id BIGINT NOT NULL,

@@ -4,6 +4,7 @@ use App\Controllers\ActivationController;
 use App\Controllers\AuthController;
 use App\Controllers\BlockController;
 use App\Controllers\ConnectionController;
+use App\Controllers\ConnectionInviteController;
 use App\Controllers\DiscoverController;
 use App\Controllers\FavoriteController;
 use App\Controllers\FeedController;
@@ -55,6 +56,13 @@ $router->add('POST', '/block', [BlockController::class, 'store'], $coreAccess);
 $router->add('POST', '/report', [ReportController::class, 'store'], $coreAccess);
 $router->add('POST', '/connection/request', [ConnectionController::class, 'request'], $coreAccess);
 $router->add('POST', '/connection/accept', [ConnectionController::class, 'accept'], $coreAccess);
+
+
+$router->add('GET', '/invites/received', [ConnectionInviteController::class, 'received'], $coreAccess);
+$router->add('GET', '/invites/sent', [ConnectionInviteController::class, 'sent'], $coreAccess);
+$router->add('POST', '/invites/send', [ConnectionInviteController::class, 'send'], $coreAccess);
+$router->add('POST', '/invites/accept', [ConnectionInviteController::class, 'accept'], $coreAccess);
+$router->add('POST', '/invites/decline', [ConnectionInviteController::class, 'decline'], $coreAccess);
 
 $router->add('GET', '/settings', [SettingsController::class, 'index'], $coreAccess);
 $router->add('POST', '/settings/update', [SettingsController::class, 'update'], $coreAccess);
