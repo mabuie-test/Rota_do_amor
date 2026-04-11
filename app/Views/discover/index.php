@@ -1,7 +1,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h3 class="mb-0"><i class="fa-solid fa-compass me-2"></i>Descobrir Pessoas</h3>
   <div class="d-flex gap-2">
-    <a class="btn btn-sm btn-rd-soft" href="/invites/received"><i class="fa-solid fa-envelope-open-heart me-1"></i>Quem Gostou de Mim</a>
+    <a class="btn btn-sm btn-rd-soft" href="/invites/received"><i class="fa-solid fa-envelope-open-heart me-1"></i>Convites Recebidos</a>
     <a class="btn btn-sm btn-rd-soft" href="/invites/sent"><i class="fa-solid fa-paper-plane me-1"></i>Convites Enviados</a>
   </div>
 </div>
@@ -48,19 +48,44 @@
           </div>
         </div>
 
-        <form method="post" action="/invites/send" class="mb-2"><?= csrf_field() ?>
-          <input type="hidden" name="receiver_user_id" value="<?= (int) ($profile['id'] ?? 0) ?>">
-          <input type="hidden" name="invitation_type" value="standard">
-          <textarea name="opening_message" maxlength="500" rows="2" class="form-control form-control-sm mb-2" placeholder="Mensagem de abertura (opcional)"></textarea>
-          <button class="btn btn-sm btn-rd-primary w-100"><i class="fa-solid fa-envelope me-1"></i>Enviar Convite</button>
-        </form>
+        <div class="d-grid gap-2 mb-2">
+          <button
+            class="btn btn-sm btn-rd-primary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#inviteFormStandard<?= (int) ($profile['id'] ?? 0) ?>"
+            aria-expanded="false"
+            aria-controls="inviteFormStandard<?= (int) ($profile['id'] ?? 0) ?>">
+            <i class="fa-solid fa-envelope me-1"></i>Enviar Convite
+          </button>
+          <button
+            class="btn btn-sm btn-outline-warning"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#inviteFormPriority<?= (int) ($profile['id'] ?? 0) ?>"
+            aria-expanded="false"
+            aria-controls="inviteFormPriority<?= (int) ($profile['id'] ?? 0) ?>">
+            <i class="fa-solid fa-crown me-1"></i>Convite Prioritário
+          </button>
+        </div>
 
-        <form method="post" action="/invites/send" class="mb-2"><?= csrf_field() ?>
-          <input type="hidden" name="receiver_user_id" value="<?= (int) ($profile['id'] ?? 0) ?>">
-          <input type="hidden" name="invitation_type" value="priority">
-          <textarea name="opening_message" maxlength="500" rows="2" class="form-control form-control-sm mb-2" placeholder="Convite Prioritário: mensagem obrigatória"></textarea>
-          <button class="btn btn-sm btn-outline-warning w-100"><i class="fa-solid fa-crown me-1"></i>Convite Prioritário</button>
-        </form>
+        <div class="collapse mb-2" id="inviteFormStandard<?= (int) ($profile['id'] ?? 0) ?>">
+          <form method="post" action="/invites/send"><?= csrf_field() ?>
+            <input type="hidden" name="receiver_user_id" value="<?= (int) ($profile['id'] ?? 0) ?>">
+            <input type="hidden" name="invitation_type" value="standard">
+            <textarea name="opening_message" maxlength="500" rows="2" class="form-control form-control-sm mb-2" placeholder="Mensagem de abertura (opcional)"></textarea>
+            <button class="btn btn-sm btn-rd-primary w-100"><i class="fa-solid fa-paper-plane me-1"></i>Confirmar envio</button>
+          </form>
+        </div>
+
+        <div class="collapse mb-2" id="inviteFormPriority<?= (int) ($profile['id'] ?? 0) ?>">
+          <form method="post" action="/invites/send"><?= csrf_field() ?>
+            <input type="hidden" name="receiver_user_id" value="<?= (int) ($profile['id'] ?? 0) ?>">
+            <input type="hidden" name="invitation_type" value="priority">
+            <textarea name="opening_message" maxlength="500" rows="2" class="form-control form-control-sm mb-2" placeholder="Convite prioritário: mensagem obrigatória"></textarea>
+            <button class="btn btn-sm btn-outline-warning w-100"><i class="fa-solid fa-crown me-1"></i>Confirmar prioritário</button>
+          </form>
+        </div>
 
         <div class="d-flex justify-content-between align-items-center mt-2">
           <div>

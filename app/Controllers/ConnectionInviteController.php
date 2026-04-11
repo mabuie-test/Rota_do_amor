@@ -23,12 +23,15 @@ final class ConnectionInviteController extends Controller
         $filters = [
             'status' => Request::input('status'),
             'invitation_type' => Request::input('invitation_type'),
+            'page' => (int) Request::input('page', 1),
+            'per_page' => (int) Request::input('per_page', 12),
         ];
 
-        $invites = $this->service->listReceived($userId, $filters);
+        $listing = $this->service->listReceived($userId, $filters);
         $this->view('invites/received', [
-            'title' => 'Quem Gostou de Mim',
-            'invites' => $invites,
+            'title' => 'Convites Recebidos com Intenção',
+            'invites' => $listing['items'],
+            'pagination' => $listing['pagination'],
             'filters' => $filters,
         ]);
     }
@@ -38,12 +41,15 @@ final class ConnectionInviteController extends Controller
         $userId = Auth::id() ?? 0;
         $filters = [
             'status' => Request::input('status'),
+            'page' => (int) Request::input('page', 1),
+            'per_page' => (int) Request::input('per_page', 12),
         ];
 
-        $invites = $this->service->listSent($userId, $filters);
+        $listing = $this->service->listSent($userId, $filters);
         $this->view('invites/sent', [
             'title' => 'Convites Enviados',
-            'invites' => $invites,
+            'invites' => $listing['items'],
+            'pagination' => $listing['pagination'],
             'filters' => $filters,
         ]);
     }

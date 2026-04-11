@@ -13,6 +13,11 @@
       <option value="<?= e($value) ?>" <?= (($filters['status'] ?? '') === $value) ? 'selected' : '' ?>><?= e($label) ?></option>
     <?php endforeach; ?>
   </select>
+  <select name="per_page" class="form-select form-select-sm" style="width:130px">
+    <?php foreach ([8, 12, 20, 30] as $size): ?>
+      <option value="<?= $size ?>" <?= ((int) ($filters['per_page'] ?? 12) === $size) ? 'selected' : '' ?>><?= $size ?> por página</option>
+    <?php endforeach; ?>
+  </select>
   <button class="btn btn-sm btn-rd-soft"><i class="fa-solid fa-filter me-1"></i>Filtrar</button>
 </form>
 
@@ -41,10 +46,32 @@
             <span class="rd-heart-chip"><i class="fa-solid <?= e((string) ($invite['pace_icon'] ?? 'fa-wave-square')) ?>"></i><?= e((string) ($invite['pace_label'] ?? '')) ?></span>
           </div>
 
-          <?php if (!empty($invite['opening_message'])): ?><p class="small mb-2">Mensagem: “<?= e((string) $invite['opening_message']) ?>”</p><?php endif; ?>
+          <?php if (!empty($invite['opening_message'])): ?>
+            <p class="small mb-2"><span class="text-muted">Mensagem de abertura:</span> “<?= e((string) $invite['opening_message']) ?>”</p>
+          <?php else: ?>
+            <p class="small text-muted mb-2">Sem mensagem de abertura.</p>
+          <?php endif; ?>
           <div class="small text-muted">Enviado em <?= e((string) ($invite['created_at'] ?? '')) ?><?php if (!empty($invite['responded_at'])): ?> · respondido em <?= e((string) $invite['responded_at']) ?><?php endif; ?></div>
         </div>
       </div>
     </div>
   <?php endforeach; ?>
 </div>
+
+<?php $page = (int) ($pagination['page'] ?? 1); ?>
+<?php $perPage = (int) ($pagination['per_page'] ?? 12); ?>
+<?php $total = (int) ($pagination['total'] ?? 0); ?>
+<?php $hasMore = !empty($pagination['has_more']); ?>
+<?php if ($total > 0): ?>
+  <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+    <small class="text-muted">Página <?= $page ?> · <?= $perPage ?> por página · <?= $total ?> total</small>
+    <div class="d-flex gap-2">
+      <?php if ($page > 1): ?>
+        <a class="btn btn-sm btn-rd-soft" href="?<?= e(http_build_query(array_merge($filters, ['page' => $page - 1]))) ?>"><i class="fa-solid fa-chevron-left me-1"></i>Anterior</a>
+      <?php endif; ?>
+      <?php if ($hasMore): ?>
+        <a class="btn btn-sm btn-rd-soft" href="?<?= e(http_build_query(array_merge($filters, ['page' => $page + 1]))) ?>">Próxima<i class="fa-solid fa-chevron-right ms-1"></i></a>
+      <?php endif; ?>
+    </div>
+  </div>
+<?php endif; ?>
