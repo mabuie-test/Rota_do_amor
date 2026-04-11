@@ -183,14 +183,16 @@ final class UserDashboardService extends Model
     {
         $received = $this->invites->listReceived($userId, ['status' => 'pending']);
         $sentAccepted = $this->invites->listSent($userId, ['status' => 'accepted']);
+        $receivedItems = $received['items'] ?? [];
+        $sentItems = $sentAccepted['items'] ?? [];
 
-        $pendingPriority = count(array_filter($received, static fn(array $invite): bool => (string) ($invite['invitation_type'] ?? 'standard') === 'priority'));
+        $pendingPriority = count(array_filter($receivedItems, static fn(array $invite): bool => (string) ($invite['invitation_type'] ?? 'standard') === 'priority'));
 
         return [
-            'pending_received' => count($received),
+            'pending_received' => count($receivedItems),
             'pending_priority' => $pendingPriority,
-            'accepted_total' => count($sentAccepted),
-            'likes_me_preview' => array_slice($received, 0, 5),
+            'accepted_total' => count($sentItems),
+            'likes_me_preview' => array_slice($receivedItems, 0, 5),
         ];
     }
 

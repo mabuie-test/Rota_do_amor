@@ -6,6 +6,7 @@ $opennessOptions = $openness_options ?? [];
 $interestNames = array_map(static fn(array $row): string => (string) ($row['interest_name'] ?? ''), $interests ?? []);
 $preferences = $preferences ?? [];
 $profileChecklist = $profile_checklist ?? [];
+$signals = $completion_signals ?? [];
 ?>
 <h3 class="mb-3">Meu Perfil</h3>
 <?php if (!empty($profile)): ?>
@@ -26,12 +27,19 @@ $profileChecklist = $profile_checklist ?? [];
         <p class="small text-muted mb-0">Completude: <strong><?= (int) ($profile_completion_percent ?? 0) ?>%</strong> · Atratividade: <strong><?= (int) ($profile_attractiveness_percent ?? 0) ?>%</strong> · Confiança: <strong><?= e((string) ($trust_indicator ?? 'Baixa')) ?></strong></p>
       </div>
       <div class="col-md-4">
-        <ul class="small mb-0">
+        <ul class="small mb-0 rd-checklist list-unstyled">
           <?php foreach ($profileChecklist as $item => $ok): ?>
-            <li><?= $ok ? '✅' : '⬜' ?> <?= e((string) $item) ?></li>
+            <li><span><?= e((string) $item) ?></span><strong><?= $ok ? '✅' : '⬜' ?></strong></li>
           <?php endforeach; ?>
         </ul>
       </div>
+    </div>
+
+    <div class="row g-2 mt-2">
+      <div class="col-sm-6 col-lg-3"><div class="rd-soft-panel"><div class="small text-muted">Fotos guardadas</div><div class="fw-semibold"><?= (int) ($signals['photos_count'] ?? 0) ?></div></div></div>
+      <div class="col-sm-6 col-lg-3"><div class="rd-soft-panel"><div class="small text-muted">Interesses guardados</div><div class="fw-semibold"><?= (int) ($signals['interests_count'] ?? 0) ?></div></div></div>
+      <div class="col-sm-6 col-lg-3"><div class="rd-soft-panel"><div class="small text-muted">Preferências</div><div class="fw-semibold"><?= (int) ($signals['preferences_count'] ?? 0) > 0 ? 'Guardadas' : 'Pendentes' ?></div></div></div>
+      <div class="col-sm-6 col-lg-3"><div class="rd-soft-panel"><div class="small text-muted">Identidade</div><div class="fw-semibold"><?= (int) ($signals['identity_verified'] ?? 0) > 0 ? 'Aprovada' : 'Não aprovada' ?></div></div></div>
     </div>
 
     <?php if (!empty($profile_missing_items)): ?>
@@ -52,7 +60,7 @@ $profileChecklist = $profile_checklist ?? [];
 
 <div class="row g-3 mt-1">
   <div class="col-lg-6"><div class="rd-card h-100"><div class="card-body">
-    <h5 class="mb-3">Interesses</h5>
+    <h5 class="mb-3 rd-section-title">Interesses</h5>
     <p class="small text-muted">Adicione pelo menos 3 interesses, separados por vírgula, ponto e vírgula ou nova linha.</p>
     <form method="post" action="/profile/interests"><?= csrf_field() ?>
       <textarea class="form-control mb-2" rows="4" name="interests" placeholder="Ex.: viagens, leitura, desporto"><?= e(implode(', ', $interestNames)) ?></textarea>
@@ -61,7 +69,7 @@ $profileChecklist = $profile_checklist ?? [];
   </div></div></div>
 
   <div class="col-lg-6"><div class="rd-card h-100"><div class="card-body">
-    <h5 class="mb-3">Preferências de descoberta</h5>
+    <h5 class="mb-3 rd-section-title">Preferências de descoberta</h5>
     <form method="post" action="/profile/preferences" class="row g-2"><?= csrf_field() ?>
       <div class="col-md-6"><label class="form-label small">Interessado em</label><select class="form-select" name="interested_in"><option value="all" <?= (($preferences['interested_in'] ?? 'all') === 'all') ? 'selected' : '' ?>>Todos</option><option value="male" <?= (($preferences['interested_in'] ?? '') === 'male') ? 'selected' : '' ?>>Homens</option><option value="female" <?= (($preferences['interested_in'] ?? '') === 'female') ? 'selected' : '' ?>>Mulheres</option></select></div>
       <div class="col-md-3"><label class="form-label small">Idade min</label><input type="number" class="form-control" min="18" max="90" name="age_min" value="<?= (int) ($preferences['age_min'] ?? 18) ?>"></div>
@@ -75,17 +83,17 @@ $profileChecklist = $profile_checklist ?? [];
 </div>
 
 <div class="rd-card mt-3"><div class="card-body">
-  <h5 class="mb-3">Fotos do perfil</h5>
+  <h5 class="mb-3 rd-section-title">Fotos do perfil</h5>
   <div class="row g-3 mb-3">
     <div class="col-md-6">
-      <form method="post" action="/profile/photo" enctype="multipart/form-data" class="border rounded p-3"><?= csrf_field() ?>
+      <form method="post" action="/profile/photo" enctype="multipart/form-data" class="rd-upload-drop"><?= csrf_field() ?>
         <label class="form-label">Atualizar foto principal</label>
         <input required class="form-control mb-2" type="file" name="photo" accept="image/jpeg,image/png,image/webp">
         <button class="btn btn-rd-primary btn-sm">Enviar foto principal</button>
       </form>
     </div>
     <div class="col-md-6">
-      <form method="post" action="/profile/gallery" enctype="multipart/form-data" class="border rounded p-3"><?= csrf_field() ?>
+      <form method="post" action="/profile/gallery" enctype="multipart/form-data" class="rd-upload-drop"><?= csrf_field() ?>
         <label class="form-label">Adicionar à galeria</label>
         <input required class="form-control mb-2" type="file" name="photo" accept="image/jpeg,image/png,image/webp">
         <button class="btn btn-outline-primary btn-sm">Adicionar foto</button>

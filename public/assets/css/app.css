@@ -238,3 +238,62 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
   border: 1px solid #e7cfd7;
   background: linear-gradient(180deg, #fff, #fff7fa);
 }
+
+.rd-section-title {
+  font-size: 1.15rem;
+  margin-bottom: .25rem;
+}
+
+.rd-soft-panel {
+  border: 1px solid #ead6dd;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff, #fff9fb);
+  padding: .9rem;
+}
+
+.rd-checklist li {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .45rem .65rem;
+  border: 1px solid #efdee4;
+  border-radius: 12px;
+  margin-bottom: .45rem;
+  background: #fff;
+}
+
+.rd-upload-drop {
+  border: 1px dashed #d7b7c3;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff, #fdf5f8);
+  padding: 1rem;
+}
+
+.rd-chat-shell {
+  border: 1px solid #e8d7de;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff, #fff9fb);
+}
+
+.rd-chat-list {
+  max-height: 460px;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.rd-chat-bubble {
+  border-radius: 14px;
+  padding: .6rem .75rem;
+  display: inline-block;
+  max-width: 88%;
+}
+
+.rd-chat-bubble--mine {
+  background: linear-gradient(120deg, #7a1632, #9d2b4e);
+  color: #fff;
+}
+
+.rd-chat-bubble--other {
+  background: #fff;
+  border: 1px solid #eadbe1;
+}

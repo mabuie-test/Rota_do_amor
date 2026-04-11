@@ -37,6 +37,7 @@ final class ProfileController extends Controller
         $badges = $this->badgeService->getUserBadges($userId);
         $mode = $this->connectionModes->getForUser($userId);
         $insights = $this->dashboard->build($userId);
+        $signals = $this->profileService->completionSignals($userId);
 
         $this->view('profile/index', [
             'title' => 'Meu Perfil',
@@ -56,6 +57,7 @@ final class ProfileController extends Controller
             'profile_missing_items' => $insights['profile_missing_items'] ?? [],
             'profile_attractiveness_percent' => $insights['profile_attractiveness_percent'] ?? 0,
             'trust_indicator' => $insights['trust_indicator'] ?? 'Baixa',
+            'completion_signals' => $signals,
         ]);
     }
 
@@ -74,10 +76,11 @@ final class ProfileController extends Controller
     public function updateInterests(): void
     {
         $userId = Auth::id() ?? 0;
-        $raw = (string) Request::input('interests', '');
+        $input = Request::input('interests', '');
+        $tokens = is_array($input) ? $input : (preg_split('/[\n,;]/', (string) $input) ?: []);
         $interests = array_values(array_filter(array_unique(array_map(
             static fn(string $item): string => mb_substr(trim($item), 0, 120),
-            preg_split('/[\n,;]/', $raw) ?: []
+            array_map(static fn(mixed $item): string => (string) $item, $tokens)
         )), static fn(string $item): bool => $item !== ''));
 
         $ok = $this->profileService->syncInterests($userId, $interests);
