@@ -19,6 +19,8 @@ WHERE sent_at IS NULL OR (is_read = 1 AND (delivered_at IS NULL OR read_at IS NU
 
 ALTER TABLE messages
   MODIFY COLUMN sent_at DATETIME NOT NULL,
+  ADD INDEX IF NOT EXISTS idx_messages_conversation_id (conversation_id, id),
+  ADD INDEX IF NOT EXISTS idx_messages_conversation_receiver_read (conversation_id, receiver_id, is_read, id),
   ADD INDEX IF NOT EXISTS idx_messages_delivery (conversation_id, receiver_id, delivered_at, read_at);
 
 CREATE TABLE IF NOT EXISTS message_typing_states (

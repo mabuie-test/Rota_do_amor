@@ -80,14 +80,21 @@ final class UserDashboardService extends Model
     private function loadProfileSignals(int $userId): array
     {
         $sql = "SELECT
-                    (SELECT COUNT(*) FROM user_photos up WHERE up.user_id = :id) AS photos_count,
-                    (SELECT COUNT(*) FROM user_interests ui WHERE ui.user_id = :id) AS interests_count,
-                    (SELECT COUNT(*) FROM user_preferences pr WHERE pr.user_id = :id) AS preferences_count,
-                    (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :id AND iv.status = 'approved') AS identity_verified,
-                    (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :id AND iv.status = 'pending') AS identity_pending,
-                    (SELECT COUNT(*) FROM compatibility_scores cs WHERE cs.user_id = :id) AS compatibility_samples";
+                    (SELECT COUNT(*) FROM user_photos up WHERE up.user_id = :photos_user_id) AS photos_count,
+                    (SELECT COUNT(*) FROM user_interests ui WHERE ui.user_id = :interests_user_id) AS interests_count,
+                    (SELECT COUNT(*) FROM user_preferences pr WHERE pr.user_id = :preferences_user_id) AS preferences_count,
+                    (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :identity_verified_user_id AND iv.status = 'approved') AS identity_verified,
+                    (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :identity_pending_user_id AND iv.status = 'pending') AS identity_pending,
+                    (SELECT COUNT(*) FROM compatibility_scores cs WHERE cs.user_id = :compatibility_user_id) AS compatibility_samples";
 
-        return $this->safeFetchOne($sql, [':id' => $userId]) ?: [];
+        return $this->safeFetchOne($sql, [
+            ':photos_user_id' => $userId,
+            ':interests_user_id' => $userId,
+            ':preferences_user_id' => $userId,
+            ':identity_verified_user_id' => $userId,
+            ':identity_pending_user_id' => $userId,
+            ':compatibility_user_id' => $userId,
+        ]) ?: [];
     }
 
     private function profileCompletion(array $user, array $signals): array
