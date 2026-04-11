@@ -29,7 +29,11 @@ final class DiscoveryService extends Model
             return [];
         }
 
-        $params = [':id' => $userId];
+        $params = [
+            ':viewer_id_exclude' => $userId,
+            ':viewer_id_block_1' => $userId,
+            ':viewer_id_block_2' => $userId,
+        ];
         $sql = "SELECT u.*,
                        c.name AS city_name,
                        p.name AS province_name,
@@ -58,9 +62,14 @@ final class DiscoveryService extends Model
                     FROM premium_features
                     GROUP BY user_id
                 ) pf ON pf.user_id = u.id
-                WHERE u.id != :id
+                WHERE u.id != :viewer_id_exclude
                   AND u.status = 'active'
-                  AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.actor_user_id=:id AND b.target_user_id=u.id) OR (b.actor_user_id=u.id AND b.target_user_id=:id))";
+                  AND NOT EXISTS (
+                        SELECT 1
+                        FROM blocks b
+                        WHERE (b.actor_user_id = :viewer_id_block_1 AND b.target_user_id = u.id)
+                           OR (b.actor_user_id = u.id AND b.target_user_id = :viewer_id_block_2)
+                  )";
 
         if (!empty($filters['age_min']) || !empty($filters['age_max'])) {
             $ageMin = max(18, (int) ($filters['age_min'] ?? 18));
