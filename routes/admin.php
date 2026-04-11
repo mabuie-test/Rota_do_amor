@@ -39,6 +39,10 @@ $router->add('POST', '/admin/reports/{id}/resolve', [AdminReportController::clas
 $router->add('GET', '/admin/moderation', [AdminModerationController::class, 'index'], $moderationGuard);
 $router->add('POST', '/admin/moderation/suspend', [AdminModerationController::class, 'suspend'], $moderationGuard);
 $router->add('POST', '/admin/moderation/ban', [AdminModerationController::class, 'ban'], $moderationGuard);
+$router->add('POST', '/admin/moderation/unsuspend', [AdminModerationController::class, 'unsuspend'], $moderationGuard);
+$router->add('POST', '/admin/moderation/unban', [AdminModerationController::class, 'unban'], $moderationGuard);
+$router->add('POST', '/admin/moderation/activate', [AdminModerationController::class, 'activate'], $moderationGuard);
+$router->add('POST', '/admin/moderation/deactivate', [AdminModerationController::class, 'deactivate'], $moderationGuard);
 $router->add('GET', '/admin/settings', [AdminSystemController::class, 'index'], $superGuard);
 $router->add('POST', '/admin/settings/update', [AdminSystemController::class, 'update'], $superGuard);
 $router->add('POST', '/admin/email/send', [AdminEmailController::class, 'index'], $superGuard);

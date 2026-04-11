@@ -30,6 +30,35 @@ final class IdentityVerificationService extends Model
         return (int) $this->db->lastInsertId();
     }
 
+
+    public function listForAdminPanel(int $limit = 500): array
+    {
+        $safeLimit = max(1, min($limit, 1000));
+
+        return $this->fetchAll(
+            "SELECT iv.id,
+                    iv.user_id,
+                    iv.status,
+                    iv.document_image_path,
+                    iv.selfie_image_path,
+                    iv.rejection_reason,
+                    iv.reviewed_by_admin_id,
+                    iv.created_at,
+                    iv.updated_at,
+                    u.first_name,
+                    u.last_name,
+                    u.email,
+                    u.status AS user_status,
+                    u.premium_status,
+                    a.name AS reviewed_by_admin_name
+             FROM identity_verifications iv
+             INNER JOIN users u ON u.id = iv.user_id
+             LEFT JOIN admins a ON a.id = iv.reviewed_by_admin_id
+             ORDER BY iv.id DESC
+             LIMIT {$safeLimit}"
+        );
+    }
+
     public function latestForUser(int $userId): array
     {
         return $this->fetchOne('SELECT status,rejection_reason,created_at,updated_at FROM identity_verifications WHERE user_id=:u ORDER BY id DESC LIMIT 1', [':u' => $userId]) ?: [];

@@ -498,7 +498,7 @@ CREATE TABLE moderation_actions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   admin_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
-  action_type ENUM('suspend','ban','unsuspend','warn','remove_content') NOT NULL,
+  action_type ENUM('suspend','ban','unsuspend','unban','activate','deactivate','warn','remove_content') NOT NULL,
   reason VARCHAR(255) NOT NULL,
   expires_at DATETIME NULL,
   created_at DATETIME NOT NULL,
