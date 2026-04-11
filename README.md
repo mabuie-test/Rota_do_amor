@@ -42,6 +42,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260410_consolidation_core.sql
    mysql -u root -p < database/migrations/20260410_connection_modes.sql
    mysql -u root -p < database/migrations/20260411_connection_invites.sql
+   mysql -u root -p < database/migrations/20260411_connection_invites_pending_uniqueness.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -168,13 +169,14 @@ Camada premium preparada:
 - free vê recebidos com limite; premium vê lista completa e prioridade no topo.
 
 ## Índices e migração
-`database/schema.sql` já inclui o estado consolidado atual (incluindo `user_connection_modes`, `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images` e `message_attachments`) para instalações novas.
+`database/schema.sql` já inclui o estado consolidado atual (incluindo `user_connection_modes`, `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images`, `message_attachments` e blindagem estrutural para existir no máximo 1 convite `pending` por par remetente→destinatário) para instalações novas.
 
 As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260410_hardening.sql`;
 - `database/migrations/20260410_consolidation_core.sql`;
 - `database/migrations/20260410_connection_modes.sql`;
-- `database/migrations/20260411_connection_invites.sql`.
+- `database/migrations/20260411_connection_invites.sql`;
+- `database/migrations/20260411_connection_invites_pending_uniqueness.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;

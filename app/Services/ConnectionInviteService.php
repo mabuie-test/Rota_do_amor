@@ -38,12 +38,8 @@ final class ConnectionInviteService extends Model
         $senderName = $this->getUserDisplayName($senderId);
         $expiresAt = $this->resolveExpirationDate()->format('Y-m-d H:i:s');
 
-        $this->db->beginTransaction();
         try {
-            if ($this->hasPendingInviteForUpdate($senderId, $receiverId)) {
-                $this->db->rollBack();
-                return ['ok' => false, 'message' => 'Já existe um convite pendente para este perfil.'];
-            }
+            $this->db->beginTransaction();
 
             $stmt = $this->db->prepare(
                 'INSERT INTO connection_invites (sender_user_id,receiver_user_id,status,invitation_type,opening_message,current_intention_snapshot,relational_pace_snapshot,compatibility_score_snapshot,compatibility_breakdown_snapshot,expires_at,created_at,updated_at)
@@ -236,7 +232,7 @@ final class ConnectionInviteService extends Model
             $opening = trim((string) ($invite['opening_message'] ?? ''));
             if ($opening !== '') {
                 $contextMessage = 'Contexto do convite aceite: "' . mb_substr($opening, 0, 350) . '"';
-                $this->messages->sendMessage($senderId, $receiverId, $contextMessage, 'system');
+                $this->insertInviteContextMessage($conversationId, $senderId, $receiverId, $contextMessage);
             }
 
             $this->db->commit();
@@ -357,15 +353,6 @@ final class ConnectionInviteService extends Model
         );
     }
 
-    private function hasPendingInviteForUpdate(int $senderId, int $receiverId): bool
-    {
-        $stmt = $this->db->prepare(
-            "SELECT id FROM connection_invites WHERE sender_user_id=:sender AND receiver_user_id=:receiver AND status='pending' LIMIT 1 FOR UPDATE"
-        );
-        $stmt->execute([':sender' => $senderId, ':receiver' => $receiverId]);
-        return (bool) $stmt->fetch();
-    }
-
     private function hasPolicyBlock(int $senderId, int $receiverId): bool
     {
         $blockedStatuses = ['suspended', 'banned', 'pending_activation', 'pending_verification'];
@@ -381,6 +368,42 @@ final class ConnectionInviteService extends Model
         }
 
         return false;
+    }
+
+    private function insertInviteContextMessage(int $conversationId, int $senderId, int $receiverId, string $messageText): void
+    {
+        $existing = $this->fetchOne(
+            "SELECT id
+             FROM messages
+             WHERE conversation_id = :conversation_id
+               AND sender_id = :sender_id
+               AND receiver_id = :receiver_id
+               AND message_type = 'system'
+               AND message_text = :message_text
+             LIMIT 1",
+            [
+                ':conversation_id' => $conversationId,
+                ':sender_id' => $senderId,
+                ':receiver_id' => $receiverId,
+                ':message_text' => $messageText,
+            ]
+        );
+
+        if ($existing) {
+            return;
+        }
+
+        $this->db->prepare(
+            "INSERT INTO messages (conversation_id,sender_id,receiver_id,message_text,message_type,is_read,created_at)
+             VALUES (:conversation_id,:sender_id,:receiver_id,:message_text,'system',0,NOW())"
+        )->execute([
+            ':conversation_id' => $conversationId,
+            ':sender_id' => $senderId,
+            ':receiver_id' => $receiverId,
+            ':message_text' => $messageText,
+        ]);
+
+        $this->db->prepare('UPDATE conversations SET updated_at = NOW() WHERE id = :id')->execute([':id' => $conversationId]);
     }
 
     private function buildSnapshot(int $senderId, int $receiverId): array

@@ -297,6 +297,9 @@ CREATE TABLE connection_invites (
   relational_pace_snapshot VARCHAR(40) NOT NULL,
   compatibility_score_snapshot DECIMAL(5,2) NOT NULL DEFAULT 0,
   compatibility_breakdown_snapshot JSON NULL,
+  pending_guard TINYINT GENERATED ALWAYS AS (
+    CASE WHEN status = 'pending' THEN 1 ELSE NULL END
+  ) STORED,
   responded_at DATETIME NULL,
   expires_at DATETIME NULL,
   created_at DATETIME NOT NULL,
@@ -306,7 +309,7 @@ CREATE TABLE connection_invites (
   INDEX idx_connection_invites_receiver_status_created (receiver_user_id, status, created_at),
   INDEX idx_connection_invites_sender_status_created (sender_user_id, status, created_at),
   INDEX idx_connection_invites_type_status (invitation_type, status),
-  INDEX idx_connection_invites_pending_guard (sender_user_id, receiver_user_id, status)
+  UNIQUE KEY uq_connection_invites_pending_once (sender_user_id, receiver_user_id, pending_guard)
 );
 
 CREATE TABLE conversations (
