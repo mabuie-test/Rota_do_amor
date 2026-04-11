@@ -355,19 +355,19 @@ final class ConnectionInviteService extends Model
 
     private function hasPolicyBlock(int $senderId, int $receiverId): bool
     {
-        $blockedStatuses = ['suspended', 'banned', 'pending_activation', 'pending_verification'];
-        $users = $this->fetchAllRows(
-            'SELECT id,status FROM users WHERE id = :sender OR id = :receiver',
-            [':sender' => $senderId, ':receiver' => $receiverId]
+        $stmt = $this->db->prepare(
+            "SELECT 1
+             FROM users
+             WHERE (id = :sender OR id = :receiver)
+               AND status IN ('suspended','banned','pending_activation','pending_verification')
+             LIMIT 1"
         );
+        $stmt->execute([
+            ':sender' => $senderId,
+            ':receiver' => $receiverId,
+        ]);
 
-        foreach ($users as $user) {
-            if (in_array((string) ($user['status'] ?? ''), $blockedStatuses, true)) {
-                return true;
-            }
-        }
-
-        return false;
+        return (bool) $stmt->fetchColumn();
     }
 
     private function insertInviteContextMessage(int $conversationId, int $senderId, int $receiverId, string $messageText): void
