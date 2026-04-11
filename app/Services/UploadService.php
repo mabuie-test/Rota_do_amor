@@ -41,12 +41,13 @@ final class UploadService extends Model
         }
 
         $safeDomain = $this->normalizeDomain($domain);
+        $filePrefix = str_replace(['/', '\\'], '_', $safeDomain);
         $baseDirectory = dirname(__DIR__, 2) . '/storage/uploads/' . $safeDomain;
         if (!is_dir($baseDirectory) && !mkdir($baseDirectory, 0755, true) && !is_dir($baseDirectory)) {
             throw new RuntimeException('Falha ao preparar diretório de uploads.');
         }
 
-        $fileName = $safeDomain . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
+        $fileName = $filePrefix . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
         $absolutePath = $baseDirectory . '/' . $fileName;
         if (!move_uploaded_file($tmpPath, $absolutePath)) {
             throw new RuntimeException('Falha ao salvar o upload.');

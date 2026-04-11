@@ -18,8 +18,8 @@ final class MatchService extends Model
 
     public function getUserMatches(int $userId): array
     {
-        $stmt = $this->db->prepare('SELECT * FROM matches WHERE status = :status AND (user_one_id = :id OR user_two_id = :id) ORDER BY matched_at DESC');
-        $stmt->execute([':status' => 'active', ':id' => $userId]);
+        $stmt = $this->db->prepare('SELECT * FROM matches WHERE status = :status AND (user_one_id = :id_one OR user_two_id = :id_two) ORDER BY matched_at DESC');
+        $stmt->execute([':status' => 'active', ':id_one' => $userId, ':id_two' => $userId]);
         return $stmt->fetchAll();
     }
 

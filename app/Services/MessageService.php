@@ -144,14 +144,14 @@ final class MessageService extends Model
         $sql = "SELECT c.id,
                        c.created_at,
                        c.updated_at,
-                       CASE WHEN c.user_one_id = :uid THEN u2.id ELSE u1.id END AS other_user_id,
-                       CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
-                       CASE WHEN c.user_one_id = :uid THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
-                       CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
-                       CASE WHEN c.user_one_id = :uid THEN u2.last_activity_at ELSE u1.last_activity_at END AS other_last_activity_at,
-                       CASE WHEN c.user_one_id = :uid THEN u2.status ELSE u1.status END AS other_user_status,
+                       CASE WHEN c.user_one_id = :uid_case_1 THEN u2.id ELSE u1.id END AS other_user_id,
+                       CASE WHEN c.user_one_id = :uid_case_2 THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
+                       CASE WHEN c.user_one_id = :uid_case_3 THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
+                       CASE WHEN c.user_one_id = :uid_case_4 THEN u2.online_status ELSE u1.online_status END AS other_online_status,
+                       CASE WHEN c.user_one_id = :uid_case_5 THEN u2.last_activity_at ELSE u1.last_activity_at END AS other_last_activity_at,
+                       CASE WHEN c.user_one_id = :uid_case_6 THEN u2.status ELSE u1.status END AS other_user_status,
                        CASE
-                           WHEN c.user_one_id = :uid THEN EXISTS (
+                           WHEN c.user_one_id = :uid_case_7 THEN EXISTS (
                                SELECT 1
                                FROM identity_verifications iv
                                WHERE iv.user_id = u2.id
@@ -166,8 +166,8 @@ final class MessageService extends Model
                                LIMIT 1
                            )
                        END AS other_is_verified,
-                       CASE WHEN c.user_one_id = :uid THEN cm2.current_intention ELSE cm1.current_intention END AS other_current_intention,
-                       CASE WHEN c.user_one_id = :uid THEN cm2.relational_pace ELSE cm1.relational_pace END AS other_relational_pace
+                       CASE WHEN c.user_one_id = :uid_case_8 THEN cm2.current_intention ELSE cm1.current_intention END AS other_current_intention,
+                       CASE WHEN c.user_one_id = :uid_case_9 THEN cm2.relational_pace ELSE cm1.relational_pace END AS other_relational_pace
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id
@@ -177,7 +177,18 @@ final class MessageService extends Model
                 LIMIT 1";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([':uid' => $viewerId, ':conversation_id' => $conversationId]);
+        $stmt->execute([
+            ':uid_case_1' => $viewerId,
+            ':uid_case_2' => $viewerId,
+            ':uid_case_3' => $viewerId,
+            ':uid_case_4' => $viewerId,
+            ':uid_case_5' => $viewerId,
+            ':uid_case_6' => $viewerId,
+            ':uid_case_7' => $viewerId,
+            ':uid_case_8' => $viewerId,
+            ':uid_case_9' => $viewerId,
+            ':conversation_id' => $conversationId,
+        ]);
         return $stmt->fetch() ?: [];
     }
 
@@ -192,8 +203,8 @@ final class MessageService extends Model
 
     public function isConversationParticipant(int $conversationId, int $userId): bool
     {
-        $stmt = $this->db->prepare('SELECT id FROM conversations WHERE id = :id AND (user_one_id = :user_id OR user_two_id = :user_id) LIMIT 1');
-        $stmt->execute([':id' => $conversationId, ':user_id' => $userId]);
+        $stmt = $this->db->prepare('SELECT id FROM conversations WHERE id = :id AND (user_one_id = :user_id_one OR user_two_id = :user_id_two) LIMIT 1');
+        $stmt->execute([':id' => $conversationId, ':user_id_one' => $userId, ':user_id_two' => $userId]);
         return (bool) $stmt->fetch();
     }
 
@@ -208,10 +219,10 @@ final class MessageService extends Model
     {
         $sql = "SELECT c.id,
                        c.updated_at,
-                       CASE WHEN c.user_one_id = :uid THEN u2.id ELSE u1.id END AS other_user_id,
-                       CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
-                       CASE WHEN c.user_one_id = :uid THEN u2.online_status ELSE u1.online_status END AS other_online_status,
-                       CASE WHEN c.user_one_id = :uid THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
+                       CASE WHEN c.user_one_id = :uid_case_1 THEN u2.id ELSE u1.id END AS other_user_id,
+                       CASE WHEN c.user_one_id = :uid_case_2 THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END AS other_user_name,
+                       CASE WHEN c.user_one_id = :uid_case_3 THEN u2.online_status ELSE u1.online_status END AS other_online_status,
+                       CASE WHEN c.user_one_id = :uid_case_4 THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS other_profile_photo,
                        lm.message_text AS last_message,
                        lm.message_type AS last_message_type,
                        lm.created_at AS last_message_at,
@@ -231,14 +242,23 @@ final class MessageService extends Model
                 LEFT JOIN (
                     SELECT conversation_id, COUNT(*) AS unread_count
                     FROM messages
-                    WHERE receiver_id = :uid AND is_read = 0
+                    WHERE receiver_id = :uid_unread AND is_read = 0
                     GROUP BY conversation_id
                 ) um ON um.conversation_id = c.id
-                WHERE (c.user_one_id = :uid OR c.user_two_id = :uid)";
+                WHERE (c.user_one_id = :uid_filter_1 OR c.user_two_id = :uid_filter_2)";
 
-        $params = [':uid' => $userId];
+        $params = [
+            ':uid_case_1' => $userId,
+            ':uid_case_2' => $userId,
+            ':uid_case_3' => $userId,
+            ':uid_case_4' => $userId,
+            ':uid_unread' => $userId,
+            ':uid_filter_1' => $userId,
+            ':uid_filter_2' => $userId,
+        ];
         if ($search !== '') {
-            $sql .= " AND (CASE WHEN c.user_one_id = :uid THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END LIKE :search)";
+            $sql .= " AND (CASE WHEN c.user_one_id = :uid_case_search THEN CONCAT(u2.first_name,' ',u2.last_name) ELSE CONCAT(u1.first_name,' ',u1.last_name) END LIKE :search)";
+            $params[':uid_case_search'] = $userId;
             $params[':search'] = '%' . $search . '%';
         }
 
