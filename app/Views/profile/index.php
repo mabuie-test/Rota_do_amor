@@ -7,13 +7,24 @@ $interestNames = array_map(static fn(array $row): string => (string) ($row['inte
 $preferences = $preferences ?? [];
 $profileChecklist = $profile_checklist ?? [];
 $signals = $completion_signals ?? [];
+$profilePhotoPath = trim((string) ($profile['profile_photo_path'] ?? ''));
+$profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')));
 ?>
 <h3 class="mb-3">Meu Perfil</h3>
 <?php if (!empty($profile)): ?>
 <div class="rd-card rd-profile-card">
   <div class="card-body">
     <div class="d-flex align-items-center gap-3 mb-3">
-      <div class="avatar"><?= e(strtoupper(substr((string) ($profile['first_name'] ?? 'U'),0,1))) ?></div>
+      <?php if ($profilePhotoPath !== ''): ?>
+        <img
+          src="<?= e(url($profilePhotoPath)) ?>"
+          alt="Foto de perfil de <?= e($profileName !== '' ? $profileName : 'utilizador') ?>"
+          class="rounded-circle border"
+          style="width:64px;height:64px;object-fit:cover;"
+        >
+      <?php else: ?>
+        <div class="avatar"><?= e(strtoupper(substr((string) ($profile['first_name'] ?? 'U'),0,1))) ?></div>
+      <?php endif; ?>
       <div>
         <h5 class="mb-1 rd-serif"><?= e(($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')) ?></h5>
         <p class="text-muted mb-1"><i class="fa-solid fa-location-dot me-1"></i><?= e(($profile['city_name'] ?? '') . ', ' . ($profile['province_name'] ?? '')) ?></p>
