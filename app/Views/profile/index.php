@@ -116,7 +116,7 @@ $profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['
     <?php foreach (($photos ?? []) as $photo): ?>
       <div class="col-md-3 col-6">
         <div class="border rounded p-2 h-100">
-          <img src="/<?= e((string) $photo['image_path']) ?>" class="img-fluid rounded mb-2" alt="foto do perfil">
+          <img src="<?= e(url((string) $photo['image_path'])) ?>" class="img-fluid rounded mb-2" alt="foto do perfil">
           <div class="small mb-2"><?= (int) ($photo['is_primary'] ?? 0) === 1 ? 'Principal' : 'Galeria' ?></div>
           <form method="post" action="/profile/photo/primary" class="mb-1"><?= csrf_field() ?><input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>"><button class="btn btn-sm btn-outline-primary w-100" <?= (int) ($photo['is_primary'] ?? 0) === 1 ? 'disabled' : '' ?>>Tornar principal</button></form>
           <form method="post" action="/profile/photo/delete"><?= csrf_field() ?><input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>"><button class="btn btn-sm btn-outline-danger w-100">Remover</button></form>

@@ -17,8 +17,8 @@
       <div class="row g-2 mb-2">
         <?php foreach (($post['images'] ?? []) as $image): ?>
           <div class="col-md-3 col-6">
-            <a href="/<?= e((string) ($image['image_path'] ?? '')) ?>" target="_blank" class="text-decoration-none">
-              <img src="/<?= e((string) (($image['thumbnail_path'] ?? '') !== '' ? $image['thumbnail_path'] : ($image['image_path'] ?? ''))) ?>" class="img-fluid rounded border" alt="imagem do post">
+            <a href="<?= e(url((string) ($image['image_path'] ?? ''))) ?>" target="_blank" class="text-decoration-none">
+              <img src="<?= e(url((string) (($image['thumbnail_path'] ?? '') !== '' ? $image['thumbnail_path'] : ($image['image_path'] ?? '')))) ?>" class="img-fluid rounded border" alt="imagem do post">
             </a>
           </div>
         <?php endforeach; ?>
