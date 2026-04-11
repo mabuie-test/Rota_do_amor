@@ -16,6 +16,9 @@ final class BlockService extends Model
 
     public function isBlocked(int $a, int $b): bool
     {
-        return (bool) $this->fetchOne('SELECT id FROM blocks WHERE (actor_user_id=:a AND target_user_id=:b) OR (actor_user_id=:b AND target_user_id=:a) LIMIT 1', [':a' => $a, ':b' => $b]);
+        return (bool) $this->fetchOne(
+            'SELECT id FROM blocks WHERE (actor_user_id=:actor_1 AND target_user_id=:target_1) OR (actor_user_id=:actor_2 AND target_user_id=:target_2) LIMIT 1',
+            [':actor_1' => $a, ':target_1' => $b, ':actor_2' => $b, ':target_2' => $a]
+        );
     }
 }
