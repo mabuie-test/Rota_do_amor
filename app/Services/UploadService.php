@@ -12,7 +12,7 @@ final class UploadService extends Model
 {
     /**
      * Política base de ciclo de vida de media:
-     * - Guardar ficheiros apenas em storage/uploads.
+     * - Guardar ficheiros apenas em public/storage/uploads.
      * - Em falha de validação/processamento, nada é persistido.
      * - Em falha após persistência temporária, o chamador deve executar deleteImageBundle (rollback físico).
      * - Ficheiros ligados a entidades soft-deleted permanecem até purge administrativo.
@@ -42,7 +42,7 @@ final class UploadService extends Model
 
         $safeDomain = $this->normalizeDomain($domain);
         $filePrefix = str_replace(['/', '\\'], '_', $safeDomain);
-        $baseDirectory = dirname(__DIR__, 2) . '/storage/uploads/' . $safeDomain;
+        $baseDirectory = dirname(__DIR__, 2) . '/public/storage/uploads/' . $safeDomain;
         if (!is_dir($baseDirectory) && !mkdir($baseDirectory, 0755, true) && !is_dir($baseDirectory)) {
             throw new RuntimeException('Falha ao preparar diretório de uploads.');
         }
@@ -107,7 +107,7 @@ final class UploadService extends Model
             return;
         }
 
-        $absolute = dirname(__DIR__, 2) . '/' . $normalized;
+        $absolute = dirname(__DIR__, 2) . '/public/' . $normalized;
         if (is_file($absolute)) {
             @unlink($absolute);
         }
@@ -182,7 +182,7 @@ final class UploadService extends Model
         $thumb = imagecreatetruecolor($tw, $th);
         imagecopyresampled($thumb, $source, 0, 0, 0, 0, $tw, $th, $width, $height);
 
-        $thumbDir = dirname(__DIR__, 2) . '/storage/uploads/' . $domain . '/thumbs';
+        $thumbDir = dirname(__DIR__, 2) . '/public/storage/uploads/' . $domain . '/thumbs';
         if (!is_dir($thumbDir) && !mkdir($thumbDir, 0755, true) && !is_dir($thumbDir)) {
             imagedestroy($source);
             imagedestroy($thumb);
