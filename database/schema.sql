@@ -331,13 +331,30 @@ CREATE TABLE messages (
   message_text TEXT NOT NULL,
   message_type ENUM('text','image','system') NOT NULL DEFAULT 'text',
   is_read TINYINT(1) NOT NULL DEFAULT 0,
+  sent_at DATETIME NOT NULL,
+  delivered_at DATETIME NULL,
+  read_at DATETIME NULL,
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
   CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id),
   CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_id) REFERENCES users(id),
   INDEX idx_messages_receiver_read (receiver_id, is_read),
   INDEX idx_messages_conversation_id (conversation_id, id),
-  INDEX idx_messages_conversation_receiver_read (conversation_id, receiver_id, is_read, id)
+  INDEX idx_messages_conversation_receiver_read (conversation_id, receiver_id, is_read, id),
+  INDEX idx_messages_delivery (conversation_id, receiver_id, delivered_at, read_at)
+);
+
+CREATE TABLE message_typing_states (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  conversation_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  expires_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  CONSTRAINT fk_typing_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_typing_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_typing_conversation_user (conversation_id, user_id),
+  INDEX idx_typing_expires (conversation_id, expires_at)
 );
 
 CREATE TABLE posts (
@@ -449,6 +466,9 @@ CREATE TABLE notifications (
   body TEXT NOT NULL,
   payload_json JSON NULL,
   is_read TINYINT(1) NOT NULL DEFAULT 0,
+  sent_at DATETIME NOT NULL,
+  delivered_at DATETIME NULL,
+  read_at DATETIME NULL,
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id),
   INDEX idx_notifications_user_read (user_id, is_read)

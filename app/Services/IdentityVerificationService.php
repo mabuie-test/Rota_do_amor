@@ -19,6 +19,8 @@ final class IdentityVerificationService extends Model
 
     public function submitVerification(int $userId, string $documentPath, string $selfiePath): int
     {
+        $this->execute("UPDATE identity_verifications SET status='rejected', rejection_reason='Substituída por novo envio', updated_at=NOW() WHERE user_id=:u AND status='pending'", [':u' => $userId]);
+
         $this->execute('INSERT INTO identity_verifications (user_id,document_image_path,selfie_image_path,status,created_at,updated_at) VALUES (:u,:d,:s,:status,NOW(),NOW())', [
             ':u' => $userId,
             ':d' => $documentPath,
@@ -26,6 +28,11 @@ final class IdentityVerificationService extends Model
             ':status' => 'pending',
         ]);
         return (int) $this->db->lastInsertId();
+    }
+
+    public function latestForUser(int $userId): array
+    {
+        return $this->fetchOne('SELECT status,rejection_reason,created_at,updated_at FROM identity_verifications WHERE user_id=:u ORDER BY id DESC LIMIT 1', [':u' => $userId]) ?: [];
     }
 
     public function approveVerification(int $verificationId, int $adminId): bool
