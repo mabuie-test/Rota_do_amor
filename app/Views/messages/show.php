@@ -20,12 +20,12 @@ $otherPace = $otherPaceRaw !== '' ? ucwords(str_replace('_', ' ', $otherPaceRaw)
 </div>
 <a class="btn btn-sm btn-outline-secondary mb-2" href="/messages?conversation=<?= (int) ($context['id'] ?? 0) ?>">Abrir vista completa da inbox</a>
 <?php if (!empty($pg['has_more'])): ?><a class="btn btn-sm btn-outline-secondary mb-2" href="?page=<?= (int) ($pg['page'] + 1) ?>">Carregar mensagens anteriores (página <?= (int) ($pg['page'] + 1) ?>)</a><?php endif; ?>
-<div class="rd-card mb-3"><div class="card-body" style="max-height:420px; overflow:auto;">
+<div class="rd-card mb-3"><div class="card-body rd-chat-list" style="max-height:420px;">
 <?php if (!empty($messages)): foreach (($messages ?? []) as $msg): ?>
   <?php $isMine = (int) ($msg['sender_id'] ?? 0) === $viewerId; ?>
   <div class="mb-2 <?= $isMine ? 'text-end' : '' ?>">
     <div class="small fw-semibold mb-1"><?= $isMine ? 'Tu' : e((string) ($context['other_user_name'] ?? 'Utilizador')) ?></div>
-    <div class="d-inline-block p-2 rounded <?= $isMine ? 'bg-primary text-white' : 'bg-light border' ?>" style="max-width: 88%;">
+    <div class="rd-chat-bubble <?= $isMine ? 'rd-chat-bubble--mine' : 'rd-chat-bubble--other' ?>">
       <?php if (($msg['message_type'] ?? 'text') === 'image'): ?><div class="small mb-1 <?= $isMine ? 'text-white-50' : 'text-muted' ?>">📷 Imagem</div><?php endif; ?>
       <?php if (($msg['message_type'] ?? 'text') !== 'image' || trim((string) ($msg['message_text'] ?? '')) !== '[imagem]'): ?>
         <div><?= e((string) ($msg['message_text'] ?? '')) ?></div>

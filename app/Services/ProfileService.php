@@ -10,6 +10,16 @@ final class ProfileService extends Model
 {
     private const MAX_GALLERY_PHOTOS = 8;
 
+    public function completionSignals(int $userId): array
+    {
+        return $this->fetchOne("SELECT
+                (SELECT COUNT(*) FROM user_photos up WHERE up.user_id = :id) AS photos_count,
+                (SELECT COUNT(*) FROM user_interests ui WHERE ui.user_id = :id) AS interests_count,
+                (SELECT COUNT(*) FROM user_preferences pr WHERE pr.user_id = :id) AS preferences_count,
+                (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :id AND iv.status = 'approved') AS identity_verified
+            ", [':id' => $userId]) ?: [];
+    }
+
     public function getProfile(int $userId): ?array
     {
         $sql = 'SELECT u.*, p.name AS province_name, c.name AS city_name FROM users u JOIN provinces p ON p.id=u.province_id JOIN cities c ON c.id=u.city_id WHERE u.id=:id';
@@ -96,21 +106,32 @@ final class ProfileService extends Model
             }
         }
 
-        if ($isPrimary) {
-            $this->execute('UPDATE user_photos SET is_primary = 0 WHERE user_id = :user_id', [':user_id' => $userId]);
+        $this->db->beginTransaction();
+        try {
+            if ($isPrimary) {
+                $this->execute('UPDATE user_photos SET is_primary = 0 WHERE user_id = :user_id', [':user_id' => $userId]);
+            }
+
+            $this->execute('INSERT INTO user_photos (user_id,image_path,is_primary,sort_order,created_at) VALUES (:user_id,:path,:is_primary,0,NOW())', [
+                ':user_id' => $userId,
+                ':path' => $path,
+                ':is_primary' => $isPrimary ? 1 : 0,
+            ]);
+            $photoId = (int) $this->db->lastInsertId();
+
+            if ($isPrimary) {
+                $this->execute('UPDATE users SET profile_photo_path = :path WHERE id = :id', [':path' => $path, ':id' => $userId]);
+            }
+            $this->db->commit();
+
+            return $photoId;
+        } catch (\Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $exception;
         }
-
-        $this->execute('INSERT INTO user_photos (user_id,image_path,is_primary,sort_order,created_at) VALUES (:user_id,:path,:is_primary,0,NOW())', [
-            ':user_id' => $userId,
-            ':path' => $path,
-            ':is_primary' => $isPrimary ? 1 : 0,
-        ]);
-
-        if ($isPrimary) {
-            $this->execute('UPDATE users SET profile_photo_path = :path WHERE id = :id', [':path' => $path, ':id' => $userId]);
-        }
-
-        return (int) $this->db->lastInsertId();
     }
 
     public function setPrimaryPhoto(int $userId, int $photoId): bool

@@ -26,15 +26,28 @@ $statusClass = match ($status) {
     <?php endif; ?>
   </div>
 
+  <div class="rd-soft-panel mb-3">
+    <div class="fw-semibold mb-1">Checklist antes de enviar</div>
+    <ul class="small mb-0 ps-3">
+      <li>Documento legível e sem corte.</li>
+      <li>Selfie com rosto visível e mesma pessoa do documento.</li>
+      <li>Evite reflexos, desfoque ou baixa iluminação.</li>
+    </ul>
+  </div>
+
   <form method="post" action="/verification/submit" class="row g-3" enctype="multipart/form-data"><?= csrf_field() ?>
     <div class="col-md-6">
       <label class="form-label">Documento de identidade</label>
-      <input required class="form-control" type="file" name="document_image" accept="image/jpeg,image/png,image/webp">
+      <div class="rd-upload-drop">
+        <input required class="form-control" type="file" name="document_image" accept="image/jpeg,image/png,image/webp">
+      </div>
       <div class="form-text">JPG, PNG ou WEBP.</div>
     </div>
     <div class="col-md-6">
       <label class="form-label">Selfie segurando o documento</label>
-      <input required class="form-control" type="file" name="selfie_image" accept="image/jpeg,image/png,image/webp">
+      <div class="rd-upload-drop">
+        <input required class="form-control" type="file" name="selfie_image" accept="image/jpeg,image/png,image/webp">
+      </div>
       <div class="form-text">Imagem nítida e bem iluminada.</div>
     </div>
     <div class="col-12"><button class="btn btn-rd-primary">Enviar para análise</button></div>

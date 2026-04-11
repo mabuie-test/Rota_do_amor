@@ -27,12 +27,13 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
     <?php if (!empty($context)): ?>
       <div class="small text-muted mb-2 p-2 border rounded bg-light-subtle"><strong><?= e($otherName) ?></strong> · <?= e($otherStatusLabel) ?></div>
       <div id="typing-indicator" class="small text-muted mb-2" style="min-height: 20px;"></div>
-      <div id="message-list" class="border rounded p-3 mb-3" style="max-height:420px; overflow:auto;">
+      <div class="rd-chat-shell mb-3">
+      <div id="message-list" class="rd-chat-list">
         <?php if (!empty($messages)): foreach ($messages as $msg): ?>
           <?php $isMine = (int) ($msg['sender_id'] ?? 0) === $viewerId; ?>
           <div class="mb-2 <?= $isMine ? 'text-end' : '' ?>" data-message-id="<?= (int) $msg['id'] ?>" data-sender-id="<?= (int) $msg['sender_id'] ?>">
             <div class="small fw-semibold mb-1"><?= $isMine ? 'Tu' : e($otherName) ?></div>
-            <div class="d-inline-block p-2 rounded <?= $isMine ? 'bg-primary text-white' : 'bg-light border' ?>" style="max-width: 88%;">
+            <div class="rd-chat-bubble <?= $isMine ? 'rd-chat-bubble--mine' : 'rd-chat-bubble--other' ?>">
               <?php if (($msg['message_type'] ?? 'text') === 'image'): ?><div class="small mb-1 <?= $isMine ? 'text-white-50' : 'text-muted' ?>">📷 Imagem</div><?php endif; ?>
               <?php if (($msg['message_type'] ?? 'text') !== 'image' || trim((string) ($msg['message_text'] ?? '')) !== '[imagem]'): ?><div><?= e((string) ($msg['message_text'] ?? '')) ?></div><?php endif; ?>
               <?php if (!empty($msg['attachments'])): foreach ($msg['attachments'] as $attachment): ?><a href="/<?= e((string) ($attachment['file_path'] ?? '')) ?>" target="_blank"><img src="/<?= e((string) ($attachment['file_path'] ?? '')) ?>" style="max-width: 220px" class="img-fluid rounded border mt-2" alt="imagem anexada"></a><?php endforeach; endif; ?>
@@ -41,17 +42,18 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
           </div>
         <?php endforeach; endif; ?>
       </div>
+      </div>
 
-      <form id="chat-form" method="post" action="/messages/send" class="d-flex gap-2" enctype="multipart/form-data">
+      <form id="chat-form" method="post" action="/messages/send" class="d-flex gap-2 align-items-center" enctype="multipart/form-data">
         <?= csrf_field() ?>
         <input type="hidden" name="receiver_id" value="<?= $otherId ?>">
         <input type="hidden" name="message_type" value="text">
         <input id="message-text" class="form-control" name="message_text" maxlength="2000" placeholder="Escreve a tua mensagem (opcional quando enviar imagem)">
-        <input class="form-control form-control-sm" style="max-width:220px" type="file" name="image" accept="image/jpeg,image/png,image/webp">
+      <input class="form-control form-control-sm" style="max-width:240px" type="file" name="image" accept="image/jpeg,image/png,image/webp">
         <button class="btn btn-rd-primary"><i class="fa-solid fa-paper-plane"></i></button>
       </form>
     <?php else: ?>
-      <p class="text-muted mb-0">Selecione uma conversa para iniciar o chat em tempo real.</p>
+      <div class="rd-soft-panel"><p class="text-muted mb-0">Selecione uma conversa para iniciar o chat em tempo real.</p></div>
     <?php endif; ?>
   </div></div></div>
 </div>
@@ -93,7 +95,7 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
 
     wrapper.innerHTML = `
       <div class="small fw-semibold mb-1">${isMine ? 'Tu' : otherName}</div>
-      <div class="d-inline-block p-2 rounded ${isMine ? 'bg-primary text-white' : 'bg-light border'}" style="max-width:88%;">
+      <div class="rd-chat-bubble ${isMine ? 'rd-chat-bubble--mine' : 'rd-chat-bubble--other'}">
         ${(message.message_type === 'image') ? `<div class="small mb-1 ${isMine ? 'text-white-50' : 'text-muted'}">📷 Imagem</div>` : ''}
         ${(message.message_type !== 'image' || String(message.message_text || '').trim() !== '[imagem]') ? `<div>${String(message.message_text || '').replace(/</g,'&lt;')}</div>` : ''}
         ${attachments}

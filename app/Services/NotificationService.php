@@ -10,7 +10,7 @@ final class NotificationService extends Model
 {
     public function create(int $userId, string $type, string $title, string $body, array $payload = []): int
     {
-        $this->execute('INSERT INTO notifications (user_id,type,title,body,payload_json,is_read,created_at) VALUES (:user_id,:type,:title,:body,:payload,0,NOW())', [
+        $this->execute('INSERT INTO notifications (user_id,type,title,body,payload_json,is_read,sent_at,created_at) VALUES (:user_id,:type,:title,:body,:payload,0,NOW(),NOW())', [
             ':user_id' => $userId,
             ':type' => $type,
             ':title' => $title,
