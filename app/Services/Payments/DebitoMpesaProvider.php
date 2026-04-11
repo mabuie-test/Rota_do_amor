@@ -28,13 +28,16 @@ final class DebitoMpesaProvider implements PaymentProviderInterface
 
     public function normalizeStatus(array $gatewayPayload): string
     {
-        $status = mb_strtolower((string) ($gatewayPayload['status'] ?? 'pending'));
+        $rawStatus = $gatewayPayload['status']
+            ?? $gatewayPayload['gateway']['status']
+            ?? $gatewayPayload['payment']['gateway']['status']
+            ?? 'pending';
+        $status = mb_strtolower((string) $rawStatus);
         return match (true) {
-            in_array($status, ['completed', 'success', 'paid'], true) => 'completed',
+            in_array($status, ['completed', 'success', 'successful', 'paid'], true) => 'completed',
             in_array($status, ['failed', 'rejected'], true) => 'failed',
             $status === 'cancelled' => 'cancelled',
             default => 'pending',
         };
     }
 }
-

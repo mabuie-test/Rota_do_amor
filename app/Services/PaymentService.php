@@ -49,6 +49,7 @@ final class PaymentService extends Model
     {
         $raw = $this->mpesaProvider->checkStatus($debitoReference);
         $raw['normalized_status'] = $this->mpesaProvider->normalizeStatus($raw);
+        $raw['source'] = 'status_check';
         return $raw;
     }
 
@@ -91,6 +92,7 @@ final class PaymentService extends Model
     public function reconcilePaymentWithIdempotency(int $paymentId, int $userId, string $paymentType, array $statusPayload): string
     {
         $normalized = (string) ($statusPayload['normalized_status'] ?? 'pending');
+        $source = (string) ($statusPayload['source'] ?? 'status_check');
         $finalStatuses = ['completed', 'failed', 'cancelled'];
 
         $this->db->beginTransaction();
@@ -124,6 +126,13 @@ final class PaymentService extends Model
 
                 if ($currentStatus === 'pending') {
                     $this->markPaymentCompleted($paymentId, $statusPayload);
+                    $completionAction = $source === 'initial_response'
+                        ? 'payment_completed_on_initial_response'
+                        : 'payment_completed_on_status_check';
+                    $this->financialLog->log($completionAction, $paymentId, [
+                        'payment_type' => $paymentType,
+                        'source' => $source,
+                    ]);
                 } else {
                     $this->saveGatewayRawResponse($paymentId, $statusPayload);
                 }
@@ -401,11 +410,26 @@ final class PaymentService extends Model
             sprintf('%s #%d', $description, $userId),
             hash('sha256', $userId . '|' . $type . '|' . $normalized . '|' . (string) round($amount, 2))
         );
+        $gatewayResponse['normalized_status'] = $provider->normalizeStatus($gatewayResponse);
+        $gatewayResponse['source'] = 'initial_response';
+
         $paymentId = $this->createPendingPayment($userId, $type, $normalized, $amount, $gatewayResponse);
-        $this->financialLog->log('requested', $paymentId, ['type' => $type, 'phone' => $normalized, 'amount' => $amount]);
+
+        $this->financialLog->log('payment_requested', $paymentId, [
+            'type' => $type,
+            'phone' => $normalized,
+            'amount' => $amount,
+            'normalized_status' => $gatewayResponse['normalized_status'],
+        ]);
+
+        $paymentStatus = 'pending';
+        if (($gatewayResponse['normalized_status'] ?? 'pending') === 'completed') {
+            $paymentStatus = $this->reconcilePaymentWithIdempotency($paymentId, $userId, $type, $gatewayResponse);
+        }
 
         return [
             'payment_id' => $paymentId,
+            'status' => $paymentStatus,
             'gateway' => $gatewayResponse,
             'requested_at' => (new DateTimeImmutable())->format(DATE_ATOM),
         ];
