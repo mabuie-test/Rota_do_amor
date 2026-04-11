@@ -13,11 +13,16 @@ final class ProfileService extends Model
     public function completionSignals(int $userId): array
     {
         return $this->fetchOne("SELECT
-                (SELECT COUNT(*) FROM user_photos up WHERE up.user_id = :id) AS photos_count,
-                (SELECT COUNT(*) FROM user_interests ui WHERE ui.user_id = :id) AS interests_count,
-                (SELECT COUNT(*) FROM user_preferences pr WHERE pr.user_id = :id) AS preferences_count,
-                (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :id AND iv.status = 'approved') AS identity_verified
-            ", [':id' => $userId]) ?: [];
+                (SELECT COUNT(*) FROM user_photos up WHERE up.user_id = :photos_user_id) AS photos_count,
+                (SELECT COUNT(*) FROM user_interests ui WHERE ui.user_id = :interests_user_id) AS interests_count,
+                (SELECT COUNT(*) FROM user_preferences pr WHERE pr.user_id = :preferences_user_id) AS preferences_count,
+                (SELECT COUNT(*) FROM identity_verifications iv WHERE iv.user_id = :identity_verified_user_id AND iv.status = 'approved') AS identity_verified
+            ", [
+                ':photos_user_id' => $userId,
+                ':interests_user_id' => $userId,
+                ':preferences_user_id' => $userId,
+                ':identity_verified_user_id' => $userId,
+            ]) ?: [];
     }
 
     public function getProfile(int $userId): ?array

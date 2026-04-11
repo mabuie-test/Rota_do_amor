@@ -471,7 +471,8 @@ CREATE TABLE notifications (
   read_at DATETIME NULL,
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id),
-  INDEX idx_notifications_user_read (user_id, is_read)
+  INDEX idx_notifications_user_read (user_id, is_read),
+  INDEX idx_notifications_user_delivery (user_id, delivered_at, read_at, sent_at)
 );
 
 CREATE TABLE activity_logs (
