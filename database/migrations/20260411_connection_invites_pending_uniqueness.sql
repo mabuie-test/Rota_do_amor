@@ -14,7 +14,21 @@ WHERE ci.status = 'pending'
   AND ci.id <> dup.keep_id;
 
 ALTER TABLE connection_invites
-  ADD COLUMN pending_guard TINYINT GENERATED ALWAYS AS (
+  ADD COLUMN IF NOT EXISTS pending_guard TINYINT GENERATED ALWAYS AS (
     CASE WHEN status = 'pending' THEN 1 ELSE NULL END
-  ) STORED,
-  ADD UNIQUE KEY uq_connection_invites_pending_once (sender_user_id, receiver_user_id, pending_guard);
+  ) STORED;
+
+SET @sql = (
+  SELECT IF(
+    COUNT(*) = 0,
+    'ALTER TABLE connection_invites ADD UNIQUE KEY uq_connection_invites_pending_once (sender_user_id, receiver_user_id, pending_guard)',
+    'SELECT 1'
+  )
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'connection_invites'
+    AND INDEX_NAME = 'uq_connection_invites_pending_once'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
