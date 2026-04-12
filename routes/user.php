@@ -63,6 +63,10 @@ $router->add('POST', '/dates/{id}/accept', [SafeDateController::class, 'accept']
 $router->add('POST', '/dates/{id}/decline', [SafeDateController::class, 'decline'], $coreAccess);
 $router->add('POST', '/dates/{id}/cancel', [SafeDateController::class, 'cancel'], $coreAccess);
 $router->add('POST', '/dates/{id}/reschedule', [SafeDateController::class, 'reschedule'], $coreAccess);
+$router->add('POST', '/dates/{id}/reschedule/respond', [SafeDateController::class, 'respondReschedule'], $coreAccess);
+$router->add('POST', '/dates/{id}/arrived', [SafeDateController::class, 'markArrived'], $coreAccess);
+$router->add('POST', '/dates/{id}/finished-well', [SafeDateController::class, 'markFinishedWell'], $coreAccess);
+$router->add('POST', '/dates/{id}/feedback', [SafeDateController::class, 'feedback'], $coreAccess);
 $router->add('POST', '/dates/{id}/complete', [SafeDateController::class, 'complete'], $coreAccess);
 $router->add('POST', '/favorite/toggle', [FavoriteController::class, 'toggle'], $coreAccess);
 $router->add('POST', '/block', [BlockController::class, 'store'], $coreAccess);

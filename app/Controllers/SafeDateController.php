@@ -93,9 +93,39 @@ final class SafeDateController extends Controller
         $this->respondTransition($safeDateId, $result, 'Remarcação solicitada com sucesso.');
     }
 
+    public function respondReschedule(array $params): void
+    {
+        $safeDateId = (int) ($params['id'] ?? 0);
+        $accept = (bool) Request::input('accept', false);
+        $result = $this->service->respondReschedule($safeDateId, Auth::id() ?? 0, $accept, (string) Request::input('reason', ''));
+
+        $this->respondTransition($safeDateId, $result, $accept ? 'Remarcação confirmada.' : 'Remarcação recusada.');
+    }
+
     public function complete(array $params): void
     {
         $this->handleTransition('complete', (int) ($params['id'] ?? 0));
+    }
+
+    public function markArrived(array $params): void
+    {
+        $safeDateId = (int) ($params['id'] ?? 0);
+        $result = $this->service->markArrived($safeDateId, Auth::id() ?? 0);
+        $this->respondTransition($safeDateId, $result, 'Check-in de chegada registado.');
+    }
+
+    public function markFinishedWell(array $params): void
+    {
+        $safeDateId = (int) ($params['id'] ?? 0);
+        $result = $this->service->markFinishedWell($safeDateId, Auth::id() ?? 0);
+        $this->respondTransition($safeDateId, $result, 'Confirmação de término em segurança registada.');
+    }
+
+    public function feedback(array $params): void
+    {
+        $safeDateId = (int) ($params['id'] ?? 0);
+        $result = $this->service->savePrivateFeedback($safeDateId, Auth::id() ?? 0, Request::all());
+        $this->respondTransition($safeDateId, $result, 'Feedback privado guardado com sucesso.');
     }
 
     private function handleTransition(string $action, int $safeDateId, ?string $reason = null): void

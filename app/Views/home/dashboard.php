@@ -1,5 +1,13 @@
 <?php $d = $dashboard ?? []; $signals = $d['profile_signals'] ?? []; $verification = $d['verification_progress'] ?? []; $retention = $d['retention_context'] ?? []; $boostImpact = $d['boost_impact'] ?? []; $premium = $d['premium_context'] ?? []; $heartMode = $d['heart_mode'] ?? []; ?>
 <h3 class="mb-3">Dashboard</h3>
+<?php $nextSafeDate = $d['next_safe_date'] ?? []; ?>
+<?php if (!empty($nextSafeDate)): ?>
+<div class="alert alert-info py-2 px-3 mb-3">
+  <strong><i class="fa-solid fa-shield-heart me-1"></i>Próximo Encontro Seguro:</strong>
+  <?= e((string) ($nextSafeDate['title'] ?? 'Encontro Seguro')) ?> em <?= e((string) ($nextSafeDate['proposed_datetime'] ?? '')) ?> · <?= e((string) ($nextSafeDate['proposed_location'] ?? '')) ?>
+  <a class="btn btn-sm btn-outline-primary ms-2" href="/dates/<?= (int) ($nextSafeDate['id'] ?? 0) ?>">Abrir</a>
+</div>
+<?php endif; ?>
 <?php if (!empty($d['primary_focus'])): ?>
 <div class="alert alert-primary py-2 px-3 mb-3 rd-alert">
   <strong><i class="fa-solid fa-stars me-1"></i>Foco de hoje:</strong> <?= e((string) $d['primary_focus']) ?>
@@ -77,6 +85,7 @@
       <p class="small mb-1">Fotos: <strong><?= (int) ($signals['photos_count'] ?? 0) ?></strong> · Interesses: <strong><?= (int) ($signals['interests_count'] ?? 0) ?></strong></p>
       <p class="small mb-1">Verificação: <strong class="<?= (($verification['status'] ?? 'not_started') === 'approved') ? 'text-success' : 'text-warning' ?>"><?= e((string) ($verification['label'] ?? 'Não iniciada')) ?></strong> <?php if (!empty($verification['updated_at'])): ?>· actualizada em <?= e((string) $verification['updated_at']) ?><?php endif; ?></p>
       <p class="small mb-1">Contexto premium: <strong><?= e((string) ($premium['subscription_state'] ?? 'expirada')) ?></strong> · urgência <strong><?= e((string) ($premium['subscription_urgency'] ?? 'alta')) ?></strong></p>
+      <p class="small mb-1">Plano Encontro Seguro: <strong><?= e((string) ($premium['safe_date_plan'] ?? 'free')) ?></strong> · limite diário: <strong><?= (int) ($premium['safe_date_daily_limit'] ?? 5) ?></strong></p>
       <p class="small mb-1">Risco de retenção: <strong><?= e((string) ($retention['risk_level'] ?? 'baixo')) ?></strong> · Engajamento: <strong><?= e((string) ($retention['engagement_signal'] ?? 'frio')) ?></strong></p>
       <p class="small mb-3">Última actividade: <?= e((string) ($d['last_activity_at'] ?? '---')) ?></p>
       <?php if (!empty($d['actions'])): ?>

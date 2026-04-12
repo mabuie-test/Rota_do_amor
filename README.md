@@ -176,12 +176,15 @@ Camada premium preparada:
 
 ## Encontro Seguro (V1)
 Fluxo premium para transição segura do online ao encontro real:
-- `GET /dates`, `GET /dates/{id}`, `POST /dates/propose`, `POST /dates/{id}/accept`, `POST /dates/{id}/decline`, `POST /dates/{id}/cancel`, `POST /dates/{id}/reschedule`, `POST /dates/{id}/complete`.
+- `GET /dates`, `GET /dates/{id}`, `POST /dates/propose`, `POST /dates/{id}/accept`, `POST /dates/{id}/decline`, `POST /dates/{id}/cancel`, `POST /dates/{id}/reschedule`, `POST /dates/{id}/reschedule/respond`, `POST /dates/{id}/arrived`, `POST /dates/{id}/finished-well`, `POST /dates/{id}/feedback`, `POST /dates/{id}/complete`.
 - Entidade própria (`safe_dates`) com histórico (`safe_date_status_history`) e machine state no backend.
+- Remarcação em 2 etapas sem ambiguidade: `reschedule_requested` (pedido pendente) → `rescheduled` apenas após aceite da contraparte.
+- Pós-encontro V1: check-in de chegada, confirmação de término seguro e feedback privado (`safe_date_private_feedback`) com sinalização de risco institucional.
 - Regras de elegibilidade: par com `match` ativo ou `connection_invite` aceite, bloqueios respeitados, contas `active`, proteção anti-duplicado em aberto e throttling de abuso.
 - Camada de confiança: `safety_level` (`standard`, `verified_only`, `premium_guard`), badges/verificação no detalhe do encontro e checklist de segurança institucional.
 - Integração nativa com chat: CTA para propor encontro direto na conversa e acesso rápido ao encontro ativo por `conversation_id`.
-- Integração institucional: notificações (`safe_date_*`), eventos em auditoria (`safe_date_created|accepted|declined|cancelled|rescheduled|completed|expired`) e sinais no centro de risco/super dashboard.
+- Integração institucional: notificações (`safe_date_*`), eventos em auditoria (`safe_date_created|accepted|declined|cancelled|reschedule_requested|rescheduled|completed|expired|reminder_sent|arrived|finished_well|feedback_submitted`) e sinais no centro de risco/super dashboard.
+- Lembretes automáticos por script operacional (`scripts/send_safe_date_reminders.php`) em janelas de 24h, 2h e mesmo dia (com proteção anti-duplicado por colunas de envio).
 
 ## Índices e migração
 `database/schema.sql` já inclui o estado consolidado atual (incluindo `user_connection_modes`, `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images`, `message_attachments` e blindagem estrutural para existir no máximo 1 convite `pending` por par remetente→destinatário) para instalações novas.
@@ -193,7 +196,8 @@ As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260411_connection_invites.sql`;
 - `database/migrations/20260411_connection_invites_pending_uniqueness.sql`;
 - `database/migrations/20260411_chat_realtime_receipts.sql`.
-- `database/migrations/20260412_safe_dates_module.sql`.
+- `database/migrations/20260412_safe_dates_module.sql`;
+- `database/migrations/20260412_safe_dates_consolidation.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;

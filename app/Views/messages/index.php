@@ -31,6 +31,7 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
         <?php if ((int) ($context['active_safe_date_id'] ?? 0) > 0): ?>
           <a class="btn btn-sm btn-outline-primary" href="/dates/<?= (int) $context['active_safe_date_id'] ?>">Ver encontro #<?= (int) $context['active_safe_date_id'] ?></a>
         <?php endif; ?>
+        <?php if (!empty($context['next_safe_date_datetime'])): ?><span class="small text-muted">Próximo encontro: <?= e((string) $context['next_safe_date_datetime']) ?></span><?php endif; ?>
       </div>
       <div id="typing-indicator" class="small text-muted mb-2" style="min-height: 20px;"></div>
       <div class="rd-chat-shell mb-3">

@@ -7,8 +7,8 @@ $statusLabels = [
     'accepted' => 'Aceite',
     'declined' => 'Recusado',
     'cancelled' => 'Cancelado',
-    'reschedule_requested' => 'Remarcação pedida',
-    'rescheduled' => 'Remarcado',
+    'reschedule_requested' => 'Remarcação pendente',
+    'rescheduled' => 'Remarcação confirmada',
     'completed' => 'Concluído',
     'expired' => 'Expirado',
 ];
@@ -60,7 +60,7 @@ $statusLabels = [
               <div>
                 <strong><?= e((string) ($item['title'] ?? 'Encontro Seguro')) ?></strong>
                 <div class="small text-muted">com <?= e((string) ($item['counterpart_name'] ?? '—')) ?> · <?= e((string) ($item['proposed_location'] ?? '')) ?></div>
-                <div class="small text-muted">Data: <?= e((string) ($item['proposed_datetime'] ?? '')) ?> · Segurança: <?= e((string) ($item['safety_level'] ?? 'standard')) ?></div>
+                <div class="small text-muted">Data ativa: <?= e((string) ($item['proposed_datetime'] ?? '')) ?> · Segurança: <?= e((string) ($item['safety_level'] ?? 'standard')) ?></div>
               </div>
               <span class="rd-badge badge-active"><?= e((string) ($statusLabels[(string) ($item['status'] ?? '')] ?? ($item['status'] ?? ''))) ?></span>
             </div>

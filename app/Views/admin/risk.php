@@ -3,10 +3,12 @@
 <?php if (!empty($explainability)): ?><div class="alert alert-light border py-2"><strong>Modelo actual:</strong> <?= e((string) ($explainability['method'] ?? 'Score composto')) ?> · <span class="small text-muted">actualizado em <?= e((string) ($explainability['last_refreshed_at'] ?? '')) ?></span></div><?php endif; ?>
 
 <div class="row g-3 mb-3">
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Perfis sinalizados</div><div class="value"><?= (int) ($overview['users_flagged'] ?? 0) ?></div></div></div></div>
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Denúncias pendentes</div><div class="value"><?= (int) ($overview['reports_pending'] ?? 0) ?></div></div></div></div>
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Fila alta prioridade</div><div class="value"><?= (int) ($queue['high'] ?? 0) ?></div></div></div></div>
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Spike recusa encontros (30d)</div><div class="value"><?= (int) ($overview['safe_dates_decline_spike_30d'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-2"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Perfis sinalizados</div><div class="value"><?= (int) ($overview['users_flagged'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-2"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Denúncias pendentes</div><div class="value"><?= (int) ($overview['reports_pending'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-2"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Fila alta prioridade</div><div class="value"><?= (int) ($queue['high'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-2"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Spike recusa (30d)</div><div class="value"><?= (int) ($overview['safe_dates_decline_spike_30d'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-2"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Spike remarcação (30d)</div><div class="value"><?= (int) ($overview['safe_dates_reschedule_spike_30d'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-2"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Sinais segurança (30d)</div><div class="value"><?= (int) ($overview['safe_dates_safety_signals_30d'] ?? 0) ?></div></div></div></div>
 </div>
 
 <div class="rd-card mb-3"><div class="card-body">

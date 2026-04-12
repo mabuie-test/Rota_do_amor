@@ -176,6 +176,12 @@ final class MessageService extends Model
                         WHERE sd.conversation_id = c.id
                         ORDER BY sd.id DESC
                         LIMIT 1) AS latest_safe_date_status
+                      ,(SELECT sd.proposed_datetime
+                        FROM safe_dates sd
+                        WHERE sd.conversation_id = c.id
+                          AND sd.status IN ('proposed','accepted','reschedule_requested','rescheduled')
+                        ORDER BY sd.proposed_datetime ASC
+                        LIMIT 1) AS next_safe_date_datetime
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id

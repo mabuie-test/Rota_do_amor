@@ -10,7 +10,8 @@ final class SuperAdminDashboardService extends Model
 {
     public function __construct(
         private readonly DiaryService $diary = new DiaryService(),
-        private readonly RiskCenterService $risk = new RiskCenterService()
+        private readonly RiskCenterService $risk = new RiskCenterService(),
+        private readonly SafeDateService $safeDates = new SafeDateService()
     ) {
         parent::__construct();
     }
@@ -18,6 +19,7 @@ final class SuperAdminDashboardService extends Model
     public function build(): array
     {
         $diary = $this->diary->superAdminAnalytics();
+        $safeDateMetrics = $this->safeDates->adminMetrics(30);
 
         $product = [
             'total_users' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users')['c'] ?? 0),
@@ -30,15 +32,13 @@ final class SuperAdminDashboardService extends Model
                 (SELECT COUNT(*) FROM conversations WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
                 / NULLIF((SELECT COUNT(*) FROM matches WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)), 0)
             ),0) AS v")['v'] ?? 0), 2),
-            'safe_dates_proposed_30_days' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_dates WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
-            'safe_dates_acceptance_rate_30_days' => round((float) ($this->fetchOne("SELECT COALESCE(100 * (
-                SELECT SUM(CASE WHEN status='accepted' OR status='completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0)
-                FROM safe_dates WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-            ),0) AS v")['v'] ?? 0), 2),
-            'safe_dates_completion_rate_30_days' => round((float) ($this->fetchOne("SELECT COALESCE(100 * (
-                SELECT SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0)
-                FROM safe_dates WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-            ),0) AS v")['v'] ?? 0), 2),
+            'safe_dates_proposed_30_days' => (int) ($safeDateMetrics['proposed_total'] ?? 0),
+            'safe_dates_acceptance_rate_30_days' => (float) ($safeDateMetrics['acceptance_rate'] ?? 0),
+            'safe_dates_completion_rate_30_days' => (float) ($safeDateMetrics['completion_rate'] ?? 0),
+            'safe_dates_decline_rate_30_days' => (float) ($safeDateMetrics['decline_rate'] ?? 0),
+            'safe_dates_cancellation_rate_30_days' => (float) ($safeDateMetrics['cancellation_rate'] ?? 0),
+            'safe_dates_reschedule_rate_30_days' => (float) ($safeDateMetrics['reschedule_rate'] ?? 0),
+            'safe_dates_users_using_module_30_days' => (int) ($safeDateMetrics['users_using_module'] ?? 0),
         ];
 
         $operations = [
@@ -95,6 +95,10 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Boosts activos', 'value' => $product['active_boosts'] ?? 0],
                     ['label' => 'Encontros propostos (30d)', 'value' => $product['safe_dates_proposed_30_days'] ?? 0],
                     ['label' => 'Taxa aceite (30d)', 'value' => ($product['safe_dates_acceptance_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa recusa (30d)', 'value' => ($product['safe_dates_decline_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa cancelamento (30d)', 'value' => ($product['safe_dates_cancellation_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa remarcação (30d)', 'value' => ($product['safe_dates_reschedule_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Utilizadores no módulo (30d)', 'value' => $product['safe_dates_users_using_module_30_days'] ?? 0],
                 ],
             ],
             'finance' => [
