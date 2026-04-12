@@ -8,11 +8,15 @@ use App\Core\Controller;
 use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
+use App\Services\AuditService;
 use App\Services\RateLimiterService;
 
 final class AdminAuthController extends Controller
 {
-    public function __construct(private readonly RateLimiterService $rateLimiter = new RateLimiterService())
+    public function __construct(
+        private readonly RateLimiterService $rateLimiter = new RateLimiterService(),
+        private readonly AuditService $audit = new AuditService()
+    )
     {
     }
 
@@ -41,6 +45,7 @@ final class AdminAuthController extends Controller
         $this->rateLimiter->hitSuccess('admin_login', $key, (int) $row['id'], ['email' => mb_strtolower(trim($email))]);
         Session::put('admin_id', (int) $row['id']);
         Session::put('admin_role', (string) ($row['role'] ?? 'moderator'));
+        $this->audit->logAdminEvent((int) $row['id'], 'admin_login_success', 'admin', (int) $row['id'], ['role' => (string) ($row['role'] ?? 'moderator')]);
         Response::redirect('/admin');
     }
 }

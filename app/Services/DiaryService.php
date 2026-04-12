@@ -96,11 +96,11 @@ final class DiaryService extends Model
 
     public function dashboardSummary(int $userId): array
     {
-        $latest = $this->fetchOne('SELECT id,title,mood,created_at,intention_snapshot,relational_pace_snapshot FROM diary_entries WHERE user_id=:user_id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1', [':user_id' => $userId]);
+        $latest = $this->fetchOne('SELECT id,title,mood,content,created_at,intention_snapshot,relational_pace_snapshot FROM diary_entries WHERE user_id=:user_id AND deleted_at IS NULL ORDER BY id DESC LIMIT 1', [':user_id' => $userId]);
+        $recentEntries = $this->fetchAll('SELECT id,title,mood,created_at FROM diary_entries WHERE user_id=:user_id AND deleted_at IS NULL ORDER BY id DESC LIMIT 4', [':user_id' => $userId]);
         $entriesLast7Days = (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM diary_entries WHERE user_id=:user_id AND deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)", [':user_id' => $userId])['c'] ?? 0);
         $entriesLast30Days = (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM diary_entries WHERE user_id=:user_id AND deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", [':user_id' => $userId])['c'] ?? 0);
         $totalEntries = (int) ($this->fetchOne('SELECT COUNT(*) AS c FROM diary_entries WHERE user_id=:user_id AND deleted_at IS NULL', [':user_id' => $userId])['c'] ?? 0);
-        $streak = (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (SELECT DATE(created_at) AS d FROM diary_entries WHERE user_id=:user_id AND deleted_at IS NULL GROUP BY DATE(created_at) ORDER BY d DESC LIMIT 14) t", [':user_id' => $userId])['c'] ?? 0);
 
         $moodRows = $this->fetchAll("SELECT COALESCE(NULLIF(mood, ''), 'indefinido') AS mood_label, COUNT(*) AS total
             FROM diary_entries
@@ -115,20 +115,23 @@ final class DiaryService extends Model
 
         $daysSinceLastEntry = isset($latest['created_at']) ? max(0, (int) floor((time() - strtotime((string) $latest['created_at'])) / 86400)) : null;
 
+        $mode = $this->fetchOne('SELECT current_intention, relational_pace, updated_at FROM user_connection_modes WHERE user_id=:id LIMIT 1', [':id' => $userId]) ?: [];
+
         return [
             'latest' => $latest,
+            'recent_entries' => $recentEntries,
             'recent_mood' => $latest['mood'] ?? null,
             'entries_last_7_days' => $entriesLast7Days,
             'entries_last_30_days' => $entriesLast30Days,
             'total_entries' => $totalEntries,
-            'streak_days_sample' => $streak,
             'days_since_last_entry' => $daysSinceLastEntry,
             'mode_snapshot' => [
-                'current_intention' => $latest['intention_snapshot'] ?? null,
-                'relational_pace' => $latest['relational_pace_snapshot'] ?? null,
+                'current_intention' => $latest['intention_snapshot'] ?? ($mode['current_intention'] ?? null),
+                'relational_pace' => $latest['relational_pace_snapshot'] ?? ($mode['relational_pace'] ?? null),
             ],
             'mood_distribution_30_days' => $moodRows,
             'emotional_consistency_signal' => min(100, (int) round(($activeDays30 / 12) * 100)),
+            'journey_prompt' => $this->buildJourneyPrompt($totalEntries, $daysSinceLastEntry, $mode, $entriesLast30Days),
             'cta' => $this->buildDiaryCta($totalEntries, $daysSinceLastEntry),
         ];
     }
@@ -137,6 +140,7 @@ final class DiaryService extends Model
     {
         $totalEntries = (int) ($this->fetchOne('SELECT COUNT(*) AS c FROM diary_entries WHERE deleted_at IS NULL')['c'] ?? 0);
         $usersWithEntries = (int) ($this->fetchOne('SELECT COUNT(DISTINCT user_id) AS c FROM diary_entries WHERE deleted_at IS NULL')['c'] ?? 0);
+        $totalUsers = (int) ($this->fetchOne('SELECT COUNT(*) AS c FROM users')['c'] ?? 0);
 
         $retentionDiaryUsers = (float) ($this->fetchOne("SELECT COALESCE(100 * AVG(CASE WHEN u.last_activity_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END), 0) AS v
             FROM users u
@@ -159,12 +163,24 @@ final class DiaryService extends Model
         return [
             'total_entries' => $totalEntries,
             'users_with_entries' => $usersWithEntries,
+            'users_without_entries' => max(0, $totalUsers - $usersWithEntries),
+            'adoption_rate_percent' => $totalUsers > 0 ? round(($usersWithEntries / $totalUsers) * 100, 2) : 0,
             'active_users_7_days' => (int) ($this->fetchOne('SELECT COUNT(DISTINCT user_id) AS c FROM diary_entries WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)')['c'] ?? 0),
             'active_users_30_days' => (int) ($this->fetchOne('SELECT COUNT(DISTINCT user_id) AS c FROM diary_entries WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)')['c'] ?? 0),
             'entries_last_7_days' => (int) ($this->fetchOne('SELECT COUNT(*) AS c FROM diary_entries WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)')['c'] ?? 0),
             'entries_last_30_days' => (int) ($this->fetchOne('SELECT COUNT(*) AS c FROM diary_entries WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)')['c'] ?? 0),
             'avg_entries_per_user' => round((float) ($this->fetchOne('SELECT COALESCE(AVG(cnt),0) AS v FROM (SELECT COUNT(*) AS cnt FROM diary_entries WHERE deleted_at IS NULL GROUP BY user_id) t')['v'] ?? 0), 2),
             'entries_per_user_30_days' => round((float) ($this->fetchOne("SELECT COALESCE(AVG(cnt),0) AS v FROM (SELECT COUNT(*) AS cnt FROM diary_entries WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY user_id) t")['v'] ?? 0), 2),
+            'weekly_activity' => $this->fetchAll("SELECT DATE_FORMAT(created_at, '%x-W%v') AS period_label, COUNT(*) AS total
+                FROM diary_entries
+                WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 8 WEEK)
+                GROUP BY period_label
+                ORDER BY period_label ASC"),
+            'monthly_activity' => $this->fetchAll("SELECT DATE_FORMAT(created_at, '%Y-%m') AS period_label, COUNT(*) AS total
+                FROM diary_entries
+                WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                GROUP BY period_label
+                ORDER BY period_label ASC"),
             'mood_distribution_30_days' => $this->fetchAll("SELECT COALESCE(NULLIF(mood, ''), 'indefinido') AS mood_label, COUNT(*) AS total
                 FROM diary_entries
                 WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
@@ -181,11 +197,6 @@ final class DiaryService extends Model
             'retention_diary_users_30_days' => round($retentionDiaryUsers, 2),
             'retention_non_diary_users_30_days' => round($retentionNonDiaryUsers, 2),
             'retention_lift_points' => round($retentionDiaryUsers - $retentionNonDiaryUsers, 2),
-            'longitudinal_monthly' => $this->fetchAll("SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym, COUNT(*) AS total
-                FROM diary_entries
-                WHERE deleted_at IS NULL AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-                GROUP BY ym
-                ORDER BY ym ASC"),
         ];
     }
 
@@ -215,5 +226,26 @@ final class DiaryService extends Model
             'copy' => 'Regista como te sentes para manteres o teu ritmo relacional consciente.',
             'action_label' => 'Escrever hoje',
         ];
+    }
+
+    private function buildJourneyPrompt(int $totalEntries, ?int $daysSinceLastEntry, array $mode, int $entries30Days): array
+    {
+        if ($totalEntries === 0) {
+            return ['type' => 'onboarding', 'message' => 'Primeira reflexão: regista como estás a viver este momento relacional.'];
+        }
+
+        if (($daysSinceLastEntry ?? 0) >= 10) {
+            return ['type' => 'cold_gap', 'message' => 'Já passaram alguns dias sem escrita. Um check-in curto hoje ajuda a retomar clareza emocional.'];
+        }
+
+        if (($mode['updated_at'] ?? null) && strtotime((string) $mode['updated_at']) >= strtotime('-10 days') && $entries30Days <= 1) {
+            return ['type' => 'mode_without_reflection', 'message' => 'Atualizaste o Modo do Coração recentemente. Fecha o ciclo com uma reflexão privada no diário.'];
+        }
+
+        if ($entries30Days < 3) {
+            return ['type' => 'low_emotional_trace', 'message' => 'Tens atividade na plataforma, mas pouco rastro emocional recente. Escrever 2-3 linhas hoje pode ajudar.'];
+        }
+
+        return ['type' => 'healthy', 'message' => 'Boa consistência emocional. Mantém o teu ritmo para apoiar decisões relacionais conscientes.'];
     }
 }

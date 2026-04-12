@@ -41,6 +41,7 @@ final class AdminAuditController extends Controller
             'events' => $result['items'],
             'filters' => $filters,
             'pagination' => $result,
+            'actions' => $result['actions'] ?? [],
         ]);
     }
 }
