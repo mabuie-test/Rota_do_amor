@@ -30,6 +30,15 @@ final class SuperAdminDashboardService extends Model
                 (SELECT COUNT(*) FROM conversations WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
                 / NULLIF((SELECT COUNT(*) FROM matches WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)), 0)
             ),0) AS v")['v'] ?? 0), 2),
+            'safe_dates_proposed_30_days' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_dates WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
+            'safe_dates_acceptance_rate_30_days' => round((float) ($this->fetchOne("SELECT COALESCE(100 * (
+                SELECT SUM(CASE WHEN status='accepted' OR status='completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0)
+                FROM safe_dates WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ),0) AS v")['v'] ?? 0), 2),
+            'safe_dates_completion_rate_30_days' => round((float) ($this->fetchOne("SELECT COALESCE(100 * (
+                SELECT SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0)
+                FROM safe_dates WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ),0) AS v")['v'] ?? 0), 2),
         ];
 
         $operations = [
@@ -84,6 +93,8 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Activações pagas', 'value' => $product['paid_activations'] ?? 0],
                     ['label' => 'Subscrições activas', 'value' => $product['active_subscriptions'] ?? 0],
                     ['label' => 'Boosts activos', 'value' => $product['active_boosts'] ?? 0],
+                    ['label' => 'Encontros propostos (30d)', 'value' => $product['safe_dates_proposed_30_days'] ?? 0],
+                    ['label' => 'Taxa aceite (30d)', 'value' => ($product['safe_dates_acceptance_rate_30_days'] ?? 0) . '%'],
                 ],
             ],
             'finance' => [

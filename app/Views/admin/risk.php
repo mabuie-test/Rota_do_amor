@@ -1,4 +1,4 @@
-<?php $users = $users ?? []; $overview = $overview ?? []; $inviteAnomalies = $invites_anomalies ?? []; $messageAnomalies = $messages_anomalies ?? []; $queue = $priority_queue ?? []; $currentPriority = $current_priority ?? ''; $explainability = $explainability ?? []; ?>
+<?php $users = $users ?? []; $overview = $overview ?? []; $inviteAnomalies = $invites_anomalies ?? []; $messageAnomalies = $messages_anomalies ?? []; $safeDateAnomalies = $safe_dates_anomalies ?? []; $queue = $priority_queue ?? []; $currentPriority = $current_priority ?? ''; $explainability = $explainability ?? []; ?>
 <h3 class="mb-3">Centro de Risco & Abuso</h3>
 <?php if (!empty($explainability)): ?><div class="alert alert-light border py-2"><strong>Modelo actual:</strong> <?= e((string) ($explainability['method'] ?? 'Score composto')) ?> · <span class="small text-muted">actualizado em <?= e((string) ($explainability['last_refreshed_at'] ?? '')) ?></span></div><?php endif; ?>
 
@@ -6,7 +6,7 @@
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Perfis sinalizados</div><div class="value"><?= (int) ($overview['users_flagged'] ?? 0) ?></div></div></div></div>
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Denúncias pendentes</div><div class="value"><?= (int) ($overview['reports_pending'] ?? 0) ?></div></div></div></div>
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Fila alta prioridade</div><div class="value"><?= (int) ($queue['high'] ?? 0) ?></div></div></div></div>
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Fila média prioridade</div><div class="value"><?= (int) ($queue['medium'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Spike recusa encontros (30d)</div><div class="value"><?= (int) ($overview['safe_dates_decline_spike_30d'] ?? 0) ?></div></div></div></div>
 </div>
 
 <div class="rd-card mb-3"><div class="card-body">
@@ -38,4 +38,5 @@
 <div class="row g-3">
   <div class="col-lg-6"><div class="rd-card"><div class="card-body table-responsive"><h6>Anomalias em convites (24h)</h6><table class="table table-sm"><thead><tr><th>Utilizador</th><th>Convites</th><th>Taxa aceitação</th></tr></thead><tbody><?php foreach ($inviteAnomalies as $row): ?><tr><td>#<?= (int) $row['sender_id'] ?> · <?= e((string) $row['sender_name']) ?></td><td><?= (int) $row['invites_24h'] ?></td><td><?= e((string) ($row['acceptance_rate_24h'] ?? 0)) ?>%</td></tr><?php endforeach; ?></tbody></table></div></div></div>
   <div class="col-lg-6"><div class="rd-card"><div class="card-body table-responsive"><h6>Anomalias em mensagens (24h)</h6><table class="table table-sm"><thead><tr><th>Utilizador</th><th>Mensagens</th><th>Msgs / conversa</th></tr></thead><tbody><?php foreach ($messageAnomalies as $row): ?><tr><td>#<?= (int) $row['sender_id'] ?> · <?= e((string) $row['sender_name']) ?></td><td><?= (int) $row['messages_24h'] ?></td><td><?= e((string) ($row['messages_per_conversation'] ?? 0)) ?></td></tr><?php endforeach; ?></tbody></table></div></div></div>
+  <div class="col-lg-12"><div class="rd-card"><div class="card-body table-responsive"><h6>Anomalias em Encontro Seguro (30d)</h6><table class="table table-sm"><thead><tr><th>Utilizador</th><th>Encontros</th><th>Recusas</th><th>Cancelamentos</th><th>Taxa recusa</th></tr></thead><tbody><?php foreach ($safeDateAnomalies as $row): ?><tr><td>#<?= (int) $row['sender_id'] ?> · <?= e((string) $row['sender_name']) ?></td><td><?= (int) $row['safe_dates_30d'] ?></td><td><?= (int) $row['declined_30d'] ?></td><td><?= (int) $row['cancelled_30d'] ?></td><td><?= e((string) ($row['decline_rate_30d'] ?? 0)) ?>%</td></tr><?php endforeach; ?></tbody></table></div></div></div>
 </div>

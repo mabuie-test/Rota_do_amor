@@ -39,6 +39,7 @@ final class AdminRiskController extends Controller
             'current_priority' => $priority,
             'invites_anomalies' => $risk['invites_anomalies'],
             'messages_anomalies' => $risk['messages_anomalies'],
+            'safe_dates_anomalies' => $risk['safe_dates_anomalies'] ?? [],
         ]);
     }
 }
