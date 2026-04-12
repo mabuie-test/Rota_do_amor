@@ -71,6 +71,7 @@ $router->add('POST', '/invites/decline', [ConnectionInviteController::class, 'de
 
 $router->add('GET', '/diary', [DiaryController::class, 'index'], $coreAccess);
 $router->add('GET', '/diary/new', [DiaryController::class, 'new'], $coreAccess);
+$router->add('GET', '/diary/write-today', [DiaryController::class, 'new'], $coreAccess);
 $router->add('POST', '/diary', [DiaryController::class, 'create'], $coreAccess);
 $router->add('GET', '/diary/{id}', [DiaryController::class, 'show'], $coreAccess);
 $router->add('POST', '/diary/{id}', [DiaryController::class, 'update'], $coreAccess);

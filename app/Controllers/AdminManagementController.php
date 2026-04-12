@@ -10,6 +10,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Services\AdminManagementService;
+use Throwable;
 
 final class AdminManagementController extends Controller
 {
@@ -23,19 +24,21 @@ final class AdminManagementController extends Controller
             'title' => 'Super Admin · Admins',
             'admins' => $this->service->listAdmins(),
             'roles' => $this->service->roles(),
+            'permission_matrix' => $this->service->permissionMatrix(),
         ]);
     }
 
     public function create(): void
     {
         $payload = $this->payload();
-        if (($payload['name'] ?? '') === '' || ($payload['email'] ?? '') === '' || ($payload['password'] ?? '') === '') {
-            Flash::set('error', 'Nome, email e password são obrigatórios para criar admin.');
-            Response::redirect('/admin/admins');
+
+        try {
+            $this->service->create($payload, (int) Session::get('admin_id', 0));
+            Flash::set('success', 'Admin criado com sucesso.');
+        } catch (Throwable $e) {
+            Flash::set('error', $e->getMessage());
         }
 
-        $this->service->create($payload, (int) Session::get('admin_id', 0));
-        Flash::set('success', 'Admin criado com sucesso.');
         Response::redirect('/admin/admins');
     }
 
@@ -47,8 +50,13 @@ final class AdminManagementController extends Controller
             Response::redirect('/admin/admins');
         }
 
-        $this->service->update($id, $this->payload(), (int) Session::get('admin_id', 0));
-        Flash::set('success', 'Admin atualizado com sucesso.');
+        try {
+            $this->service->update($id, $this->payload(), (int) Session::get('admin_id', 0));
+            Flash::set('success', 'Admin atualizado com sucesso.');
+        } catch (Throwable $e) {
+            Flash::set('error', $e->getMessage());
+        }
+
         Response::redirect('/admin/admins');
     }
 
@@ -61,7 +69,7 @@ final class AdminManagementController extends Controller
 
         return [
             'name' => trim((string) Request::input('name', '')),
-            'email' => trim((string) Request::input('email', '')),
+            'email' => mb_strtolower(trim((string) Request::input('email', ''))),
             'password' => (string) Request::input('password', ''),
             'role' => $role,
             'status' => trim((string) Request::input('status', 'active')) === 'inactive' ? 'inactive' : 'active',

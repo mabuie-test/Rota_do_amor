@@ -8,50 +8,93 @@ use App\Core\Model;
 
 final class SuperAdminDashboardService extends Model
 {
-    public function __construct(private readonly DiaryService $diary = new DiaryService())
-    {
+    public function __construct(
+        private readonly DiaryService $diary = new DiaryService(),
+        private readonly RiskCenterService $risk = new RiskCenterService()
+    ) {
         parent::__construct();
     }
 
     public function build(): array
     {
         $diary = $this->diary->superAdminAnalytics();
-        return [
+
+        $product = [
             'total_users' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users')['c'] ?? 0),
             'new_users_7_days' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)')['c'] ?? 0),
+            'new_users_prev_7_days' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)')['c'] ?? 0),
             'paid_activations' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM users WHERE activation_paid_at IS NOT NULL")['c'] ?? 0),
             'active_subscriptions' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM subscriptions WHERE status='active' AND ends_at > NOW()")['c'] ?? 0),
             'active_boosts' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM user_boosts WHERE status='active' AND ends_at > NOW()")['c'] ?? 0),
+        ];
+
+        $operations = [
             'pending_verifications' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM identity_verifications WHERE status='pending'")['c'] ?? 0),
             'pending_reports' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM reports WHERE status='pending'")['c'] ?? 0),
             'suspended_or_banned' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM users WHERE status IN ('suspended','banned')")['c'] ?? 0),
+            'audit_events_24h' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM activity_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)")['c'] ?? 0),
+        ];
+
+        $finance = [
             'payments_completed' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='completed'")['c'] ?? 0),
             'payments_pending' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='pending'")['c'] ?? 0),
+            'payments_failed_7_days' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['c'] ?? 0),
+            'revenue_7_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['s'] ?? 0),
             'revenue_30_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['s'] ?? 0),
-            'critical_alerts' => $this->criticalAlerts(),
-            'recent_activity' => $this->fetchAll('SELECT action, target_type, target_id, created_at FROM activity_logs ORDER BY id DESC LIMIT 10'),
+        ];
+
+        $risk = $this->risk->build();
+
+        return [
+            'product' => $product,
+            'operations' => $operations,
+            'finance' => $finance,
+            'risk' => $risk['overview'],
             'diary' => $diary,
+            'critical_alerts' => $this->criticalAlerts($operations, $finance, $risk['overview']),
+            'action_required' => $this->actionRequired($operations, $risk['overview']),
+            'recent_activity' => $this->fetchAll('SELECT action, actor_type, target_type, target_id, created_at FROM activity_logs ORDER BY id DESC LIMIT 12'),
         ];
     }
 
-    private function criticalAlerts(): array
+    private function criticalAlerts(array $operations, array $finance, array $risk): array
     {
         $alerts = [];
-        $pendingReports = (int) ($this->fetchOne("SELECT COUNT(*) c FROM reports WHERE status='pending'")['c'] ?? 0);
-        if ($pendingReports > 25) {
-            $alerts[] = 'Backlog elevado de denúncias pendentes.';
+        if ((int) ($operations['pending_reports'] ?? 0) > 25) {
+            $alerts[] = ['severity' => 'high', 'message' => 'Backlog elevado de denúncias pendentes.'];
         }
 
-        $pendingVerifications = (int) ($this->fetchOne("SELECT COUNT(*) c FROM identity_verifications WHERE status='pending'")['c'] ?? 0);
-        if ($pendingVerifications > 40) {
-            $alerts[] = 'Fila de verificação de identidade acima do limite recomendado.';
+        if ((int) ($operations['pending_verifications'] ?? 0) > 40) {
+            $alerts[] = ['severity' => 'medium', 'message' => 'Fila de verificação de identidade acima do limite recomendado.'];
         }
 
-        $failedPayments = (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)")['c'] ?? 0);
-        if ($failedPayments > 30) {
-            $alerts[] = 'Alta taxa de falhas de pagamento nas últimas 24h.';
+        if ((int) ($finance['payments_failed_7_days'] ?? 0) > 40) {
+            $alerts[] = ['severity' => 'high', 'message' => 'Taxa de pagamentos falhados elevada nos últimos 7 dias.'];
+        }
+
+        if ((int) ($risk['users_flagged'] ?? 0) > 30) {
+            $alerts[] = ['severity' => 'medium', 'message' => 'Muitos perfis sinalizados no centro de risco.'];
         }
 
         return $alerts;
+    }
+
+    private function actionRequired(array $operations, array $risk): array
+    {
+        $queue = [];
+
+        if ((int) ($operations['pending_reports'] ?? 0) > 0) {
+            $queue[] = ['label' => 'Tratar denúncias pendentes', 'url' => '/admin/reports', 'count' => (int) $operations['pending_reports']];
+        }
+
+        if ((int) ($operations['pending_verifications'] ?? 0) > 0) {
+            $queue[] = ['label' => 'Revisar verificações pendentes', 'url' => '/admin/verifications', 'count' => (int) $operations['pending_verifications']];
+        }
+
+        if ((int) ($risk['users_flagged'] ?? 0) > 0) {
+            $queue[] = ['label' => 'Analisar utilizadores de risco', 'url' => '/admin/risk', 'count' => (int) $risk['users_flagged']];
+        }
+
+        return $queue;
     }
 }

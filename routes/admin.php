@@ -15,23 +15,28 @@ use App\Controllers\AdminSubscriptionController;
 use App\Controllers\AdminSystemController;
 use App\Controllers\AdminUserController;
 use App\Controllers\AdminVerificationController;
+use App\Middleware\AdminContentModeratorMiddleware;
 use App\Middleware\AdminFinanceMiddleware;
 use App\Middleware\AdminMiddleware;
-use App\Middleware\AdminModeratorMiddleware;
+use App\Middleware\AdminOpsMiddleware;
+use App\Middleware\AdminSupportMiddleware;
 use App\Middleware\AdminSuperMiddleware;
 
 $router->add('GET', '/admin/login', [AdminAuthController::class, 'index']);
 $router->add('POST', '/admin/login', [AdminAuthController::class, 'index']);
 
 $adminGuard = [AdminMiddleware::class];
-$moderationGuard = [AdminMiddleware::class, AdminModeratorMiddleware::class];
+$moderationGuard = [AdminMiddleware::class, AdminContentModeratorMiddleware::class];
+$supportGuard = [AdminMiddleware::class, AdminSupportMiddleware::class];
 $financeGuard = [AdminMiddleware::class, AdminFinanceMiddleware::class];
+$opsGuard = [AdminMiddleware::class, AdminOpsMiddleware::class];
 $superGuard = [AdminMiddleware::class, AdminSuperMiddleware::class];
+
 $router->add('GET', '/admin', [AdminDashboardController::class, 'index'], $adminGuard);
-$router->add('GET', '/admin/users', [AdminUserController::class, 'index'], $moderationGuard);
-$router->add('GET', '/admin/users/{id}', [AdminUserController::class, 'show'], $moderationGuard);
+$router->add('GET', '/admin/users', [AdminUserController::class, 'index'], $supportGuard);
+$router->add('GET', '/admin/users/{id}', [AdminUserController::class, 'show'], $supportGuard);
 $router->add('POST', '/admin/users/{id}/status', [AdminUserController::class, 'updateStatus'], $moderationGuard);
-$router->add('POST', '/admin/users/{id}/resend-verification-email', [AdminUserController::class, 'resendVerificationEmail'], $moderationGuard);
+$router->add('POST', '/admin/users/{id}/resend-verification-email', [AdminUserController::class, 'resendVerificationEmail'], $supportGuard);
 $router->add('GET', '/admin/payments', [AdminPaymentController::class, 'index'], $financeGuard);
 $router->add('GET', '/admin/subscriptions', [AdminSubscriptionController::class, 'index'], $financeGuard);
 $router->add('GET', '/admin/boosts', [AdminBoostController::class, 'index'], $financeGuard);
@@ -51,10 +56,9 @@ $router->add('GET', '/admin/settings', [AdminSystemController::class, 'index'], 
 $router->add('POST', '/admin/settings/update', [AdminSystemController::class, 'update'], $superGuard);
 $router->add('POST', '/admin/email/send', [AdminEmailController::class, 'index'], $superGuard);
 
-
 $router->add('GET', '/admin/super-dashboard', [SuperAdminController::class, 'dashboard'], $superGuard);
-$router->add('GET', '/admin/audit', [AdminAuditController::class, 'index'], $superGuard);
+$router->add('GET', '/admin/audit', [AdminAuditController::class, 'index'], $opsGuard);
 $router->add('GET', '/admin/admins', [AdminManagementController::class, 'index'], $superGuard);
 $router->add('POST', '/admin/admins/create', [AdminManagementController::class, 'create'], $superGuard);
 $router->add('POST', '/admin/admins/{id}/update', [AdminManagementController::class, 'update'], $superGuard);
-$router->add('GET', '/admin/risk', [AdminRiskController::class, 'index'], $superGuard);
+$router->add('GET', '/admin/risk', [AdminRiskController::class, 'index'], $opsGuard);
