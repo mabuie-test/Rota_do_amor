@@ -138,6 +138,14 @@ final class RiskCenterService extends Model
                 GROUP BY initiator_user_id
                 HAVING SUM(CASE WHEN status='declined' THEN 1 ELSE 0 END) >= 6
             ) t")['c'] ?? 0),
+            'safe_dates_reschedule_spike_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (
+                SELECT initiator_user_id
+                FROM safe_dates
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                GROUP BY initiator_user_id
+                HAVING SUM(CASE WHEN status IN ('reschedule_requested','rescheduled') THEN 1 ELSE 0 END) >= 6
+            ) t")['c'] ?? 0),
+            'safe_dates_safety_signals_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM safe_date_private_feedback WHERE safety_signal IN ('attention','emergency') AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
         ];
     }
 
@@ -183,8 +191,8 @@ final class RiskCenterService extends Model
             INNER JOIN users u ON u.id = sd.initiator_user_id
             WHERE sd.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             GROUP BY sd.initiator_user_id
-            HAVING safe_dates_30d >= 8 AND decline_rate_30d >= 55
-            ORDER BY decline_rate_30d DESC, safe_dates_30d DESC
+            HAVING safe_dates_30d >= 8 AND (decline_rate_30d >= 55 OR cancelled_30d >= 4)
+            ORDER BY decline_rate_30d DESC, cancelled_30d DESC, safe_dates_30d DESC
             LIMIT 25");
     }
 }

@@ -413,19 +413,36 @@ CREATE TABLE safe_dates (
   declined_at DATETIME NULL,
   cancelled_at DATETIME NULL,
   completed_at DATETIME NULL,
+  reschedule_requested_by_user_id BIGINT NULL,
+  reschedule_requested_at DATETIME NULL,
+  reschedule_proposed_datetime DATETIME NULL,
   expires_at DATETIME NULL,
   last_transition_at DATETIME NULL,
+  reminder_24h_sent_at DATETIME NULL,
+  reminder_2h_sent_at DATETIME NULL,
+  reminder_same_day_sent_at DATETIME NULL,
+  arrived_confirmed_at DATETIME NULL,
+  arrived_confirmed_by_user_id BIGINT NULL,
+  ended_well_confirmed_at DATETIME NULL,
+  ended_well_confirmed_by_user_id BIGINT NULL,
+  safety_signal_level ENUM('none','attention','emergency') NOT NULL DEFAULT 'none',
+  safety_signal_note VARCHAR(500) NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_safe_dates_initiator FOREIGN KEY (initiator_user_id) REFERENCES users(id),
   CONSTRAINT fk_safe_dates_invitee FOREIGN KEY (invitee_user_id) REFERENCES users(id),
   CONSTRAINT fk_safe_dates_match FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE SET NULL,
   CONSTRAINT fk_safe_dates_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
+  CONSTRAINT fk_safe_dates_reschedule_requested_by FOREIGN KEY (reschedule_requested_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_safe_dates_arrived_by FOREIGN KEY (arrived_confirmed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_safe_dates_ended_well_by FOREIGN KEY (ended_well_confirmed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_safe_dates_initiator_status_created (initiator_user_id, status, created_at),
   INDEX idx_safe_dates_invitee_status_created (invitee_user_id, status, created_at),
   INDEX idx_safe_dates_status_datetime (status, proposed_datetime),
   INDEX idx_safe_dates_pair_status (initiator_user_id, invitee_user_id, status),
-  INDEX idx_safe_dates_expires (status, expires_at)
+  INDEX idx_safe_dates_expires (status, expires_at),
+  INDEX idx_safe_dates_reschedule_pending (status, reschedule_requested_by_user_id, reschedule_requested_at),
+  INDEX idx_safe_dates_reminder_windows (status, proposed_datetime, reminder_24h_sent_at, reminder_2h_sent_at)
 );
 
 CREATE TABLE safe_date_status_history (
@@ -441,6 +458,24 @@ CREATE TABLE safe_date_status_history (
   CONSTRAINT fk_safe_date_history_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_safe_date_history_date_created (safe_date_id, created_at),
   INDEX idx_safe_date_history_actor_created (actor_user_id, created_at)
+);
+
+
+
+CREATE TABLE safe_date_private_feedback (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  safe_date_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  rating TINYINT NULL,
+  feedback_note VARCHAR(500) NULL,
+  safety_signal ENUM('none','attention','emergency') NOT NULL DEFAULT 'none',
+  safety_note VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  CONSTRAINT fk_safe_date_private_feedback_date FOREIGN KEY (safe_date_id) REFERENCES safe_dates(id) ON DELETE CASCADE,
+  CONSTRAINT fk_safe_date_private_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_safe_date_private_feedback_pair (safe_date_id, user_id),
+  INDEX idx_safe_date_private_feedback_signal (safety_signal, created_at)
 );
 
 CREATE TABLE post_likes (

@@ -18,7 +18,9 @@ final class UserDashboardService extends Model
         private readonly CompatibilityService $compatibility = new CompatibilityService(),
         private readonly ConnectionModeService $connectionModes = new ConnectionModeService(),
         private readonly ConnectionInviteService $invites = new ConnectionInviteService(),
-        private readonly DiaryService $diary = new DiaryService()
+        private readonly DiaryService $diary = new DiaryService(),
+        private readonly SafeDateService $safeDates = new SafeDateService(),
+        private readonly PremiumService $premium = new PremiumService()
     ) {
         parent::__construct();
     }
@@ -44,6 +46,7 @@ final class UserDashboardService extends Model
         $momentAlignment = $this->averageMomentAlignment($userId);
         $inviteSignals = $this->inviteSignals($userId);
         $diarySummary = $this->diary->dashboardSummary($userId);
+        $nextSafeDate = $this->safeDates->summaryForUserDashboard($userId);
 
         return [
             'account_status' => $accountStatus,
@@ -71,10 +74,11 @@ final class UserDashboardService extends Model
             'accepted_invites_total' => $inviteSignals['accepted_total'],
             'likes_me_preview' => $inviteSignals['likes_me_preview'],
             'diary_summary' => $diarySummary,
+            'next_safe_date' => $nextSafeDate,
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),
-            'premium_context' => $this->premiumContext($daysRemaining, $isBoosted, $boostImpact, $completion['attractiveness_percent']),
+            'premium_context' => $this->premiumContext($daysRemaining, $isBoosted, $boostImpact, $completion['attractiveness_percent'], (bool) $this->premium->userHasPremium($userId)),
             'last_activity_at' => $user['last_activity_at'] ?? null,
             'primary_focus' => $this->buildPrimaryFocus($accountStatus, $daysRemaining, $completion['percent'], $profileSignals, $isBoosted),
         ];
@@ -175,7 +179,7 @@ final class UserDashboardService extends Model
         ];
     }
 
-    private function premiumContext(int $daysRemaining, bool $boostActive, array $boostImpact, int $attractivenessPercent): array
+    private function premiumContext(int $daysRemaining, bool $boostActive, array $boostImpact, int $attractivenessPercent, bool $isPremium): array
     {
         $boostScore = min(100, $attractivenessPercent + ($boostActive ? 25 : 0));
         return [
@@ -184,6 +188,8 @@ final class UserDashboardService extends Model
             'boost_estimated_impact' => $boostActive ? 'alta visibilidade nas próximas horas' : 'visibilidade normal (sem boost ativo)',
             'boost_readiness_score' => $boostScore,
             'boost_active_count' => (int) ($boostImpact['active_count'] ?? 0),
+            'safe_date_plan' => $isPremium ? 'premium' : 'free',
+            'safe_date_daily_limit' => $isPremium ? 10 : 5,
         ];
     }
 
