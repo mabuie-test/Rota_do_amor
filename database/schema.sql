@@ -159,7 +159,7 @@ CREATE TABLE admins (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  role ENUM('super_admin','moderator','finance') NOT NULL DEFAULT 'moderator',
+  role ENUM('super_admin','moderator','finance','support','ops','content_moderator') NOT NULL DEFAULT 'moderator',
   status ENUM('active','inactive') NOT NULL DEFAULT 'active',
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
@@ -512,6 +512,28 @@ CREATE TABLE site_settings (
   setting_value TEXT NOT NULL,
   value_type ENUM('string','int','bool','json') NOT NULL DEFAULT 'string',
   updated_at DATETIME NOT NULL
+);
+
+
+
+CREATE TABLE diary_entries (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(190) NULL,
+  content TEXT NOT NULL,
+  mood VARCHAR(80) NULL,
+  emotional_state VARCHAR(120) NULL,
+  relational_focus VARCHAR(120) NULL,
+  visibility ENUM('private','trusted_circle','public') NOT NULL DEFAULT 'private',
+  tags_json JSON NULL,
+  intention_snapshot VARCHAR(60) NULL,
+  relational_pace_snapshot VARCHAR(40) NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  CONSTRAINT fk_diary_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_diary_user_created (user_id, created_at),
+  INDEX idx_diary_mood_created (mood, created_at),
+  INDEX idx_diary_visibility (visibility)
 );
 
 CREATE TABLE banners (

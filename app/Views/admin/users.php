@@ -59,10 +59,10 @@
           <td><?= e((string) ($u['created_at'] ?? '')) ?></td>
           <td style="min-width:280px;">
             <div class="d-flex flex-wrap gap-1 mb-2">
-              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="active"><button class="btn btn-sm btn-outline-success">Activar</button></form>
-              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="expired"><button class="btn btn-sm btn-outline-secondary">Desactivar</button></form>
-              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="suspended"><button class="btn btn-sm btn-outline-warning">Suspender</button></form>
-              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="banned"><button class="btn btn-sm btn-outline-danger">Banir</button></form>
+              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="active"><input type="hidden" name="reason" value="Ação administrativa: activar conta"><button class="btn btn-sm btn-outline-success">Activar</button></form>
+              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="expired"><input type="hidden" name="reason" value="Ação administrativa: desactivar conta"><button class="btn btn-sm btn-outline-secondary">Desactivar</button></form>
+              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="suspended"><input type="hidden" name="reason" value="Ação administrativa: suspender conta"><button class="btn btn-sm btn-outline-warning">Suspender</button></form>
+              <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status"><?= csrf_field() ?><input type="hidden" name="status" value="banned"><input type="hidden" name="reason" value="Ação administrativa: banir conta"><button class="btn btn-sm btn-outline-danger">Banir</button></form>
             </div>
             <div class="d-flex flex-wrap gap-1">
               <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/resend-verification-email"><?= csrf_field() ?><button class="btn btn-sm btn-outline-primary">Reenviar verificação</button></form>

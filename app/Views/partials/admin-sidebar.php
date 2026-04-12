@@ -11,6 +11,10 @@
       '/admin/verifications' => ['fa-id-card', 'Verificações'],
       '/admin/reports' => ['fa-flag', 'Denúncias'],
       '/admin/moderation' => ['fa-gavel', 'Moderação'],
+      '/admin/super-dashboard' => ['fa-chart-pie', 'Executivo'],
+      '/admin/admins' => ['fa-user-shield', 'Admins & Papéis'],
+      '/admin/audit' => ['fa-clipboard-list', 'Auditoria'],
+      '/admin/risk' => ['fa-triangle-exclamation', 'Risco & Abuso'],
       '/admin/settings' => ['fa-gear', 'Configurações'],
   ];
   foreach ($adminLinks as $href => [$icon, $label]):

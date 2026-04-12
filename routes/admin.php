@@ -1,5 +1,9 @@
 <?php
 
+use App\Controllers\AdminAuditController;
+use App\Controllers\AdminManagementController;
+use App\Controllers\AdminRiskController;
+use App\Controllers\SuperAdminController;
 use App\Controllers\AdminAuthController;
 use App\Controllers\AdminBoostController;
 use App\Controllers\AdminDashboardController;
@@ -46,3 +50,11 @@ $router->add('POST', '/admin/moderation/deactivate', [AdminModerationController:
 $router->add('GET', '/admin/settings', [AdminSystemController::class, 'index'], $superGuard);
 $router->add('POST', '/admin/settings/update', [AdminSystemController::class, 'update'], $superGuard);
 $router->add('POST', '/admin/email/send', [AdminEmailController::class, 'index'], $superGuard);
+
+
+$router->add('GET', '/admin/super-dashboard', [SuperAdminController::class, 'dashboard'], $superGuard);
+$router->add('GET', '/admin/audit', [AdminAuditController::class, 'index'], $superGuard);
+$router->add('GET', '/admin/admins', [AdminManagementController::class, 'index'], $superGuard);
+$router->add('POST', '/admin/admins/create', [AdminManagementController::class, 'create'], $superGuard);
+$router->add('POST', '/admin/admins/{id}/update', [AdminManagementController::class, 'update'], $superGuard);
+$router->add('GET', '/admin/risk', [AdminRiskController::class, 'index'], $superGuard);

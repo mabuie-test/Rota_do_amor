@@ -17,7 +17,8 @@ final class UserDashboardService extends Model
         private readonly BadgeService $badges = new BadgeService(),
         private readonly CompatibilityService $compatibility = new CompatibilityService(),
         private readonly ConnectionModeService $connectionModes = new ConnectionModeService(),
-        private readonly ConnectionInviteService $invites = new ConnectionInviteService()
+        private readonly ConnectionInviteService $invites = new ConnectionInviteService(),
+        private readonly DiaryService $diary = new DiaryService()
     ) {
         parent::__construct();
     }
@@ -42,6 +43,7 @@ final class UserDashboardService extends Model
         $heartMode = $this->safeConnectionMode($userId);
         $momentAlignment = $this->averageMomentAlignment($userId);
         $inviteSignals = $this->inviteSignals($userId);
+        $diarySummary = $this->diary->dashboardSummary($userId);
 
         return [
             'account_status' => $accountStatus,
@@ -68,6 +70,7 @@ final class UserDashboardService extends Model
             'pending_priority_invites' => $inviteSignals['pending_priority'],
             'accepted_invites_total' => $inviteSignals['accepted_total'],
             'likes_me_preview' => $inviteSignals['likes_me_preview'],
+            'diary_summary' => $diarySummary,
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),

@@ -89,6 +89,27 @@
   </div>
 </div>
 
+
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-12">
+    <div class="rd-card"><div class="card-body">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Diário do Coração</h6>
+        <a class="btn btn-sm btn-rd-soft" href="/diary"><i class="fa-solid fa-book-heart me-1"></i>Abrir diário</a>
+      </div>
+      <?php $diarySummary = $d['diary_summary'] ?? []; $latestDiary = $diarySummary['latest'] ?? null; ?>
+      <?php if (!empty($latestDiary)): ?>
+        <p class="small mb-1 mt-2">Último registo: <strong><?= e((string) ($latestDiary['title'] ?: 'Entrada sem título')) ?></strong> em <?= e((string) ($latestDiary['created_at'] ?? '')) ?></p>
+        <p class="small mb-1">Humor mais recente: <strong><?= e((string) ($diarySummary['recent_mood'] ?? '—')) ?></strong></p>
+        <p class="small mb-0">Entradas últimos 30 dias: <strong><?= (int) ($diarySummary['entries_last_30_days'] ?? 0) ?></strong> · sequência recente: <strong><?= (int) ($diarySummary['streak_days_sample'] ?? 0) ?></strong> dias</p>
+      <?php else: ?>
+        <p class="small text-muted mb-0 mt-2">Ainda sem entradas. Regista hoje teu estado emocional e teu foco relacional.</p>
+      <?php endif; ?>
+    </div></div>
+  </div>
+</div>
+
 <?php if (!empty($d['alerts'])): ?>
 <div class="rd-card mt-3"><div class="card-body">
   <h6>Alertas importantes</h6>
