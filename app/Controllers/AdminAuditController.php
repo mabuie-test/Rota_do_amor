@@ -19,17 +19,28 @@ final class AdminAuditController extends Controller
     {
         $filters = [
             'actor_type' => trim((string) Request::input('actor_type', '')),
+            'actor_id' => (int) Request::input('actor_id', 0),
+            'admin_id' => (int) Request::input('admin_id', 0),
             'action' => trim((string) Request::input('action', '')),
             'target_type' => trim((string) Request::input('target_type', '')),
+            'target_id' => (int) Request::input('target_id', 0),
+            'q' => trim((string) Request::input('q', '')),
             'from' => trim((string) Request::input('from', '')),
             'to' => trim((string) Request::input('to', '')),
+            'page' => (int) Request::input('page', 1),
+            'per_page' => (int) Request::input('per_page', 50),
         ];
-        $events = $this->audit->listEvents($filters);
+        $result = $this->audit->listEvents($filters);
 
         if (Request::expectsJson()) {
-            Response::json(['events' => $events, 'filters' => $filters]);
+            Response::json(['events' => $result['items'], 'pagination' => $result, 'filters' => $filters]);
         }
 
-        $this->view('admin/audit', ['title' => 'Centro de Auditoria', 'events' => $events, 'filters' => $filters]);
+        $this->view('admin/audit', [
+            'title' => 'Centro de Auditoria',
+            'events' => $result['items'],
+            'filters' => $filters,
+            'pagination' => $result,
+        ]);
     }
 }

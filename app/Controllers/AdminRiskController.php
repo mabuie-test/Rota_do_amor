@@ -15,9 +15,14 @@ final class AdminRiskController extends Controller
 
     public function index(): void
     {
+        $risk = $this->service->build();
+
         $this->view('admin/risk', [
             'title' => 'Super Admin · Risco & Abuso',
-            'users' => $this->service->suspiciousUsers(),
+            'overview' => $risk['overview'],
+            'users' => $risk['users'],
+            'invites_anomalies' => $risk['invites_anomalies'],
+            'messages_anomalies' => $risk['messages_anomalies'],
         ]);
     }
 }

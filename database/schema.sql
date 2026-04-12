@@ -491,7 +491,9 @@ CREATE TABLE activity_logs (
   INDEX idx_activity_action (action),
   INDEX idx_activity_rate_limit_key (action, target_type, rate_limit_key, rate_limit_outcome, created_at),
   INDEX idx_activity_rate_limit_lookup (action, target_type, created_at),
-  INDEX idx_activity_actor_created (actor_id, created_at)
+  INDEX idx_activity_actor_created (actor_id, created_at),
+  INDEX idx_activity_target (target_type, target_id, created_at),
+  INDEX idx_activity_actor_type_id_created (actor_type, actor_id, created_at)
 );
 
 CREATE TABLE moderation_actions (
@@ -528,12 +530,16 @@ CREATE TABLE diary_entries (
   tags_json JSON NULL,
   intention_snapshot VARCHAR(60) NULL,
   relational_pace_snapshot VARCHAR(40) NULL,
+  archived_at DATETIME NULL,
+  deleted_at DATETIME NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_diary_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_diary_user_created (user_id, created_at),
   INDEX idx_diary_mood_created (mood, created_at),
-  INDEX idx_diary_visibility (visibility)
+  INDEX idx_diary_visibility (visibility),
+  INDEX idx_diary_user_deleted_created (user_id, deleted_at, created_at),
+  INDEX idx_diary_deleted_created (deleted_at, created_at)
 );
 
 CREATE TABLE banners (

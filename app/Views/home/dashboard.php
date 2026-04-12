@@ -94,18 +94,30 @@
 <div class="row g-3 mt-1">
   <div class="col-lg-12">
     <div class="rd-card"><div class="card-body">
-      <div class="d-flex justify-content-between align-items-center">
+      <?php $diarySummary = $d['diary_summary'] ?? []; $latestDiary = $diarySummary['latest'] ?? null; $diaryCta = $diarySummary['cta'] ?? []; $modeSnapshot = $diarySummary['mode_snapshot'] ?? []; ?>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h6 class="mb-0">Diário do Coração</h6>
-        <a class="btn btn-sm btn-rd-soft" href="/diary"><i class="fa-solid fa-book-heart me-1"></i>Abrir diário</a>
+        <div class="d-flex gap-2">
+          <a class="btn btn-sm btn-rd-primary" href="/diary/new"><i class="fa-solid fa-pen-to-square me-1"></i><?= e((string) ($diaryCta['action_label'] ?? 'Escrever hoje')) ?></a>
+          <a class="btn btn-sm btn-rd-soft" href="/diary"><i class="fa-solid fa-book-heart me-1"></i>Abrir diário</a>
+        </div>
       </div>
-      <?php $diarySummary = $d['diary_summary'] ?? []; $latestDiary = $diarySummary['latest'] ?? null; ?>
+      <p class="small text-muted mt-2 mb-2">Espaço privado e íntimo. O conteúdo não é exposto ao backoffice operacional.</p>
       <?php if (!empty($latestDiary)): ?>
-        <p class="small mb-1 mt-2">Último registo: <strong><?= e((string) ($latestDiary['title'] ?: 'Entrada sem título')) ?></strong> em <?= e((string) ($latestDiary['created_at'] ?? '')) ?></p>
-        <p class="small mb-1">Humor mais recente: <strong><?= e((string) ($diarySummary['recent_mood'] ?? '—')) ?></strong></p>
-        <p class="small mb-0">Entradas últimos 30 dias: <strong><?= (int) ($diarySummary['entries_last_30_days'] ?? 0) ?></strong> · sequência recente: <strong><?= (int) ($diarySummary['streak_days_sample'] ?? 0) ?></strong> dias</p>
+        <p class="small mb-1">Último registo: <strong><?= e((string) ($latestDiary['title'] ?: 'Entrada sem título')) ?></strong> em <?= e((string) ($latestDiary['created_at'] ?? '')) ?></p>
+        <p class="small mb-1">Humor mais recente: <strong><?= e((string) ($diarySummary['recent_mood'] ?? '—')) ?></strong> · Consistência emocional: <strong><?= (int) ($diarySummary['emotional_consistency_signal'] ?? 0) ?>%</strong></p>
+        <p class="small mb-1">Entradas 7/30 dias: <strong><?= (int) ($diarySummary['entries_last_7_days'] ?? 0) ?></strong> / <strong><?= (int) ($diarySummary['entries_last_30_days'] ?? 0) ?></strong> · total: <strong><?= (int) ($diarySummary['total_entries'] ?? 0) ?></strong></p>
+        <p class="small mb-1">Snapshot do momento: intenção <strong><?= e((string) ($modeSnapshot['current_intention'] ?? '—')) ?></strong> · ritmo <strong><?= e((string) ($modeSnapshot['relational_pace'] ?? '—')) ?></strong></p>
+        <?php if (!empty($diarySummary['mood_distribution_30_days'])): ?>
+          <div class="d-flex gap-2 flex-wrap"><?php foreach (($diarySummary['mood_distribution_30_days'] ?? []) as $mood): ?><span class="rd-badge badge-active"><?= e((string) $mood['mood_label']) ?>: <?= (int) $mood['total'] ?></span><?php endforeach; ?></div>
+        <?php endif; ?>
       <?php else: ?>
-        <p class="small text-muted mb-0 mt-2">Ainda sem entradas. Regista hoje teu estado emocional e teu foco relacional.</p>
+        <p class="small text-muted mb-1 mt-2">Ainda sem entradas. Começa por uma nota breve sobre o que sentes hoje.</p>
       <?php endif; ?>
+      <div class="alert alert-light border mt-3 mb-0 py-2">
+        <strong><?= e((string) ($diaryCta['title'] ?? 'Faz o teu check-in emocional de hoje')) ?></strong><br>
+        <span class="small"><?= e((string) ($diaryCta['copy'] ?? 'Escrever regularmente dá clareza emocional e melhora tua jornada.')) ?></span>
+      </div>
     </div></div>
   </div>
 </div>
