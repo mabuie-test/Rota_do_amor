@@ -165,6 +165,17 @@ final class MessageService extends Model
                        END AS other_is_verified,
                        CASE WHEN c.user_one_id = :uid_case_8 THEN cm2.current_intention ELSE cm1.current_intention END AS other_current_intention,
                        CASE WHEN c.user_one_id = :uid_case_9 THEN cm2.relational_pace ELSE cm1.relational_pace END AS other_relational_pace
+                      ,(SELECT sd.id
+                        FROM safe_dates sd
+                        WHERE sd.conversation_id = c.id
+                          AND sd.status IN ('proposed','accepted','reschedule_requested','rescheduled')
+                        ORDER BY sd.id DESC
+                        LIMIT 1) AS active_safe_date_id
+                      ,(SELECT sd.status
+                        FROM safe_dates sd
+                        WHERE sd.conversation_id = c.id
+                        ORDER BY sd.id DESC
+                        LIMIT 1) AS latest_safe_date_status
                 FROM conversations c
                 JOIN users u1 ON u1.id = c.user_one_id
                 JOIN users u2 ON u2.id = c.user_two_id

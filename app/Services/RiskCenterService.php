@@ -17,6 +17,7 @@ final class RiskCenterService extends Model
             'users' => $users,
             'invites_anomalies' => $this->inviteAnomalies(),
             'messages_anomalies' => $this->messageAnomalies(),
+            'safe_dates_anomalies' => $this->safeDateAnomalies(),
             'priority_queue' => [
                 'high' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'alta')),
                 'medium' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'média')),
@@ -130,6 +131,13 @@ final class RiskCenterService extends Model
                 GROUP BY sender_id
                 HAVING COUNT(*) >= 100
             ) t")['c'] ?? 0),
+            'safe_dates_decline_spike_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (
+                SELECT initiator_user_id
+                FROM safe_dates
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                GROUP BY initiator_user_id
+                HAVING SUM(CASE WHEN status='declined' THEN 1 ELSE 0 END) >= 6
+            ) t")['c'] ?? 0),
         ];
     }
 
@@ -160,6 +168,23 @@ final class RiskCenterService extends Model
             GROUP BY m.sender_id
             HAVING messages_24h >= 80
             ORDER BY messages_24h DESC
+            LIMIT 25");
+    }
+
+    private function safeDateAnomalies(): array
+    {
+        return $this->fetchAll("SELECT sd.initiator_user_id AS sender_id,
+                CONCAT(u.first_name, ' ', u.last_name) AS sender_name,
+                COUNT(*) AS safe_dates_30d,
+                SUM(CASE WHEN sd.status='declined' THEN 1 ELSE 0 END) AS declined_30d,
+                SUM(CASE WHEN sd.status='cancelled' THEN 1 ELSE 0 END) AS cancelled_30d,
+                ROUND((SUM(CASE WHEN sd.status='declined' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) AS decline_rate_30d
+            FROM safe_dates sd
+            INNER JOIN users u ON u.id = sd.initiator_user_id
+            WHERE sd.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY sd.initiator_user_id
+            HAVING safe_dates_30d >= 8 AND decline_rate_30d >= 55
+            ORDER BY decline_rate_30d DESC, safe_dates_30d DESC
             LIMIT 25");
     }
 }

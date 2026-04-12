@@ -7,6 +7,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Ativação da conta por pagamento inicial, subscrição mensal e boost pago.
 - Descoberta, swipe, match, mensagens, favoritos, bloqueios, denúncias e notificações.
 - Convite com Intenção + Quem Gostou de Mim (convites standard/prioritário com snapshot de intenção, ritmo e compatibilidade).
+- Encontro Seguro (ponte entre chat/match e encontro real com governança de estados, confiança e auditabilidade).
 - Modo do Coração + Ritmo Relacional (camada de momento) com edição no perfil, chips na descoberta e contexto no dashboard/chat.
 - Feed social com posts, likes, comentários, denúncia, paginação e media (upload múltiplo com thumbnails e ordenação).
 - Verificação de identidade e badges de confiança.
@@ -46,6 +47,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260411_connection_invites.sql
    mysql -u root -p < database/migrations/20260411_connection_invites_pending_uniqueness.sql
    mysql -u root -p < database/migrations/20260411_chat_realtime_receipts.sql
+   mysql -u root -p < database/migrations/20260412_safe_dates_module.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -172,6 +174,15 @@ Camada premium preparada:
 - `invitation_type` (`standard`, `priority`) pronto para destaque e ordenação avançada;
 - free vê recebidos com limite; premium vê lista completa e prioridade no topo.
 
+## Encontro Seguro (V1)
+Fluxo premium para transição segura do online ao encontro real:
+- `GET /dates`, `GET /dates/{id}`, `POST /dates/propose`, `POST /dates/{id}/accept`, `POST /dates/{id}/decline`, `POST /dates/{id}/cancel`, `POST /dates/{id}/reschedule`, `POST /dates/{id}/complete`.
+- Entidade própria (`safe_dates`) com histórico (`safe_date_status_history`) e machine state no backend.
+- Regras de elegibilidade: par com `match` ativo ou `connection_invite` aceite, bloqueios respeitados, contas `active`, proteção anti-duplicado em aberto e throttling de abuso.
+- Camada de confiança: `safety_level` (`standard`, `verified_only`, `premium_guard`), badges/verificação no detalhe do encontro e checklist de segurança institucional.
+- Integração nativa com chat: CTA para propor encontro direto na conversa e acesso rápido ao encontro ativo por `conversation_id`.
+- Integração institucional: notificações (`safe_date_*`), eventos em auditoria (`safe_date_created|accepted|declined|cancelled|rescheduled|completed|expired`) e sinais no centro de risco/super dashboard.
+
 ## Índices e migração
 `database/schema.sql` já inclui o estado consolidado atual (incluindo `user_connection_modes`, `activity_logs.rate_limit_key`, `activity_logs.rate_limit_outcome`, metadados de `post_images`, `message_attachments` e blindagem estrutural para existir no máximo 1 convite `pending` por par remetente→destinatário) para instalações novas.
 
@@ -182,6 +193,7 @@ As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260411_connection_invites.sql`;
 - `database/migrations/20260411_connection_invites_pending_uniqueness.sql`;
 - `database/migrations/20260411_chat_realtime_receipts.sql`.
+- `database/migrations/20260412_safe_dates_module.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;

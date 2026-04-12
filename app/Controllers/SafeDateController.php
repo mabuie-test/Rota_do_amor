@@ -1,0 +1,130 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Core\Auth;
+use App\Core\Controller;
+use App\Core\Flash;
+use App\Core\Request;
+use App\Core\Response;
+use App\Services\SafeDateService;
+
+final class SafeDateController extends Controller
+{
+    public function __construct(private readonly SafeDateService $service = new SafeDateService())
+    {
+    }
+
+    public function index(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $scope = (string) Request::input('scope', 'upcoming');
+        $items = $this->service->listForUser($userId, $scope);
+
+        $this->view('safe-dates/index', [
+            'title' => 'Encontro Seguro',
+            'items' => $items,
+            'scope' => $scope,
+            'prefill_invitee_id' => (int) Request::input('invitee_user_id', 0),
+            'prefill_conversation_id' => (int) Request::input('conversation_id', 0),
+        ]);
+    }
+
+    public function show(array $params): void
+    {
+        $userId = Auth::id() ?? 0;
+        $safeDateId = (int) ($params['id'] ?? 0);
+        $safeDate = $this->service->detailForUser($safeDateId, $userId);
+
+        if ($safeDate === []) {
+            Response::abort(404, 'Encontro seguro não encontrado.');
+        }
+
+        $this->view('safe-dates/show', [
+            'title' => 'Detalhe do Encontro Seguro',
+            'safe_date' => $safeDate,
+        ]);
+    }
+
+    public function propose(): void
+    {
+        $result = $this->service->propose(Auth::id() ?? 0, Request::all());
+
+        if (Request::expectsJson()) {
+            Response::json($result, !empty($result['ok']) ? 200 : 422);
+        }
+
+        if (!empty($result['ok'])) {
+            Flash::set('success', 'Encontro Seguro proposto com sucesso.');
+            Response::redirect('/dates/' . (int) ($result['safe_date_id'] ?? 0));
+        }
+
+        Flash::set('error', (string) ($result['message'] ?? 'Não foi possível criar o encontro seguro.'));
+        Response::redirect('/dates');
+    }
+
+    public function accept(array $params): void
+    {
+        $this->handleTransition('accept', (int) ($params['id'] ?? 0));
+    }
+
+    public function decline(array $params): void
+    {
+        $this->handleTransition('decline', (int) ($params['id'] ?? 0), (string) Request::input('reason', ''));
+    }
+
+    public function cancel(array $params): void
+    {
+        $this->handleTransition('cancel', (int) ($params['id'] ?? 0), (string) Request::input('reason', ''));
+    }
+
+    public function reschedule(array $params): void
+    {
+        $safeDateId = (int) ($params['id'] ?? 0);
+        $result = $this->service->requestReschedule(
+            $safeDateId,
+            Auth::id() ?? 0,
+            (string) Request::input('proposed_datetime', ''),
+            (string) Request::input('reason', '')
+        );
+
+        $this->respondTransition($safeDateId, $result, 'Remarcação solicitada com sucesso.');
+    }
+
+    public function complete(array $params): void
+    {
+        $this->handleTransition('complete', (int) ($params['id'] ?? 0));
+    }
+
+    private function handleTransition(string $action, int $safeDateId, ?string $reason = null): void
+    {
+        $result = match ($action) {
+            'accept' => $this->service->accept($safeDateId, Auth::id() ?? 0),
+            'decline' => $this->service->decline($safeDateId, Auth::id() ?? 0, $reason),
+            'cancel' => $this->service->cancel($safeDateId, Auth::id() ?? 0, $reason),
+            'complete' => $this->service->complete($safeDateId, Auth::id() ?? 0),
+            default => ['ok' => false, 'message' => 'Ação inválida'],
+        };
+
+        $success = [
+            'accept' => 'Encontro aceite com sucesso.',
+            'decline' => 'Encontro recusado.',
+            'cancel' => 'Encontro cancelado.',
+            'complete' => 'Encontro marcado como concluído.',
+        ];
+
+        $this->respondTransition($safeDateId, $result, $success[$action] ?? 'Operação concluída.');
+    }
+
+    private function respondTransition(int $safeDateId, array $result, string $successMessage): void
+    {
+        if (Request::expectsJson()) {
+            Response::json($result, !empty($result['ok']) ? 200 : 422);
+        }
+
+        Flash::set(!empty($result['ok']) ? 'success' : 'error', !empty($result['ok']) ? $successMessage : (string) ($result['message'] ?? 'Operação inválida.'));
+        Response::redirect('/dates/' . $safeDateId);
+    }
+}
