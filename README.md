@@ -10,7 +10,9 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Modo do Coração + Ritmo Relacional (camada de momento) com edição no perfil, chips na descoberta e contexto no dashboard/chat.
 - Feed social com posts, likes, comentários, denúncia, paginação e media (upload múltiplo com thumbnails e ordenação).
 - Verificação de identidade e badges de confiança.
-- Painel admin com dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
+- Painel admin consolidado com transição central de status, dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
+- Camada Super Admin com gestão de admins/papéis, centro de auditoria, dashboard executivo, centro de risco & abuso e analytics agregados do Diário do Coração.
+- Diário do Coração (privado/premium): criação, edição, listagem, detalhe, remoção, filtros por humor/período e resumo no dashboard pessoal.
 - Scripts CLI para reconciliação de pagamentos, expiração de subscrições/boosts e envio de lembretes.
 
 ## Requisitos
@@ -199,3 +201,30 @@ A segunda migração adiciona:
 - `app/Views`: interface web
 - `database/`: schema, seeds e migrações
 - `scripts/`: automações operacionais
+
+
+## Diário do Coração (privado)
+- Rotas de utilizador:
+  - `GET /diary`
+  - `GET /diary/new`
+  - `POST /diary`
+  - `GET /diary/{id}`
+  - `POST /diary/{id}`
+  - `POST /diary/{id}/delete`
+- Campos principais da entrada:
+  - `title`, `content`, `mood`, `emotional_state`, `relational_focus`, `visibility`
+  - `intention_snapshot`, `relational_pace_snapshot`, `tags_json`
+- Privacidade: por padrão `visibility=private` e conteúdo não é exposto para outros utilizadores ou admins comuns.
+
+## Super Admin (novos centros)
+- `GET /admin/super-dashboard`: visão macro do negócio + alertas críticos.
+- `GET /admin/admins`: gestão de admins, papéis e ativação/inativação.
+- `GET /admin/audit`: centro de auditoria global com filtros por actor, acção, alvo e período.
+- `GET /admin/risk`: centro de risco/abuso com contas suspeitas por sinais agregados.
+
+## Operação rápida (checklist)
+1. Verificar saúde: login admin, dashboard executivo, denúncias pendentes e pagamentos falhados.
+2. Validar filas operacionais: verificações de identidade pendentes e reconciliação financeira.
+3. Monitorar auditoria: mudanças de status, ações sensíveis e alterações em `site_settings`.
+4. Revisar risco: utilizadores com reincidência de denúncias/bloqueios e anomalias de mensagens.
+5. Confirmar retenção: métricas agregadas do Diário do Coração no super dashboard.

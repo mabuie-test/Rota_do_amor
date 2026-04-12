@@ -25,6 +25,7 @@ $navItems = [
     '/invites/received' => ['label' => 'Gostaram de Mim', 'icon' => 'fa-envelope-open-heart'],
     '/feed' => ['label' => 'Feed', 'icon' => 'fa-sparkles'],
     '/notifications' => ['label' => 'Notificações', 'icon' => 'fa-circle-check'],
+    '/diary' => ['label' => 'Diário', 'icon' => 'fa-book-heart'],
     '/profile' => ['label' => 'Perfil', 'icon' => 'fa-heart-pulse'],
 ];
 ?>

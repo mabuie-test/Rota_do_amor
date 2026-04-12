@@ -5,6 +5,7 @@ use App\Controllers\AuthController;
 use App\Controllers\BlockController;
 use App\Controllers\ConnectionController;
 use App\Controllers\ConnectionInviteController;
+use App\Controllers\DiaryController;
 use App\Controllers\DiscoverController;
 use App\Controllers\FavoriteController;
 use App\Controllers\FeedController;
@@ -66,6 +67,14 @@ $router->add('GET', '/invites/sent', [ConnectionInviteController::class, 'sent']
 $router->add('POST', '/invites/send', [ConnectionInviteController::class, 'send'], $coreAccess);
 $router->add('POST', '/invites/accept', [ConnectionInviteController::class, 'accept'], $coreAccess);
 $router->add('POST', '/invites/decline', [ConnectionInviteController::class, 'decline'], $coreAccess);
+
+
+$router->add('GET', '/diary', [DiaryController::class, 'index'], $coreAccess);
+$router->add('GET', '/diary/new', [DiaryController::class, 'new'], $coreAccess);
+$router->add('POST', '/diary', [DiaryController::class, 'create'], $coreAccess);
+$router->add('GET', '/diary/{id}', [DiaryController::class, 'show'], $coreAccess);
+$router->add('POST', '/diary/{id}', [DiaryController::class, 'update'], $coreAccess);
+$router->add('POST', '/diary/{id}/delete', [DiaryController::class, 'delete'], $coreAccess);
 
 $router->add('GET', '/settings', [SettingsController::class, 'index'], $coreAccess);
 $router->add('POST', '/settings/update', [SettingsController::class, 'update'], $coreAccess);
