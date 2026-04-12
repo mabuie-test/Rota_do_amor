@@ -9,4 +9,10 @@ INSERT INTO site_settings (setting_key,setting_value,value_type,updated_at) VALU
 ('boost_price','25','int',NOW()),
 ('boost_duration_hours','24','int',NOW()),
 ('email_verification_required','true','bool',NOW()),
-('allow_chat_only_after_match','true','bool',NOW());
+('allow_chat_only_after_match','true','bool',NOW()),
+('safe_dates_premium_guard_enabled','true','bool',NOW()),
+('safe_dates_free_daily_limit','5','int',NOW()),
+('safe_dates_premium_daily_limit','10','int',NOW()),
+('safe_dates_verified_only_requires_identity','true','bool',NOW()),
+('safe_dates_max_open_free','2','int',NOW()),
+('safe_dates_max_open_premium','5','int',NOW());

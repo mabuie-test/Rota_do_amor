@@ -15,6 +15,7 @@
       '/admin/admins' => ['fa-user-shield', 'Admins & Papéis'],
       '/admin/audit' => ['fa-clipboard-list', 'Auditoria'],
       '/admin/risk' => ['fa-triangle-exclamation', 'Risco & Abuso'],
+      '/admin/safe-dates' => ['fa-shield-heart', 'Encontro Seguro'],
       '/admin/settings' => ['fa-gear', 'Configurações'],
   ];
   foreach ($adminLinks as $href => [$icon, $label]):

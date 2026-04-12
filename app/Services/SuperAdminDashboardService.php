@@ -39,6 +39,9 @@ final class SuperAdminDashboardService extends Model
             'safe_dates_cancellation_rate_30_days' => (float) ($safeDateMetrics['cancellation_rate'] ?? 0),
             'safe_dates_reschedule_rate_30_days' => (float) ($safeDateMetrics['reschedule_rate'] ?? 0),
             'safe_dates_users_using_module_30_days' => (int) ($safeDateMetrics['users_using_module'] ?? 0),
+            'safe_dates_safety_signals_30_days' => (int) ($safeDateMetrics['institutional_safety_signals_total'] ?? 0),
+            'safe_dates_proposed_by_premium_30_days' => (int) ($safeDateMetrics['proposed_by_premium_total'] ?? 0),
+            'safe_dates_proposed_by_free_30_days' => (int) ($safeDateMetrics['proposed_by_free_total'] ?? 0),
         ];
 
         $operations = [
@@ -74,6 +77,7 @@ final class SuperAdminDashboardService extends Model
             'trend' => [
                 'new_users_variation_7_days' => $this->percentageVariation($product['new_users_7_days'], $product['new_users_prev_7_days']),
                 'revenue_variation_30_days' => $this->percentageVariation((float) $finance['revenue_30_days'], (float) $finance['revenue_prev_30_days']),
+                'safe_dates_daily_trend_30_days' => $safeDateMetrics['daily_trend'] ?? [],
             ],
             'critical_alerts' => $this->criticalAlerts($operations, $finance, $risk['overview'], $diary),
             'action_required' => $this->actionRequired($operations, $risk['overview']),
@@ -98,7 +102,21 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Taxa recusa (30d)', 'value' => ($product['safe_dates_decline_rate_30_days'] ?? 0) . '%'],
                     ['label' => 'Taxa cancelamento (30d)', 'value' => ($product['safe_dates_cancellation_rate_30_days'] ?? 0) . '%'],
                     ['label' => 'Taxa remarcação (30d)', 'value' => ($product['safe_dates_reschedule_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa conclusão (30d)', 'value' => ($product['safe_dates_completion_rate_30_days'] ?? 0) . '%'],
                     ['label' => 'Utilizadores no módulo (30d)', 'value' => $product['safe_dates_users_using_module_30_days'] ?? 0],
+                    ['label' => 'Sinais segurança (30d)', 'value' => $product['safe_dates_safety_signals_30_days'] ?? 0],
+                    ['label' => 'Adoção premium/free (30d)', 'value' => ($product['safe_dates_proposed_by_premium_30_days'] ?? 0) . ' / ' . ($product['safe_dates_proposed_by_free_30_days'] ?? 0)],
+                ],
+            ],
+            'safe_dates' => [
+                'title' => 'Encontro Seguro',
+                'items' => [
+                    ['label' => 'Propostos (30d)', 'value' => $product['safe_dates_proposed_30_days'] ?? 0],
+                    ['label' => 'Taxa aceite', 'value' => ($product['safe_dates_acceptance_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa recusa', 'value' => ($product['safe_dates_decline_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa cancelamento', 'value' => ($product['safe_dates_cancellation_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa remarcação', 'value' => ($product['safe_dates_reschedule_rate_30_days'] ?? 0) . '%'],
+                    ['label' => 'Taxa conclusão', 'value' => ($product['safe_dates_completion_rate_30_days'] ?? 0) . '%'],
                 ],
             ],
             'finance' => [
@@ -180,6 +198,10 @@ final class SuperAdminDashboardService extends Model
 
         if ((int) ($risk['users_flagged'] ?? 0) > 0) {
             $queue[] = ['label' => 'Analisar utilizadores de risco', 'url' => '/admin/risk', 'count' => (int) $risk['users_flagged']];
+        }
+
+        if ((int) ($risk['safe_dates_safety_signals_30d'] ?? 0) > 0) {
+            $queue[] = ['label' => 'Investigar Encontro Seguro', 'url' => '/admin/safe-dates', 'count' => (int) $risk['safe_dates_safety_signals_30d']];
         }
 
         return $queue;

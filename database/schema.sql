@@ -442,7 +442,9 @@ CREATE TABLE safe_dates (
   INDEX idx_safe_dates_pair_status (initiator_user_id, invitee_user_id, status),
   INDEX idx_safe_dates_expires (status, expires_at),
   INDEX idx_safe_dates_reschedule_pending (status, reschedule_requested_by_user_id, reschedule_requested_at),
-  INDEX idx_safe_dates_reminder_windows (status, proposed_datetime, reminder_24h_sent_at, reminder_2h_sent_at)
+  INDEX idx_safe_dates_reminder_windows (status, proposed_datetime, reminder_24h_sent_at, reminder_2h_sent_at),
+  INDEX idx_safe_dates_admin_filters (status, safety_level, created_at, id),
+  INDEX idx_safe_dates_admin_participants (initiator_user_id, invitee_user_id, created_at)
 );
 
 CREATE TABLE safe_date_status_history (

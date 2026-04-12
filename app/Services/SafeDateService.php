@@ -130,8 +130,10 @@ final class SafeDateService extends Model
     {
         $inviteeId = (int) ($input['invitee_user_id'] ?? 0);
         $rateKey = 'safe_date_propose:' . $initiatorId;
+        $policy = $this->safeDatePremiumPolicy();
+        $hasPremium = $this->premium->userHasPremium($initiatorId);
 
-        $proposeLimit = $this->premium->userHasPremium($initiatorId) ? 10 : 5;
+        $proposeLimit = $hasPremium ? (int) ($policy['premium_daily_limit'] ?? 10) : (int) ($policy['free_daily_limit'] ?? 5);
         if (
             $this->rateLimiter->tooManyAttempts('safe_date_propose', $rateKey, $proposeLimit, 1440, 'success')
             || $this->rateLimiter->tooManyAttempts('safe_date_propose', $rateKey, 18, 1440, 'any')
@@ -139,6 +141,12 @@ final class SafeDateService extends Model
             return ['ok' => false, 'message' => 'Limite diário de propostas atingido para o teu plano atual.'];
         }
         $this->rateLimiter->hit('safe_date_propose', $rateKey, $initiatorId);
+
+        $openLimit = $hasPremium ? (int) ($policy['max_open_premium'] ?? 5) : (int) ($policy['max_open_free'] ?? 2);
+        if ($this->userOpenSafeDatesCount($initiatorId) >= $openLimit) {
+            $this->rateLimiter->hitFailure('safe_date_propose', $rateKey, $initiatorId, ['reason' => 'plan_open_limit']);
+            return ['ok' => false, 'message' => 'O teu plano atingiu o limite de encontros em aberto.'];
+        }
 
         $validation = $this->validatePairEligibility($initiatorId, $inviteeId, (string) ($input['safety_level'] ?? 'standard'));
         if (!$validation['ok']) {
@@ -210,7 +218,7 @@ final class SafeDateService extends Model
                 ['safe_date_id' => $safeDateId, 'conversation_id' => $context['conversation_id']]
             );
             $this->audit->logSystemEvent('safe_date_created', 'safe_date', $safeDateId, ['origin' => 'safe_dates', 'initiator_user_id' => $initiatorId, 'invitee_user_id' => $inviteeId, 'safety_level' => $safetyLevel]);
-            $this->rateLimiter->hitSuccess('safe_date_propose', $rateKey, $initiatorId, ['safe_date_id' => $safeDateId, 'premium' => $this->premium->userHasPremium($initiatorId)]);
+            $this->rateLimiter->hitSuccess('safe_date_propose', $rateKey, $initiatorId, ['safe_date_id' => $safeDateId, 'premium' => $hasPremium]);
 
             return ['ok' => true, 'safe_date_id' => $safeDateId];
         } catch (\Throwable) {
@@ -496,6 +504,8 @@ final class SafeDateService extends Model
                     SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancelled_total,
                     SUM(CASE WHEN status='reschedule_requested' OR status='rescheduled' THEN 1 ELSE 0 END) AS rescheduled_total,
                     SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_total,
+                    SUM(CASE WHEN safety_signal_level IN ('attention','emergency') THEN 1 ELSE 0 END) AS institutional_safety_signals_total,
+                    SUM(CASE WHEN EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = initiator_user_id AND s.status='active' AND s.ends_at > NOW()) THEN 1 ELSE 0 END) AS proposed_by_premium_total,
                     COUNT(DISTINCT initiator_user_id) AS unique_initiators,
                     COUNT(DISTINCT invitee_user_id) AS unique_invitees
                 FROM safe_dates
@@ -513,13 +523,183 @@ final class SafeDateService extends Model
             'cancelled_total' => (int) ($base['cancelled_total'] ?? 0),
             'rescheduled_total' => (int) ($base['rescheduled_total'] ?? 0),
             'completed_total' => (int) ($base['completed_total'] ?? 0),
+            'institutional_safety_signals_total' => (int) ($base['institutional_safety_signals_total'] ?? 0),
+            'proposed_by_premium_total' => (int) ($base['proposed_by_premium_total'] ?? 0),
+            'proposed_by_free_total' => max(0, $proposed - (int) ($base['proposed_by_premium_total'] ?? 0)),
             'acceptance_rate' => $rate((int) ($base['accepted_total'] ?? 0)),
             'decline_rate' => $rate((int) ($base['declined_total'] ?? 0)),
             'cancellation_rate' => $rate((int) ($base['cancelled_total'] ?? 0)),
             'reschedule_rate' => $rate((int) ($base['rescheduled_total'] ?? 0)),
             'completion_rate' => $rate((int) ($base['completed_total'] ?? 0)),
             'users_using_module' => ((int) ($base['unique_initiators'] ?? 0)) + ((int) ($base['unique_invitees'] ?? 0)),
+            'daily_trend' => $this->adminDailyTrend($windowDays),
         ];
+    }
+
+    public function adminList(array $filters = []): array
+    {
+        $allowedStatuses = ['proposed', 'accepted', 'declined', 'cancelled', 'reschedule_requested', 'rescheduled', 'completed', 'expired'];
+        $allowedSafetyLevels = ['standard', 'verified_only', 'premium_guard'];
+
+        $status = trim((string) ($filters['status'] ?? ''));
+        $safetyLevel = trim((string) ($filters['safety_level'] ?? ''));
+        $from = trim((string) ($filters['from'] ?? ''));
+        $to = trim((string) ($filters['to'] ?? ''));
+        $initiatorUserId = max(0, (int) ($filters['initiator_user_id'] ?? 0));
+        $inviteeUserId = max(0, (int) ($filters['invitee_user_id'] ?? 0));
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $perPage = max(20, min((int) ($filters['per_page'] ?? 25), 100));
+        $offset = ($page - 1) * $perPage;
+
+        $conditions = [];
+        $params = [];
+
+        if (in_array($status, $allowedStatuses, true)) {
+            $conditions[] = 'sd.status = :status';
+            $params[':status'] = $status;
+        } else {
+            $status = '';
+        }
+
+        if (in_array($safetyLevel, $allowedSafetyLevels, true)) {
+            $conditions[] = 'sd.safety_level = :safety_level';
+            $params[':safety_level'] = $safetyLevel;
+        } else {
+            $safetyLevel = '';
+        }
+
+        if ($from !== '') {
+            $conditions[] = 'sd.created_at >= :from';
+            $params[':from'] = $from . ' 00:00:00';
+        }
+
+        if ($to !== '') {
+            $conditions[] = 'sd.created_at <= :to';
+            $params[':to'] = $to . ' 23:59:59';
+        }
+
+        if ($initiatorUserId > 0) {
+            $conditions[] = 'sd.initiator_user_id = :initiator_user_id';
+            $params[':initiator_user_id'] = $initiatorUserId;
+        }
+
+        if ($inviteeUserId > 0) {
+            $conditions[] = 'sd.invitee_user_id = :invitee_user_id';
+            $params[':invitee_user_id'] = $inviteeUserId;
+        }
+
+        $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
+        $total = (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM safe_dates sd {$where}", $params)['c'] ?? 0);
+
+        $items = $this->fetchAllRows(
+            "SELECT sd.id, sd.initiator_user_id, sd.invitee_user_id, sd.title, sd.meeting_type, sd.proposed_location, sd.proposed_datetime, sd.status, sd.safety_level,
+                    sd.safety_signal_level, sd.created_at, sd.updated_at, sd.match_id, sd.conversation_id,
+                    CONCAT(iu.first_name, ' ', iu.last_name) AS initiator_name,
+                    CONCAT(iv.first_name, ' ', iv.last_name) AS invitee_name,
+                    iu.status AS initiator_status,
+                    iv.status AS invitee_status,
+                    EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = sd.initiator_user_id AND s.status='active' AND s.ends_at > NOW()) AS initiator_has_premium
+            FROM safe_dates sd
+            INNER JOIN users iu ON iu.id = sd.initiator_user_id
+            INNER JOIN users iv ON iv.id = sd.invitee_user_id
+            {$where}
+            ORDER BY sd.created_at DESC, sd.id DESC
+            LIMIT {$perPage} OFFSET {$offset}",
+            $params
+        );
+
+        return [
+            'items' => $items,
+            'filters' => [
+                'status' => $status,
+                'safety_level' => $safetyLevel,
+                'from' => $from,
+                'to' => $to,
+                'initiator_user_id' => $initiatorUserId,
+                'invitee_user_id' => $inviteeUserId,
+                'page' => $page,
+                'per_page' => $perPage,
+            ],
+            'pagination' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
+                'total_pages' => (int) max(1, ceil($total / max(1, $perPage))),
+            ],
+            'totals' => [
+                'in_open_state' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_dates WHERE status IN ('proposed','accepted','reschedule_requested','rescheduled')")['c'] ?? 0),
+                'safety_signals_30d' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_date_private_feedback WHERE safety_signal IN ('attention','emergency') AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
+                'completed_30d' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_dates WHERE status='completed' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
+            ],
+            'statuses' => $allowedStatuses,
+            'safety_levels' => $allowedSafetyLevels,
+            'premium_policy' => $this->safeDatePremiumPolicy(),
+        ];
+    }
+
+    public function adminDetail(int $safeDateId): array
+    {
+        $safeDate = $this->fetchOne(
+            "SELECT sd.*,
+                    CONCAT(iu.first_name, ' ', iu.last_name) AS initiator_name,
+                    iu.email AS initiator_email,
+                    iu.status AS initiator_status,
+                    CONCAT(iv.first_name, ' ', iv.last_name) AS invitee_name,
+                    iv.email AS invitee_email,
+                    iv.status AS invitee_status
+             FROM safe_dates sd
+             INNER JOIN users iu ON iu.id = sd.initiator_user_id
+             INNER JOIN users iv ON iv.id = sd.invitee_user_id
+             WHERE sd.id = :id
+             LIMIT 1",
+            [':id' => $safeDateId]
+        ) ?: [];
+
+        if ($safeDate === []) {
+            return [];
+        }
+
+        $initiatorId = (int) ($safeDate['initiator_user_id'] ?? 0);
+        $inviteeId = (int) ($safeDate['invitee_user_id'] ?? 0);
+
+        $safeDate['history'] = $this->fetchAllRows(
+            "SELECT h.id, h.actor_user_id, h.old_status, h.new_status, h.reason, h.metadata_json, h.created_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS actor_name
+             FROM safe_date_status_history h
+             LEFT JOIN users u ON u.id = h.actor_user_id
+             WHERE h.safe_date_id = :id
+             ORDER BY h.id DESC",
+            [':id' => $safeDateId]
+        );
+
+        $safeDate['feedback_entries'] = $this->fetchAllRows(
+            "SELECT f.user_id, CONCAT(u.first_name, ' ', u.last_name) AS user_name, f.rating, f.feedback_note, f.safety_signal, f.safety_note, f.created_at, f.updated_at
+             FROM safe_date_private_feedback f
+             INNER JOIN users u ON u.id = f.user_id
+             WHERE f.safe_date_id = :id
+             ORDER BY f.id DESC",
+            [':id' => $safeDateId]
+        );
+
+        $safeDate['verification_summary'] = [
+            'initiator_verified' => (bool) $this->isIdentityVerified($initiatorId),
+            'invitee_verified' => (bool) $this->isIdentityVerified($inviteeId),
+            'initiator_badges' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM user_badges WHERE user_id = :id AND is_active = 1', [':id' => $initiatorId])['c'] ?? 0),
+            'invitee_badges' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM user_badges WHERE user_id = :id AND is_active = 1', [':id' => $inviteeId])['c'] ?? 0),
+        ];
+
+        $safeDate['risk_signals'] = $this->safeDateRiskSignals($safeDateId, $initiatorId, $inviteeId);
+        $safeDate['links'] = [
+            'initiator' => '/admin/users/' . $initiatorId,
+            'invitee' => '/admin/users/' . $inviteeId,
+            'audit' => '/admin/audit?target_type=safe_date&target_id=' . $safeDateId,
+            'risk' => '/admin/risk',
+            'moderation' => '/admin/moderation',
+            'conversation' => (int) ($safeDate['conversation_id'] ?? 0) > 0 ? '/messages/' . (int) ($safeDate['conversation_id']) : null,
+        ];
+        $safeDate['premium_policy'] = $this->safeDatePremiumPolicy();
+
+        return $safeDate;
     }
 
     public function expirePendingForUser(int $userId): int
@@ -622,6 +802,8 @@ final class SafeDateService extends Model
 
     private function validatePairEligibility(int $initiatorId, int $inviteeId, string $safetyLevel): array
     {
+        $policy = $this->safeDatePremiumPolicy();
+
         if ($initiatorId <= 0 || $inviteeId <= 0 || $initiatorId === $inviteeId) {
             return ['ok' => false, 'message' => 'Par inválido para encontro seguro.'];
         }
@@ -641,11 +823,15 @@ final class SafeDateService extends Model
             return ['ok' => false, 'message' => 'Este encontro não pode ser criado por bloqueio activo entre os perfis.'];
         }
 
+        if ($safetyLevel === 'premium_guard' && empty($policy['premium_guard_enabled'])) {
+            return ['ok' => false, 'message' => 'Nível premium_guard encontra-se temporariamente indisponível.'];
+        }
+
         if ($safetyLevel === 'premium_guard' && !$this->premium->userHasPremium($initiatorId)) {
             return ['ok' => false, 'message' => 'Nível de segurança premium_guard disponível apenas para premium activo.'];
         }
 
-        if ($safetyLevel === 'verified_only') {
+        if ($safetyLevel === 'verified_only' && !empty($policy['verified_only_requires_identity'])) {
             $verifiedA = $this->isIdentityVerified($initiatorId);
             $verifiedB = $this->isIdentityVerified($inviteeId);
             if (!$verifiedA || !$verifiedB) {
@@ -782,8 +968,116 @@ final class SafeDateService extends Model
 
     private function normalizeSafetyLevel(string $value): string
     {
-        $allowed = ['standard', 'verified_only', 'premium_guard'];
+        $policy = $this->safeDatePremiumPolicy();
+        $allowed = ['standard', 'verified_only'];
+        if (!empty($policy['premium_guard_enabled'])) {
+            $allowed[] = 'premium_guard';
+        }
+
         return in_array($value, $allowed, true) ? $value : 'standard';
+    }
+
+    private function safeDatePremiumPolicy(): array
+    {
+        static $cache = null;
+        if (is_array($cache)) {
+            return $cache;
+        }
+
+        $keys = [
+            'safe_dates_premium_guard_enabled',
+            'safe_dates_free_daily_limit',
+            'safe_dates_premium_daily_limit',
+            'safe_dates_verified_only_requires_identity',
+            'safe_dates_max_open_free',
+            'safe_dates_max_open_premium',
+        ];
+        $in = "'" . implode("','", $keys) . "'";
+        $rows = $this->fetchAllRows("SELECT setting_key, setting_value, value_type FROM site_settings WHERE setting_key IN ({$in})");
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string) ($row['setting_key'] ?? '')] = $row['setting_value'] ?? null;
+        }
+
+        $cache = [
+            'premium_guard_enabled' => $this->toBool($map['safe_dates_premium_guard_enabled'] ?? null, true),
+            'free_daily_limit' => $this->toInt($map['safe_dates_free_daily_limit'] ?? null, 5, 1, 30),
+            'premium_daily_limit' => $this->toInt($map['safe_dates_premium_daily_limit'] ?? null, 10, 1, 60),
+            'verified_only_requires_identity' => $this->toBool($map['safe_dates_verified_only_requires_identity'] ?? null, true),
+            'max_open_free' => $this->toInt($map['safe_dates_max_open_free'] ?? null, 2, 1, 10),
+            'max_open_premium' => $this->toInt($map['safe_dates_max_open_premium'] ?? null, 5, 1, 20),
+        ];
+
+        return $cache;
+    }
+
+    private function userOpenSafeDatesCount(int $userId): int
+    {
+        return (int) ($this->fetchOne(
+            "SELECT COUNT(*) c FROM safe_dates
+             WHERE (initiator_user_id = :id OR invitee_user_id = :id)
+               AND status IN ('proposed','accepted','reschedule_requested','rescheduled')",
+            [':id' => $userId]
+        )['c'] ?? 0);
+    }
+
+    private function safeDateRiskSignals(int $safeDateId, int $initiatorId, int $inviteeId): array
+    {
+        $ids = [$initiatorId, $inviteeId];
+        $users = [];
+
+        foreach ($ids as $id) {
+            $users[] = [
+                'user_id' => $id,
+                'reports_30d' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM reports WHERE target_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)', [':id' => $id])['c'] ?? 0),
+                'blocks_30d' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM blocks WHERE target_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)', [':id' => $id])['c'] ?? 0),
+                'safe_dates_30d' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM safe_dates WHERE initiator_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)', [':id' => $id])['c'] ?? 0),
+                'declined_30d' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_dates WHERE initiator_user_id = :id AND status='declined' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", [':id' => $id])['c'] ?? 0),
+                'rescheduled_30d' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_dates WHERE initiator_user_id = :id AND status IN ('reschedule_requested','rescheduled') AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", [':id' => $id])['c'] ?? 0),
+                'cancelled_30d' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_dates WHERE initiator_user_id = :id AND status='cancelled' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", [':id' => $id])['c'] ?? 0),
+            ];
+        }
+
+        return [
+            'private_safety_signals' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM safe_date_private_feedback WHERE safe_date_id = :id AND safety_signal IN ('attention','emergency')", [':id' => $safeDateId])['c'] ?? 0),
+            'high_level' => (string) ($this->fetchOne('SELECT safety_signal_level FROM safe_dates WHERE id = :id LIMIT 1', [':id' => $safeDateId])['safety_signal_level'] ?? 'none'),
+            'users' => $users,
+            'audit_events' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM activity_logs WHERE target_type = :target_type AND target_id = :target_id', [':target_type' => 'safe_date', ':target_id' => $safeDateId])['c'] ?? 0),
+        ];
+    }
+
+    private function adminDailyTrend(int $windowDays): array
+    {
+        return $this->fetchAllRows(
+            "SELECT DATE(created_at) AS day,
+                    COUNT(*) AS proposed_total,
+                    SUM(CASE WHEN status IN ('accepted','rescheduled','completed') THEN 1 ELSE 0 END) AS accepted_total,
+                    SUM(CASE WHEN status='declined' THEN 1 ELSE 0 END) AS declined_total,
+                    SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancelled_total,
+                    SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) AS completed_total
+             FROM safe_dates
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL {$windowDays} DAY)
+             GROUP BY DATE(created_at)
+             ORDER BY day ASC"
+        );
+    }
+
+    private function toBool(mixed $value, bool $default): bool
+    {
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        return (bool) filter_var((string) $value, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function toInt(mixed $value, int $default, int $min, int $max): int
+    {
+        if (!is_numeric($value)) {
+            return $default;
+        }
+
+        return max($min, min($max, (int) $value));
     }
 
     private function generateConfirmationCode(): string
