@@ -26,6 +26,10 @@ final class SuperAdminDashboardService extends Model
             'paid_activations' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM users WHERE activation_paid_at IS NOT NULL")['c'] ?? 0),
             'active_subscriptions' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM subscriptions WHERE status='active' AND ends_at > NOW()")['c'] ?? 0),
             'active_boosts' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM user_boosts WHERE status='active' AND ends_at > NOW()")['c'] ?? 0),
+            'match_to_conversation_30_days' => round((float) ($this->fetchOne("SELECT COALESCE(100 * (
+                (SELECT COUNT(*) FROM conversations WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
+                / NULLIF((SELECT COUNT(*) FROM matches WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)), 0)
+            ),0) AS v")['v'] ?? 0), 2),
         ];
 
         $operations = [
@@ -41,6 +45,7 @@ final class SuperAdminDashboardService extends Model
             'payments_failed_7_days' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['c'] ?? 0),
             'revenue_7_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['s'] ?? 0),
             'revenue_30_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['s'] ?? 0),
+            'revenue_prev_30_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND paid_at < DATE_SUB(NOW(), INTERVAL 30 DAY)")['s'] ?? 0),
         ];
 
         $risk = $this->risk->build();
@@ -49,8 +54,17 @@ final class SuperAdminDashboardService extends Model
             'product' => $product,
             'operations' => $operations,
             'finance' => $finance,
+            'moderation' => [
+                'reports_pending' => $operations['pending_reports'],
+                'verifications_pending' => $operations['pending_verifications'],
+                'suspended_or_banned' => $operations['suspended_or_banned'],
+            ],
             'risk' => $risk['overview'],
             'diary' => $diary,
+            'trend' => [
+                'new_users_variation_7_days' => $this->percentageVariation($product['new_users_7_days'], $product['new_users_prev_7_days']),
+                'revenue_variation_30_days' => $this->percentageVariation((float) $finance['revenue_30_days'], (float) $finance['revenue_prev_30_days']),
+            ],
             'critical_alerts' => $this->criticalAlerts($operations, $finance, $risk['overview']),
             'action_required' => $this->actionRequired($operations, $risk['overview']),
             'recent_activity' => $this->fetchAll('SELECT action, actor_type, target_type, target_id, created_at FROM activity_logs ORDER BY id DESC LIMIT 12'),
@@ -96,5 +110,15 @@ final class SuperAdminDashboardService extends Model
         }
 
         return $queue;
+    }
+
+    private function percentageVariation(float|int $current, float|int $previous): float
+    {
+        $previous = (float) $previous;
+        if ($previous <= 0.0) {
+            return $current > 0 ? 100.0 : 0.0;
+        }
+
+        return round((((float) $current - $previous) / $previous) * 100, 2);
     }
 }

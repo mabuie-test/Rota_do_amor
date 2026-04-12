@@ -10,11 +10,17 @@ final class RiskCenterService extends Model
 {
     public function build(): array
     {
+        $users = $this->suspiciousUsers();
+
         return [
             'overview' => $this->overview(),
-            'users' => $this->suspiciousUsers(),
+            'users' => $users,
             'invites_anomalies' => $this->inviteAnomalies(),
             'messages_anomalies' => $this->messageAnomalies(),
+            'priority_queue' => [
+                'high' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'alta')),
+                'medium' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'média')),
+            ],
         ];
     }
 
@@ -78,6 +84,9 @@ final class RiskCenterService extends Model
             $row['risk_score'] = min(100, $score);
             $row['risk_priority'] = $score >= 70 ? 'alta' : ($score >= 40 ? 'média' : 'baixa');
             $row['risk_reasons'] = $reasons;
+            $row['priority_label'] = $row['risk_priority'] === 'alta' ? 'Intervenção imediata' : ($row['risk_priority'] === 'média' ? 'Monitorar com moderação' : 'Acompanhar');
+            $row['user_detail_url'] = '/admin/users/' . (int) ($row['id'] ?? 0);
+            $row['moderation_url'] = '/admin/moderation';
 
             return $row;
         }, $rows);

@@ -35,12 +35,32 @@ final class AdminManagementService extends Model
 
     public function listAdmins(): array
     {
-        return $this->fetchAll('SELECT a.id,a.name,a.email,a.role,a.status,a.created_at,a.updated_at, creator.name AS created_by_name
+        return $this->fetchAll('SELECT a.id,a.name,a.email,a.role,a.status,a.created_at,a.updated_at,
+            creator.name AS created_by_name,
+            updater.name AS last_updated_by_name
             FROM admins a
-            LEFT JOIN activity_logs l ON l.action = "admin_created" AND l.target_type = "admin" AND l.target_id = a.id
-            LEFT JOIN admins creator ON creator.id = l.actor_id
+            LEFT JOIN activity_logs created_log ON created_log.action = "admin_created" AND created_log.target_type = "admin" AND created_log.target_id = a.id
+            LEFT JOIN admins creator ON creator.id = created_log.actor_id
+            LEFT JOIN activity_logs update_log ON update_log.id = (
+                SELECT al.id FROM activity_logs al
+                WHERE al.target_type = "admin" AND al.target_id = a.id
+                  AND al.action IN ("admin_updated","admin_role_changed","admin_inactivated","admin_reactivated")
+                ORDER BY al.id DESC LIMIT 1
+            )
+            LEFT JOIN admins updater ON updater.id = update_log.actor_id
             ORDER BY a.id DESC
             LIMIT 500');
+    }
+
+    public function history(): array
+    {
+        return $this->fetchAll('SELECT al.id, al.action, al.target_id, al.metadata_json, al.created_at, a.name AS actor_name
+            FROM activity_logs al
+            LEFT JOIN admins a ON a.id = al.actor_id AND al.actor_type="admin"
+            WHERE al.target_type = "admin"
+              AND al.action IN ("admin_created","admin_updated","admin_role_changed","admin_inactivated","admin_reactivated")
+            ORDER BY al.id DESC
+            LIMIT 120');
     }
 
     public function create(array $payload, int $actorAdminId): int
@@ -71,6 +91,10 @@ final class AdminManagementService extends Model
         $current = $this->fetchOne('SELECT id, email, role, status FROM admins WHERE id = :id LIMIT 1', [':id' => $id]);
         if (!$current) {
             throw new RuntimeException('Admin não encontrado.');
+        }
+
+        if (($current['role'] ?? '') === 'super_admin' && ($payload['confirm_super_admin_change'] ?? '') !== 'CONFIRMAR') {
+            throw new RuntimeException('Para alterar um super admin é obrigatório confirmar com o texto CONFIRMAR.');
         }
 
         if ($actorAdminId === $id && (($payload['status'] ?? 'active') !== 'active' || ($payload['role'] ?? '') !== ($current['role'] ?? ''))) {

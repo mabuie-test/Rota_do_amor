@@ -25,6 +25,7 @@ final class AdminManagementController extends Controller
             'admins' => $this->service->listAdmins(),
             'roles' => $this->service->roles(),
             'permission_matrix' => $this->service->permissionMatrix(),
+            'history' => $this->service->history(),
         ]);
     }
 
@@ -62,17 +63,13 @@ final class AdminManagementController extends Controller
 
     private function payload(): array
     {
-        $role = trim((string) Request::input('role', 'moderator'));
-        if (!in_array($role, $this->service->roles(), true)) {
-            $role = 'moderator';
-        }
-
         return [
             'name' => trim((string) Request::input('name', '')),
             'email' => mb_strtolower(trim((string) Request::input('email', ''))),
             'password' => (string) Request::input('password', ''),
-            'role' => $role,
+            'role' => trim((string) Request::input('role', 'moderator')),
             'status' => trim((string) Request::input('status', 'active')) === 'inactive' ? 'inactive' : 'active',
+            'confirm_super_admin_change' => trim((string) Request::input('confirm_super_admin_change', '')),
         ];
     }
 }

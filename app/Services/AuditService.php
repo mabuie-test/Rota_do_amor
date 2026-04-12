@@ -76,14 +76,25 @@ final class AuditService extends Model
 
         $total = (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM activity_logs al {$where}", $params)['c'] ?? 0);
         $items = $this->fetchAll(
-            "SELECT al.*, a.name AS admin_name
+            "SELECT al.*, a.name AS admin_name, target_admin.name AS target_admin_name, u.email AS target_user_email
              FROM activity_logs al
              LEFT JOIN admins a ON a.id = al.actor_id AND al.actor_type='admin'
+             LEFT JOIN admins target_admin ON target_admin.id = al.target_id AND al.target_type='admin'
+             LEFT JOIN users u ON u.id = al.target_id AND al.target_type='user'
              {$where}
              ORDER BY al.id DESC
              LIMIT {$perPage} OFFSET {$offset}",
             $params
         );
+
+        foreach ($items as &$item) {
+            $metadata = json_decode((string) ($item['metadata_json'] ?? '{}'), true);
+            $item['metadata'] = is_array($metadata) ? $metadata : [];
+            $item['actor_display'] = $item['admin_name'] ?? (($item['actor_type'] ?? 'actor') . '#' . ($item['actor_id'] ?? 'n/a'));
+            $item['target_display'] = ($item['target_type'] ?? 'target') . '#' . ($item['target_id'] ?? 'n/a');
+            $item['source_module'] = (string) ($item['metadata']['origin'] ?? $item['metadata']['module'] ?? 'core');
+            $item['reason'] = (string) ($item['metadata']['reason'] ?? '');
+        }
 
         return [
             'items' => $items,
@@ -91,7 +102,14 @@ final class AuditService extends Model
             'page' => $page,
             'per_page' => $perPage,
             'total_pages' => (int) max(1, ceil($total / max(1, $perPage))),
+            'actions' => $this->availableActions(),
         ];
+    }
+
+    public function availableActions(): array
+    {
+        $rows = $this->fetchAll('SELECT DISTINCT action FROM activity_logs ORDER BY action ASC LIMIT 200');
+        return array_values(array_filter(array_map(static fn(array $r): string => (string) ($r['action'] ?? ''), $rows)));
     }
 
     private function insertEvent(string $actorType, ?int $actorId, string $action, ?string $targetType, ?int $targetId, array $metadata): void
