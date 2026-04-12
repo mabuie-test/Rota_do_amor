@@ -1,5 +1,6 @@
-<?php $users = $users ?? []; $overview = $overview ?? []; $inviteAnomalies = $invites_anomalies ?? []; $messageAnomalies = $messages_anomalies ?? []; $queue = $priority_queue ?? []; $currentPriority = $current_priority ?? ''; ?>
+<?php $users = $users ?? []; $overview = $overview ?? []; $inviteAnomalies = $invites_anomalies ?? []; $messageAnomalies = $messages_anomalies ?? []; $queue = $priority_queue ?? []; $currentPriority = $current_priority ?? ''; $explainability = $explainability ?? []; ?>
 <h3 class="mb-3">Centro de Risco & Abuso</h3>
+<?php if (!empty($explainability)): ?><div class="alert alert-light border py-2"><strong>Modelo actual:</strong> <?= e((string) ($explainability['method'] ?? 'Score composto')) ?> · <span class="small text-muted">actualizado em <?= e((string) ($explainability['last_refreshed_at'] ?? '')) ?></span></div><?php endif; ?>
 
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Perfis sinalizados</div><div class="value"><?= (int) ($overview['users_flagged'] ?? 0) ?></div></div></div></div>
@@ -24,10 +25,10 @@
   <tr>
     <td>#<?= (int) $user['id'] ?> · <?= e((string) $user['first_name']) ?> <?= e((string) $user['last_name']) ?><br><small><?= e((string) $user['email']) ?></small></td>
     <td><?= e((string) $user['status']) ?></td>
-    <td><small>Denúncias: <?= (int) $user['reports_count'] ?> (30d: <?= (int) $user['reports_30_days'] ?>)</small><br><small>Bloqueios: <?= (int) $user['blocked_count'] ?></small><br><small>Msgs 24h: <?= (int) $user['messages_24h'] ?> · Convites 24h: <?= (int) $user['invites_24h'] ?></small></td>
+    <td><small>Denúncias: <?= (int) $user['reports_count'] ?> (30d: <?= (int) $user['reports_30_days'] ?>)</small><br><small>Bloqueios: <?= (int) $user['blocked_count'] ?></small><br><small>Msgs 24h: <?= (int) $user['messages_24h'] ?> · Convites 24h: <?= (int) $user['invites_24h'] ?></small><br><small>Aceitação convites 30d: <?= e((string) ($user['acceptance_rate_30d'] ?? 0)) ?>%</small></td>
     <td><span class="rd-badge badge-active"> <?= (int) ($user['risk_score'] ?? 0) ?> · <?= e((string) ($user['risk_priority'] ?? 'baixa')) ?></span><br><small><?= e((string) ($user['priority_label'] ?? '')) ?></small></td>
     <td><ul class="small mb-0"><?php foreach (($user['risk_reasons'] ?? []) as $reason): ?><li><?= e((string) $reason) ?></li><?php endforeach; ?></ul></td>
-    <td><a class="btn btn-sm btn-outline-dark mb-1" href="<?= e((string) ($user['user_detail_url'] ?? '#')) ?>">Detalhe</a><a class="btn btn-sm btn-outline-primary mb-1" href="<?= e((string) ($user['moderation_url'] ?? '/admin/moderation')) ?>">Moderação</a><a class="btn btn-sm btn-outline-secondary mb-1" href="/admin/audit?target_type=user&target_id=<?= (int) $user['id'] ?>">Auditoria</a></td>
+    <td><a class="btn btn-sm btn-outline-dark mb-1" href="<?= e((string) ($user['user_detail_url'] ?? '#')) ?>">Detalhe</a><a class="btn btn-sm btn-outline-primary mb-1" href="<?= e((string) ($user['moderation_url'] ?? '/admin/moderation')) ?>">Moderação</a><a class="btn btn-sm btn-outline-secondary mb-1" href="<?= e((string) ($user['audit_url'] ?? ('/admin/audit?target_type=user&target_id=' . (int) ($user['id'] ?? 0)))) ?>">Auditoria</a></td>
   </tr>
 <?php endforeach; ?>
 </tbody>

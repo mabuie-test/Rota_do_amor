@@ -76,7 +76,8 @@ final class AuditService extends Model
 
         $total = (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM activity_logs al {$where}", $params)['c'] ?? 0);
         $items = $this->fetchAll(
-            "SELECT al.*, a.name AS admin_name, target_admin.name AS target_admin_name, u.email AS target_user_email
+            "SELECT al.*, a.name AS admin_name, target_admin.name AS target_admin_name, u.email AS target_user_email,
+                    u.first_name AS target_user_first_name, u.last_name AS target_user_last_name
              FROM activity_logs al
              LEFT JOIN admins a ON a.id = al.actor_id AND al.actor_type='admin'
              LEFT JOIN admins target_admin ON target_admin.id = al.target_id AND al.target_type='admin'
@@ -91,9 +92,14 @@ final class AuditService extends Model
             $metadata = json_decode((string) ($item['metadata_json'] ?? '{}'), true);
             $item['metadata'] = is_array($metadata) ? $metadata : [];
             $item['actor_display'] = $item['admin_name'] ?? (($item['actor_type'] ?? 'actor') . '#' . ($item['actor_id'] ?? 'n/a'));
-            $item['target_display'] = ($item['target_type'] ?? 'target') . '#' . ($item['target_id'] ?? 'n/a');
+            $item['target_display'] = $this->buildTargetDisplay($item);
             $item['source_module'] = (string) ($item['metadata']['origin'] ?? $item['metadata']['module'] ?? 'core');
             $item['reason'] = (string) ($item['metadata']['reason'] ?? '');
+            $item['changed_fields'] = array_values(array_filter([
+                isset($item['metadata']['from_role']) || isset($item['metadata']['to_role']) ? 'role' : null,
+                isset($item['metadata']['from_status']) || isset($item['metadata']['to_status']) ? 'status' : null,
+                isset($item['metadata']['key']) ? 'setting:' . (string) $item['metadata']['key'] : null,
+            ]));
         }
 
         return [
@@ -126,5 +132,27 @@ final class AuditService extends Model
                 ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
             ]
         );
+    }
+
+    private function buildTargetDisplay(array $item): string
+    {
+        $targetType = (string) ($item['target_type'] ?? 'target');
+        $targetId = (int) ($item['target_id'] ?? 0);
+
+        if ($targetType === 'admin' && ($item['target_admin_name'] ?? '') !== '') {
+            return 'admin#' . $targetId . ' · ' . (string) $item['target_admin_name'];
+        }
+
+        if ($targetType === 'user') {
+            $name = trim((string) (($item['target_user_first_name'] ?? '') . ' ' . ($item['target_user_last_name'] ?? '')));
+            if ($name !== '') {
+                return 'user#' . $targetId . ' · ' . $name;
+            }
+            if (($item['target_user_email'] ?? '') !== '') {
+                return 'user#' . $targetId . ' · ' . (string) $item['target_user_email'];
+            }
+        }
+
+        return $targetType . '#' . ($targetId > 0 ? $targetId : 'n/a');
     }
 }

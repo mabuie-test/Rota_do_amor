@@ -75,6 +75,7 @@ $router->add('GET', '/diary/write-today', [DiaryController::class, 'new'], $core
 $router->add('POST', '/diary', [DiaryController::class, 'create'], $coreAccess);
 $router->add('GET', '/diary/{id}', [DiaryController::class, 'show'], $coreAccess);
 $router->add('POST', '/diary/{id}', [DiaryController::class, 'update'], $coreAccess);
+$router->add('POST', '/diary/{id}/archive', [DiaryController::class, 'archive'], $coreAccess);
 $router->add('POST', '/diary/{id}/delete', [DiaryController::class, 'delete'], $coreAccess);
 
 $router->add('GET', '/settings', [SettingsController::class, 'index'], $coreAccess);

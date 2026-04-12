@@ -42,6 +42,7 @@ final class SuperAdminDashboardService extends Model
         $finance = [
             'payments_completed' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='completed'")['c'] ?? 0),
             'payments_pending' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='pending'")['c'] ?? 0),
+            'payments_failed' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed'")['c'] ?? 0),
             'payments_failed_7_days' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['c'] ?? 0),
             'revenue_7_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['s'] ?? 0),
             'revenue_30_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['s'] ?? 0),
@@ -65,13 +66,66 @@ final class SuperAdminDashboardService extends Model
                 'new_users_variation_7_days' => $this->percentageVariation($product['new_users_7_days'], $product['new_users_prev_7_days']),
                 'revenue_variation_30_days' => $this->percentageVariation((float) $finance['revenue_30_days'], (float) $finance['revenue_prev_30_days']),
             ],
-            'critical_alerts' => $this->criticalAlerts($operations, $finance, $risk['overview']),
+            'critical_alerts' => $this->criticalAlerts($operations, $finance, $risk['overview'], $diary),
             'action_required' => $this->actionRequired($operations, $risk['overview']),
             'recent_activity' => $this->fetchAll('SELECT action, actor_type, target_type, target_id, created_at FROM activity_logs ORDER BY id DESC LIMIT 12'),
+            'executive_blocks' => $this->executiveBlocks($product, $operations, $finance, $risk['overview'], $diary),
         ];
     }
 
-    private function criticalAlerts(array $operations, array $finance, array $risk): array
+    private function executiveBlocks(array $product, array $operations, array $finance, array $risk, array $diary): array
+    {
+        return [
+            'product' => [
+                'title' => 'Produto',
+                'items' => [
+                    ['label' => 'Total de utilizadores', 'value' => $product['total_users'] ?? 0],
+                    ['label' => 'Novos utilizadores (7d)', 'value' => $product['new_users_7_days'] ?? 0],
+                    ['label' => 'Activações pagas', 'value' => $product['paid_activations'] ?? 0],
+                    ['label' => 'Subscrições activas', 'value' => $product['active_subscriptions'] ?? 0],
+                    ['label' => 'Boosts activos', 'value' => $product['active_boosts'] ?? 0],
+                ],
+            ],
+            'finance' => [
+                'title' => 'Finanças',
+                'items' => [
+                    ['label' => 'Pagamentos concluídos', 'value' => $finance['payments_completed'] ?? 0],
+                    ['label' => 'Pagamentos pendentes', 'value' => $finance['payments_pending'] ?? 0],
+                    ['label' => 'Pagamentos falhados', 'value' => $finance['payments_failed'] ?? 0],
+                    ['label' => 'Receita (30d)', 'value' => $finance['revenue_30_days'] ?? 0],
+                ],
+            ],
+            'operations' => [
+                'title' => 'Operação e moderação',
+                'items' => [
+                    ['label' => 'Verificações pendentes', 'value' => $operations['pending_verifications'] ?? 0],
+                    ['label' => 'Denúncias pendentes', 'value' => $operations['pending_reports'] ?? 0],
+                    ['label' => 'Suspensos/banidos', 'value' => $operations['suspended_or_banned'] ?? 0],
+                    ['label' => 'Eventos de auditoria (24h)', 'value' => $operations['audit_events_24h'] ?? 0],
+                ],
+            ],
+            'risk' => [
+                'title' => 'Risco',
+                'items' => [
+                    ['label' => 'Utilizadores sinalizados', 'value' => $risk['users_flagged'] ?? 0],
+                    ['label' => 'Alvos reincidentes (30d)', 'value' => $risk['reports_recurrent_targets_30d'] ?? 0],
+                    ['label' => 'Picos de mensagens (24h)', 'value' => $risk['high_message_spike_users_24h'] ?? 0],
+                ],
+            ],
+            'diary' => [
+                'title' => 'Diário e retenção',
+                'items' => [
+                    ['label' => 'Utilizadores com entradas', 'value' => $diary['users_with_entries'] ?? 0],
+                    ['label' => 'Entradas nos últimos 30 dias', 'value' => $diary['entries_last_30_days'] ?? 0],
+                    ['label' => 'Adoção total (%)', 'value' => $diary['adoption_rate_percent'] ?? 0],
+                    ['label' => 'Adoção 30 dias (%)', 'value' => $diary['adoption_rate_30_days_percent'] ?? 0],
+                    ['label' => 'Lift retenção (pontos)', 'value' => $diary['retention_lift_points'] ?? 0],
+                ],
+            ],
+        ];
+    }
+
+    private function criticalAlerts(array $operations, array $finance, array $risk, array $diary): array
     {
         $alerts = [];
         if ((int) ($operations['pending_reports'] ?? 0) > 25) {
@@ -88,6 +142,10 @@ final class SuperAdminDashboardService extends Model
 
         if ((int) ($risk['users_flagged'] ?? 0) > 30) {
             $alerts[] = ['severity' => 'medium', 'message' => 'Muitos perfis sinalizados no centro de risco.'];
+        }
+
+        if ((float) ($diary['retention_lift_points'] ?? 0) < -5.0) {
+            $alerts[] = ['severity' => 'medium', 'message' => 'Sinal fraco de retenção entre utilizadores com diário.'];
         }
 
         return $alerts;

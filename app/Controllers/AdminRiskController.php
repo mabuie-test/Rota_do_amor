@@ -6,16 +6,22 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Core\Request;
+use App\Core\Session;
+use App\Services\AuditService;
 use App\Services\RiskCenterService;
 
 final class AdminRiskController extends Controller
 {
-    public function __construct(private readonly RiskCenterService $service = new RiskCenterService())
+    public function __construct(
+        private readonly RiskCenterService $service = new RiskCenterService(),
+        private readonly AuditService $audit = new AuditService()
+    )
     {
     }
 
     public function index(): void
     {
+        $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'risk_center_viewed', 'risk_center', null, ['module' => 'risk_center']);
         $risk = $this->service->build();
         $priority = trim((string) Request::input('priority', ''));
         $users = $risk['users'];
@@ -29,6 +35,7 @@ final class AdminRiskController extends Controller
             'overview' => $risk['overview'],
             'users' => $users,
             'priority_queue' => $risk['priority_queue'],
+            'explainability' => $risk['explainability'] ?? [],
             'current_priority' => $priority,
             'invites_anomalies' => $risk['invites_anomalies'],
             'messages_anomalies' => $risk['messages_anomalies'],

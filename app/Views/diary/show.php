@@ -6,7 +6,10 @@
       <h5 class="mb-1"><?= e((string) ($entry['title'] ?: 'Entrada sem título')) ?></h5>
       <div class="small text-muted">Criado em <?= e((string) ($entry['created_at'] ?? '')) ?> · Atualizado em <?= e((string) ($entry['updated_at'] ?? '')) ?></div>
     </div>
-    <form method="post" action="/diary/<?= (int) ($entry['id'] ?? 0) ?>/delete" onsubmit="return confirm('Remover este registo?');"><?= csrf_field() ?><button class="btn btn-sm btn-outline-danger">Apagar</button></form>
+    <div class="d-flex gap-2">
+      <form method="post" action="/diary/<?= (int) ($entry['id'] ?? 0) ?>/archive" onsubmit="return confirm('Arquivar este registo para revisão futura?');"><?= csrf_field() ?><button class="btn btn-sm btn-outline-secondary">Arquivar</button></form>
+      <form method="post" action="/diary/<?= (int) ($entry['id'] ?? 0) ?>/delete" onsubmit="return confirm('Remover este registo?');"><?= csrf_field() ?><button class="btn btn-sm btn-outline-danger">Apagar</button></form>
+    </div>
   </div>
   <hr>
   <p style="white-space: pre-wrap;"><?= e((string) ($entry['content'] ?? '')) ?></p>

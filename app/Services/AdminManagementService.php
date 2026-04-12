@@ -37,7 +37,12 @@ final class AdminManagementService extends Model
     {
         return $this->fetchAll('SELECT a.id,a.name,a.email,a.role,a.status,a.created_at,a.updated_at,
             creator.name AS created_by_name,
-            updater.name AS last_updated_by_name
+            updater.name AS last_updated_by_name,
+            (
+                SELECT COUNT(*) FROM activity_logs x
+                WHERE x.target_type = "admin" AND x.target_id = a.id
+                  AND x.action IN ("admin_updated","admin_role_changed","admin_inactivated","admin_reactivated")
+            ) AS changes_count
             FROM admins a
             LEFT JOIN activity_logs created_log ON created_log.action = "admin_created" AND created_log.target_type = "admin" AND created_log.target_id = a.id
             LEFT JOIN admins creator ON creator.id = created_log.actor_id
@@ -54,9 +59,10 @@ final class AdminManagementService extends Model
 
     public function history(): array
     {
-        return $this->fetchAll('SELECT al.id, al.action, al.target_id, al.metadata_json, al.created_at, a.name AS actor_name
+        return $this->fetchAll('SELECT al.id, al.action, al.target_id, al.metadata_json, al.created_at, a.name AS actor_name, ta.name AS target_name
             FROM activity_logs al
             LEFT JOIN admins a ON a.id = al.actor_id AND al.actor_type="admin"
+            LEFT JOIN admins ta ON ta.id = al.target_id AND al.target_type="admin"
             WHERE al.target_type = "admin"
               AND al.action IN ("admin_created","admin_updated","admin_role_changed","admin_inactivated","admin_reactivated")
             ORDER BY al.id DESC
@@ -95,6 +101,9 @@ final class AdminManagementService extends Model
 
         if (($current['role'] ?? '') === 'super_admin' && ($payload['confirm_super_admin_change'] ?? '') !== 'CONFIRMAR') {
             throw new RuntimeException('Para alterar um super admin é obrigatório confirmar com o texto CONFIRMAR.');
+        }
+        if (($current['role'] ?? '') !== 'super_admin' && ($payload['role'] ?? '') === 'super_admin' && ($payload['confirm_super_admin_change'] ?? '') !== 'CONFIRMAR') {
+            throw new RuntimeException('Para promover para super admin é obrigatório confirmar com o texto CONFIRMAR.');
         }
 
         if ($actorAdminId === $id && (($payload['status'] ?? 'active') !== 'active' || ($payload['role'] ?? '') !== ($current['role'] ?? ''))) {
@@ -146,6 +155,9 @@ final class AdminManagementService extends Model
     {
         if (trim((string) ($payload['name'] ?? '')) === '' || trim((string) ($payload['email'] ?? '')) === '') {
             throw new RuntimeException('Nome e email são obrigatórios.');
+        }
+        if (!filter_var((string) ($payload['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
+            throw new RuntimeException('Email administrativo inválido.');
         }
 
         if ($creating && trim((string) ($payload['password'] ?? '')) === '') {

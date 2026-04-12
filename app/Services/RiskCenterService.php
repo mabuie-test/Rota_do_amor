@@ -21,6 +21,10 @@ final class RiskCenterService extends Model
                 'high' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'alta')),
                 'medium' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'média')),
             ],
+            'explainability' => [
+                'method' => 'Score composto de denúncias, bloqueios, mensagens e convites anómalos',
+                'last_refreshed_at' => date('Y-m-d H:i:s'),
+            ],
         ];
     }
 
@@ -33,7 +37,8 @@ final class RiskCenterService extends Model
                         (SELECT COUNT(*) FROM messages m WHERE m.sender_id=u.id AND m.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)) AS messages_24h,
                         (SELECT COUNT(*) FROM messages m WHERE m.sender_id=u.id AND m.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS messages_7d,
                         (SELECT COUNT(*) FROM connection_invites ci WHERE ci.sender_id=u.id AND ci.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS invites_24h,
-                        (SELECT COUNT(*) FROM connection_invites ci WHERE ci.sender_id=u.id AND ci.status='accepted' AND ci.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS invites_accepted_30d
+                        (SELECT COUNT(*) FROM connection_invites ci WHERE ci.sender_id=u.id AND ci.status='accepted' AND ci.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS invites_accepted_30d,
+                        (SELECT COUNT(*) FROM connection_invites ci WHERE ci.sender_id=u.id AND ci.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS invites_total_30d
                     FROM users u
                     HAVING reports_count >= 2 OR blocked_count >= 3 OR messages_24h >= 100 OR invites_24h >= 40
                     ORDER BY reports_count DESC, blocked_count DESC, messages_24h DESC
@@ -48,6 +53,8 @@ final class RiskCenterService extends Model
             $messages24h = (int) ($row['messages_24h'] ?? 0);
             $invites24h = (int) ($row['invites_24h'] ?? 0);
             $accepted30d = (int) ($row['invites_accepted_30d'] ?? 0);
+            $totalInvites30d = (int) ($row['invites_total_30d'] ?? 0);
+            $acceptanceRate30d = $totalInvites30d > 0 ? round(($accepted30d / $totalInvites30d) * 100, 2) : 0.0;
 
             if ($reports >= 5) {
                 $score += 35;
@@ -80,6 +87,10 @@ final class RiskCenterService extends Model
                 $score += 10;
                 $reasons[] = 'Anomalia de convites nas últimas 24h';
             }
+            if ($totalInvites30d >= 60 && $acceptanceRate30d < 4) {
+                $score += 12;
+                $reasons[] = 'Baixa aceitação de convites com alto volume';
+            }
 
             $row['risk_score'] = min(100, $score);
             $row['risk_priority'] = $score >= 70 ? 'alta' : ($score >= 40 ? 'média' : 'baixa');
@@ -87,6 +98,8 @@ final class RiskCenterService extends Model
             $row['priority_label'] = $row['risk_priority'] === 'alta' ? 'Intervenção imediata' : ($row['risk_priority'] === 'média' ? 'Monitorar com moderação' : 'Acompanhar');
             $row['user_detail_url'] = '/admin/users/' . (int) ($row['id'] ?? 0);
             $row['moderation_url'] = '/admin/moderation';
+            $row['audit_url'] = '/admin/audit?target_type=user&target_id=' . (int) ($row['id'] ?? 0);
+            $row['acceptance_rate_30d'] = $acceptanceRate30d;
 
             return $row;
         }, $rows);

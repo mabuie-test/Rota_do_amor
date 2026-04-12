@@ -20,7 +20,7 @@ final class SuperAdminController extends Controller
 
     public function dashboard(): void
     {
-        $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'super_dashboard_viewed', 'dashboard', null, ['origin' => 'super_admin']);
+        $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'super_dashboard_viewed', 'dashboard', null, ['origin' => 'super_admin', 'module' => 'super_dashboard']);
         $this->view('admin/super-dashboard', ['title' => 'Super Admin · Executivo', 'metrics' => $this->service->build()]);
     }
 }

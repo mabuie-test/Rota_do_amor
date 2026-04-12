@@ -210,11 +210,14 @@ A segunda migração adiciona:
   - `POST /diary`
   - `GET /diary/{id}`
   - `POST /diary/{id}`
+  - `POST /diary/{id}/archive`
   - `POST /diary/{id}/delete`
 - Campos principais da entrada:
   - `title`, `content`, `mood`, `emotional_state`, `relational_focus`, `visibility`
   - `intention_snapshot`, `relational_pace_snapshot`, `tags_json`
 - Privacidade: por padrão `visibility=private` e conteúdo não é exposto para outros utilizadores ou admins comuns.
+- Dashboard do utilizador: bloco integrado com CTA contextual, prompt de jornada, snapshot do Modo do Coração e resumo curto do último registo.
+- Super Admin: visão apenas agregada/institucional (adoção, frequência e retenção) sem leitura de conteúdo íntimo.
 
 ## Super Admin (novos centros)
 - `GET /admin/super-dashboard`: visão macro do negócio + alertas críticos.

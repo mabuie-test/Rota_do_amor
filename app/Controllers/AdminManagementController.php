@@ -10,16 +10,21 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Services\AdminManagementService;
+use App\Services\AuditService;
 use Throwable;
 
 final class AdminManagementController extends Controller
 {
-    public function __construct(private readonly AdminManagementService $service = new AdminManagementService())
+    public function __construct(
+        private readonly AdminManagementService $service = new AdminManagementService(),
+        private readonly AuditService $audit = new AuditService()
+    )
     {
     }
 
     public function index(): void
     {
+        $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'admin_management_viewed', 'admin_panel', null, ['module' => 'admin_management']);
         $this->view('admin/admins', [
             'title' => 'Super Admin · Admins',
             'admins' => $this->service->listAdmins(),
