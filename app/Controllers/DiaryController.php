@@ -89,6 +89,15 @@ final class DiaryController extends Controller
         Response::redirect('/diary');
     }
 
+    public function archive(array $params): void
+    {
+        $userId = Auth::id() ?? 0;
+        $entryId = (int) ($params['id'] ?? 0);
+        $this->service->archiveEntry($entryId, $userId);
+        Flash::set('success', 'Entrada arquivada com sucesso.');
+        Response::redirect('/diary');
+    }
+
     private function payloadFromRequest(string $content): array
     {
         $tags = array_values(array_filter(array_map('trim', explode(',', (string) Request::input('tags', '')))));

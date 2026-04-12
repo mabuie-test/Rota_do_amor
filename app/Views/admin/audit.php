@@ -20,13 +20,16 @@
 <table class="table table-modern align-middle">
 <thead><tr><th>Quando</th><th>Actor</th><th>Acção</th><th>Alvo</th><th>Origem / Motivo</th><th>Metadata</th></tr></thead>
 <tbody>
+<?php if ($events === []): ?>
+<tr><td colspan="6" class="text-muted small">Nenhum evento encontrado para os filtros atuais.</td></tr>
+<?php endif; ?>
 <?php foreach ($events as $event): ?>
 <tr>
   <td><?= e((string) $event['created_at']) ?></td>
   <td><?= e((string) ($event['actor_display'] ?? 'n/d')) ?></td>
   <td><strong><?= e((string) $event['action']) ?></strong><br><small class="text-muted"><?= e((string) ($event['actor_type'] ?? '')) ?></small></td>
   <td><?= e((string) ($event['target_display'] ?? '')) ?></td>
-  <td><small>Módulo: <strong><?= e((string) ($event['source_module'] ?? 'core')) ?></strong></small><br><small><?= e((string) (($event['reason'] ?? '') !== '' ? $event['reason'] : 'sem motivo explícito')) ?></small></td>
+  <td><small>Módulo: <strong><?= e((string) ($event['source_module'] ?? 'core')) ?></strong></small><br><small><?= e((string) (($event['reason'] ?? '') !== '' ? $event['reason'] : 'sem motivo explícito')) ?></small><?php if (!empty($event['changed_fields'])): ?><br><small class="text-muted">Campos: <?= e((string) implode(', ', $event['changed_fields'])) ?></small><?php endif; ?></td>
   <td><code class="small"><?= e((string) json_encode($event['metadata'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></code></td>
 </tr>
 <?php endforeach; ?>

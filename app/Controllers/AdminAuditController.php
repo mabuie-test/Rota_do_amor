@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Core\Controller;
 use App\Core\Request;
 use App\Core\Response;
+use App\Core\Session;
 use App\Services\AuditService;
 
 final class AdminAuditController extends Controller
@@ -17,6 +18,7 @@ final class AdminAuditController extends Controller
 
     public function index(): void
     {
+        $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'audit_center_viewed', 'audit_center', null, ['module' => 'audit_center']);
         $filters = [
             'actor_type' => trim((string) Request::input('actor_type', '')),
             'actor_id' => (int) Request::input('actor_id', 0),

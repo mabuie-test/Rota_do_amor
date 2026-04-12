@@ -7,6 +7,7 @@
   <div><div class="small text-muted">Dias sem escrever</div><div class="fw-semibold"><?= (int) ($summary['days_since_last_entry'] ?? 0) ?></div></div>
   <a href="/diary/new" class="btn btn-rd-primary btn-sm"><i class="fa-solid fa-pen-to-square me-1"></i><?= e((string) ($cta['action_label'] ?? 'Novo registo')) ?></a>
 </div></div>
+<div class="small text-muted mb-3">Privacidade por desenho: conteúdo íntimo não é visível para admin comum nem super admin; apenas métricas institucionais agregadas.</div>
 
 <?php if (($prompt['message'] ?? '') !== ''): ?><div class="alert alert-info py-2 mb-3"><strong>Jornada emocional:</strong> <?= e((string) $prompt['message']) ?></div><?php endif; ?>
 <div class="alert alert-light border py-2 mb-3"><strong><?= e((string) ($cta['title'] ?? 'Escreve hoje')) ?></strong><div class="small text-muted"><?= e((string) ($cta['copy'] ?? 'Mantém o teu espaço emocional actualizado.')) ?></div></div>
