@@ -25,9 +25,10 @@ final class VisitorsController extends Controller
         $userId = Auth::id() ?? 0;
         $isPremium = $this->premium->userHasPremium($userId);
         $summary = $this->service->getSummaryForUser($userId, $isPremium);
+        $policy = $this->service->premiumPolicy();
         $this->dailyRoutes->trackFromModule($userId, 'visitor_profile_viewed', 'visitors', 1);
 
-        $this->view('visitors/index', ['title' => 'Radar de Visitantes', 'summary' => $summary, 'is_premium' => $isPremium]);
+        $this->view('visitors/index', ['title' => 'Radar de Visitantes', 'summary' => $summary, 'is_premium' => $isPremium, 'premium_policy' => $policy]);
     }
 
     public function summary(): void

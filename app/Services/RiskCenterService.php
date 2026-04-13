@@ -18,6 +18,8 @@ final class RiskCenterService extends Model
             'invites_anomalies' => $this->inviteAnomalies(),
             'messages_anomalies' => $this->messageAnomalies(),
             'safe_dates_anomalies' => $this->safeDateAnomalies(),
+            'visitors_anomalies' => $this->visitorAnomalies(),
+            'duels_anomalies' => $this->duelAnomalies(),
             'priority_queue' => [
                 'high' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'alta')),
                 'medium' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'média')),
@@ -147,6 +149,7 @@ final class RiskCenterService extends Model
             ) t")['c'] ?? 0),
             'safe_dates_safety_signals_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM safe_date_private_feedback WHERE safety_signal IN ('attention','emergency') AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
             'anonymous_story_reports_pending' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM anonymous_story_reports WHERE status='pending'")['c'] ?? 0),
+            'visitors_artificial_patterns_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (SELECT visitor_user_id FROM profile_visits WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY visitor_user_id HAVING COUNT(*) >= 80 OR COUNT(DISTINCT visited_user_id) >= 60) t")['c'] ?? 0),
         ];
     }
 
@@ -194,6 +197,33 @@ final class RiskCenterService extends Model
             GROUP BY sd.initiator_user_id
             HAVING safe_dates_30d >= 8 AND (decline_rate_30d >= 55 OR cancelled_30d >= 4)
             ORDER BY decline_rate_30d DESC, cancelled_30d DESC, safe_dates_30d DESC
+            LIMIT 25");
+    }
+
+    private function visitorAnomalies(): array
+    {
+        return $this->fetchAll("SELECT pv.visitor_user_id AS user_id, CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+                COUNT(*) AS visits_24h, COUNT(DISTINCT pv.visited_user_id) AS unique_targets
+            FROM profile_visits pv
+            JOIN users u ON u.id = pv.visitor_user_id
+            WHERE pv.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            GROUP BY pv.visitor_user_id
+            HAVING visits_24h >= 30 OR unique_targets >= 20
+            ORDER BY visits_24h DESC, unique_targets DESC
+            LIMIT 25");
+    }
+
+    private function duelAnomalies(): array
+    {
+        return $this->fetchAll("SELECT d.user_id, CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+                COUNT(*) AS duels_7d,
+                SUM(CASE WHEN d.status IN ('voted','engaged') THEN 1 ELSE 0 END) AS voted_7d
+            FROM compatibility_duels d
+            JOIN users u ON u.id = d.user_id
+            WHERE d.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            GROUP BY d.user_id
+            HAVING duels_7d >= 7 AND voted_7d <= 1
+            ORDER BY duels_7d DESC
             LIMIT 25");
     }
 }

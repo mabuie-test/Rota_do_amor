@@ -24,10 +24,11 @@ final class CompatibilityDuelController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $duel = $this->service->getOrCreateDailyDuel($userId);
+        $policy = $this->service->premiumPolicy();
         if (!empty($duel)) {
             $this->dailyRoutes->trackFromModule($userId, 'compatibility_duel_joined', 'compatibility_duel', 1);
         }
-        $this->view('compatibility-duel/index', ['title' => 'Duelo de Compatibilidade', 'duel' => $duel]);
+        $this->view('compatibility-duel/index', ['title' => 'Duelo de Compatibilidade', 'duel' => $duel, 'premium_policy' => $policy]);
     }
 
     public function vote(): void

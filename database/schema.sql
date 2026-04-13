@@ -763,11 +763,16 @@ CREATE TABLE anonymous_stories (
   category VARCHAR(40) NOT NULL,
   title VARCHAR(120) NULL,
   content TEXT NOT NULL,
-  status ENUM('draft','published','hidden','moderated','featured') NOT NULL DEFAULT 'published',
+  status ENUM('draft','published','hidden','moderated','featured','removed') NOT NULL DEFAULT 'published',
   is_featured TINYINT(1) NOT NULL DEFAULT 0,
+  is_story_of_day TINYINT(1) NOT NULL DEFAULT 0,
+  moderation_note VARCHAR(500) NULL,
+  last_moderated_by_admin_id BIGINT NULL,
+  last_moderated_at DATETIME NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_anonymous_stories_author FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_anonymous_stories_moderator FOREIGN KEY (last_moderated_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
   INDEX idx_anonymous_stories_status_created (status, created_at),
   INDEX idx_anonymous_stories_featured_created (is_featured, created_at),
   INDEX idx_anonymous_stories_category_created (category, created_at)
@@ -853,4 +858,16 @@ CREATE TABLE compatibility_duel_choices (
   CONSTRAINT fk_duel_choices_option FOREIGN KEY (selected_option_id) REFERENCES compatibility_duel_options(id) ON DELETE CASCADE,
   UNIQUE KEY uq_duel_choices_duel_user (duel_id, user_id),
   INDEX idx_duel_choices_selected_created (selected_option_id, created_at)
+);
+
+CREATE TABLE compatibility_duel_actions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  duel_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  action_type ENUM('view_profile','invite','favorite','discover') NOT NULL,
+  created_at DATETIME NOT NULL,
+  CONSTRAINT fk_duel_actions_duel FOREIGN KEY (duel_id) REFERENCES compatibility_duels(id) ON DELETE CASCADE,
+  CONSTRAINT fk_duel_actions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_duel_actions_type_created (action_type, created_at),
+  INDEX idx_duel_actions_duel_created (duel_id, created_at)
 );

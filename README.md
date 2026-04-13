@@ -14,6 +14,9 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Painel admin consolidado com transição central de status, dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
 - Camada Super Admin com gestão de admins/papéis, centro de auditoria, dashboard executivo, centro de risco & abuso e analytics agregados do Diário do Coração.
 - Área administrativa dedicada de Encontro Seguro (`/admin/safe-dates`) com listagem investigativa, filtros institucionais, paginação robusta e detalhe por encontro.
+- Radar de Visitantes consolidado com governança (`/admin/visitors`), leitura institucional (recorrência, free vs premium, padrões artificiais) e política premium parametrizada por `site_settings`.
+- Histórias Anónimas consolidadas com moderação dedicada (`/admin/anonymous-stories`, `/admin/anonymous-stories/{id}`), trilha de denúncias, destaque editorial e ações administrativas auditáveis.
+- Duelo de Compatibilidade consolidado com analytics institucional (`/admin/compatibility-duels`), métricas de pós-voto e política premium configurável por `site_settings`.
 - Diário do Coração (privado/premium): criação, edição, listagem, detalhe, remoção, filtros por humor/período e resumo no dashboard pessoal.
 - Rota Diária: missões diárias com progressão por ações reais (discovery, mensagens, convites, diário, feed, perfil e Encontro Seguro), streak e recompensa integrada (mini boost + badge).
 - Scripts CLI para reconciliação de pagamentos, expiração de subscrições/boosts e envio de lembretes.
@@ -54,6 +57,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260412_safe_dates_admin_hardening.sql
    mysql -u root -p < database/migrations/20260413_daily_routes_module.sql
    mysql -u root -p < database/migrations/20260413_daily_routes_consolidation.sql
+   mysql -u root -p < database/migrations/20260413_retention_modules_visitors_stories_duels.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -110,6 +114,8 @@ php scripts/expire_boosts.php
 php scripts/send_subscription_reminders.php
 php scripts/cleanup_temp_uploads.php
 php scripts/send_daily_route_nudges.php
+php scripts/generate_daily_compatibility_duels.php
+php scripts/rotate_story_of_day.php
 ```
 
 ## Segurança aplicada
@@ -210,6 +216,7 @@ As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260412_safe_dates_admin_hardening.sql`;
 - `database/migrations/20260413_daily_routes_module.sql`.
 - `database/migrations/20260413_daily_routes_consolidation.sql`.
+- `database/migrations/20260413_retention_modules_visitors_stories_duels.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;
@@ -295,6 +302,10 @@ A segunda migração adiciona:
 - `GET /admin/audit`: centro de auditoria global com filtros por actor, acção, alvo e período.
 - `GET /admin/risk`: centro de risco/abuso com contas suspeitas por sinais agregados.
 - `GET /admin/safe-dates`: centro administrativo do Encontro Seguro (filtros por status/período/safety level/par de utilizadores).
+- `GET /admin/visitors`: centro administrativo do Radar de Visitantes com filtros, risco de tráfego artificial e leitura premium/free.
+- `GET /admin/anonymous-stories`: moderação dedicada de Histórias Anónimas com filtros por status/categoria/denúncia.
+- `GET /admin/anonymous-stories/{id}`: investigação de história com histórico de denúncias e ações administrativas.
+- `GET /admin/compatibility-duels`: leitura institucional de geração, voto e ações pós-duelo.
 
 ## Operação rápida (checklist)
 1. Verificar saúde: login admin, dashboard executivo, denúncias pendentes e pagamentos falhados.

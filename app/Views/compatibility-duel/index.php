@@ -1,5 +1,6 @@
-<?php $duel = $duel ?? []; $options = $duel['options'] ?? []; ?>
+<?php $duel = $duel ?? []; $options = $duel['options'] ?? []; $policy = $premium_policy ?? []; $selectedOptionId = (int) ($duel['selected_option_id'] ?? 0); ?>
 <h3 class="mb-3">Duelo de Compatibilidade</h3>
+<div class="rd-card mb-3"><div class="card-body small">Plano free/premium: <strong><?= (int) ($policy['free_daily_duels'] ?? 1) ?></strong> / <strong><?= (int) ($policy['premium_daily_duels'] ?? 1) ?></strong> duelos por dia · Insights premium <strong><?= !empty($policy['premium_insights_enabled']) ? 'ativos' : 'off' ?></strong>.</div></div>
 <?php if (count($options) < 2): ?>
   <div class="alert alert-info">Sem candidatos suficientes hoje. Volta mais tarde para novo duelo.</div>
 <?php else: ?>
@@ -11,10 +12,25 @@
           <h6><?= e((string) ($opt['candidate_name'] ?? 'Perfil')) ?></h6>
           <p class="small mb-1">Compatibilidade snapshot: <strong><?= (float) ($opt['compatibility_score_snapshot'] ?? 0) ?>%</strong></p>
           <p class="small mb-2">Intenção: <?= (int) ($b['intention_alignment_percent'] ?? 0) ?>% · Ritmo: <?= (int) ($b['pace_alignment_percent'] ?? 0) ?>%</p>
-          <form method="post" action="/compatibility-duel/vote" class="d-inline"><?= csrf_field() ?><input type="hidden" name="duel_id" value="<?= (int) ($duel['id'] ?? 0) ?>"><input type="hidden" name="selected_option_id" value="<?= (int) $opt['id'] ?>"><button class="btn btn-sm btn-rd-primary">Escolher</button></form>
+          <form method="post" action="/compatibility-duel/vote" class="d-inline"><?= csrf_field() ?><input type="hidden" name="duel_id" value="<?= (int) ($duel['id'] ?? 0) ?>"><input type="hidden" name="selected_option_id" value="<?= (int) $opt['id'] ?>"><button class="btn btn-sm btn-rd-primary"><?= $selectedOptionId === (int) $opt['id'] ? 'Escolhido' : 'Escolher' ?></button></form>
           <a class="btn btn-sm btn-rd-soft" href="/discover/profile/<?= (int) ($opt['candidate_user_id'] ?? 0) ?>">Ver perfil</a>
+          <?php if ($selectedOptionId === (int) $opt['id']): ?>
+            <div class="mt-2 d-flex gap-2 flex-wrap">
+              <?php foreach (['view_profile' => 'Ver Perfil', 'invite' => 'Convidar', 'favorite' => 'Favoritar'] as $type => $label): ?>
+                <button type="button" class="btn btn-sm btn-outline-primary duel-action-btn" data-duel-id="<?= (int) ($duel['id'] ?? 0) ?>" data-action="<?= e($type) ?>"><?= e($label) ?></button>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
         </div></div>
       <?php endforeach; ?>
     </div>
   </div></div>
+  <script>
+    document.querySelectorAll('.duel-action-btn').forEach(function (button) {
+      button.addEventListener('click', function () {
+        fetch('/compatibility-duel/action', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: '_token=<?= e(csrf_token()) ?>&duel_id=' + encodeURIComponent(button.dataset.duelId) + '&action_type=' + encodeURIComponent(button.dataset.action)})
+          .then(function () { button.classList.remove('btn-outline-primary'); button.classList.add('btn-success'); });
+      });
+    });
+  </script>
 <?php endif; ?>

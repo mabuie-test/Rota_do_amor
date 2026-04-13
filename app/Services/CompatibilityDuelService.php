@@ -85,6 +85,10 @@ final class CompatibilityDuelService extends Model
         }
 
         $this->execute('UPDATE compatibility_duels SET status = :status, updated_at = NOW() WHERE id = :id', [':status' => 'engaged', ':id' => $duelId]);
+        $this->execute(
+            'INSERT INTO compatibility_duel_actions (duel_id, user_id, action_type, created_at) VALUES (:duel_id, :user_id, :action_type, NOW())',
+            [':duel_id' => $duelId, ':user_id' => $userId, ':action_type' => $actionType]
+        );
 
         $this->notifications->create($userId, 'compatibility_duel_action_taken', 'Boa decisão no Duelo de Compatibilidade', 'A tua ação reforça teu sinal de intenção na descoberta.', [
             'duel_id' => $duelId,
@@ -115,6 +119,88 @@ final class CompatibilityDuelService extends Model
             'duels_participated' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duels WHERE created_at >= {$window} AND status IN ('voted','engaged')")['c'] ?? 0),
             'choices_recorded' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duel_choices WHERE created_at >= {$window}")['c'] ?? 0),
             'engagement_rate_percent' => round((float) ($this->fetchOne("SELECT COALESCE(100 * SUM(CASE WHEN status IN ('voted','engaged') THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0),0) c FROM compatibility_duels WHERE created_at >= {$window}")['c'] ?? 0), 2),
+            'actions_total' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duel_actions WHERE created_at >= {$window}")['c'] ?? 0),
+            'action_rate_percent' => round((float) ($this->fetchOne("SELECT COALESCE(100 * (SELECT COUNT(*) FROM compatibility_duel_actions a WHERE a.created_at >= {$window}) / NULLIF((SELECT COUNT(*) FROM compatibility_duel_choices c WHERE c.created_at >= {$window}), 0),0) c")['c'] ?? 0), 2),
+            'invite_actions' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duel_actions WHERE action_type='invite' AND created_at >= {$window}")['c'] ?? 0),
+            'profile_view_actions' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duel_actions WHERE action_type='view_profile' AND created_at >= {$window}")['c'] ?? 0),
+        ];
+    }
+
+    public function adminList(array $filters): array
+    {
+        $days = max(1, min(90, (int) ($filters['days'] ?? 30)));
+        $conditions = ["d.created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)"];
+        $params = [];
+        if (($filters['status'] ?? '') !== '') {
+            $conditions[] = 'd.status = :status';
+            $params[':status'] = (string) $filters['status'];
+        }
+        if (($filters['from'] ?? '') !== '') {
+            $conditions[] = 'd.created_at >= :from';
+            $params[':from'] = (string) $filters['from'] . ' 00:00:00';
+        }
+        if (($filters['to'] ?? '') !== '') {
+            $conditions[] = 'd.created_at <= :to';
+            $params[':to'] = (string) $filters['to'] . ' 23:59:59';
+        }
+        if ((int) ($filters['user_id'] ?? 0) > 0) {
+            $conditions[] = 'd.user_id = :user_id';
+            $params[':user_id'] = (int) $filters['user_id'];
+        }
+        if ((int) ($filters['only_with_action'] ?? 0) === 1) {
+            $conditions[] = 'COALESCE(act.actions_total,0) > 0';
+        }
+        $where = 'WHERE ' . implode(' AND ', $conditions);
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $perPage = max(20, min(100, (int) ($filters['per_page'] ?? 25)));
+        $offset = ($page - 1) * $perPage;
+
+        $joins = "FROM compatibility_duels d
+                JOIN users u ON u.id = d.user_id
+                LEFT JOIN compatibility_duel_options so ON so.id = d.selected_option_id
+                LEFT JOIN (
+                    SELECT duel_id, COUNT(*) actions_total, SUM(CASE WHEN action_type='invite' THEN 1 ELSE 0 END) invite_actions
+                    FROM compatibility_duel_actions GROUP BY duel_id
+                ) act ON act.duel_id = d.id";
+
+        $total = (int) ($this->fetchOne("SELECT COUNT(*) c {$joins} {$where}", $params)['c'] ?? 0);
+        $items = $this->fetchAllRows(
+            "SELECT d.*, CONCAT(u.first_name, ' ', u.last_name) user_name,
+                    so.candidate_user_id selected_candidate_user_id,
+                    COALESCE(act.actions_total,0) actions_total, COALESCE(act.invite_actions,0) invite_actions,
+                    EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id = d.user_id AND s.status='active' AND s.ends_at > d.created_at) AS user_is_premium
+             {$joins}
+             {$where}
+             ORDER BY d.id DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params
+        );
+        foreach ($items as &$item) {
+            $item['links'] = [
+                'user' => '/admin/users/' . (int) ($item['user_id'] ?? 0),
+                'selected_candidate' => '/admin/users/' . (int) ($item['selected_candidate_user_id'] ?? 0),
+                'audit' => '/admin/audit?target_type=compatibility_duel&target_id=' . (int) ($item['id'] ?? 0),
+                'risk' => '/admin/risk',
+            ];
+        }
+
+        return [
+            'items' => $items,
+            'filters' => $filters,
+            'pagination' => ['page' => $page, 'per_page' => $perPage, 'total' => $total, 'total_pages' => (int) max(1, ceil($total / $perPage))],
+            'overview' => $this->superAdminMetrics($days),
+            'statuses' => ['open', 'voted', 'engaged', 'expired'],
+            'premium_policy' => $this->premiumPolicy(),
+        ];
+    }
+
+    public function premiumPolicy(): array
+    {
+        return [
+            'free_daily_duels' => $this->settingInt('compatibility_duel_free_daily_limit', 1),
+            'premium_daily_duels' => $this->settingInt('compatibility_duel_premium_daily_limit', 3),
+            'extra_duels_enabled' => $this->settingInt('compatibility_duel_extra_enabled', 1) === 1,
+            'premium_insights_enabled' => $this->settingInt('compatibility_duel_premium_insights_enabled', 1) === 1,
         ];
     }
 
@@ -153,5 +239,11 @@ final class CompatibilityDuelService extends Model
         $this->audit->logSystemEvent('compatibility_duel_generated', 'compatibility_duel', $duelId, ['user_id' => $userId]);
 
         return $duelId;
+    }
+
+    private function settingInt(string $key, int $default): int
+    {
+        $row = $this->fetchOne('SELECT setting_value FROM site_settings WHERE setting_key = :key LIMIT 1', [':key' => $key]);
+        return is_numeric($row['setting_value'] ?? null) ? (int) $row['setting_value'] : $default;
     }
 }

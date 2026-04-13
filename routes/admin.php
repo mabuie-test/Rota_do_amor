@@ -2,6 +2,7 @@
 
 use App\Controllers\AdminAuditController;
 use App\Controllers\AdminManagementController;
+use App\Controllers\AdminRetentionController;
 use App\Controllers\AdminSafeDateController;
 use App\Controllers\AdminRiskController;
 use App\Controllers\SuperAdminController;
@@ -65,3 +66,8 @@ $router->add('POST', '/admin/admins/{id}/update', [AdminManagementController::cl
 $router->add('GET', '/admin/risk', [AdminRiskController::class, 'index'], $opsGuard);
 $router->add('GET', '/admin/safe-dates', [AdminSafeDateController::class, 'index'], $opsGuard);
 $router->add('GET', '/admin/safe-dates/{id}', [AdminSafeDateController::class, 'show'], $opsGuard);
+$router->add('GET', '/admin/visitors', [AdminRetentionController::class, 'visitors'], $opsGuard);
+$router->add('GET', '/admin/anonymous-stories', [AdminRetentionController::class, 'anonymousStories'], $moderationGuard);
+$router->add('GET', '/admin/anonymous-stories/{id}', [AdminRetentionController::class, 'anonymousStoryShow'], $moderationGuard);
+$router->add('POST', '/admin/anonymous-stories/{id}/action', [AdminRetentionController::class, 'anonymousStoryAction'], $moderationGuard);
+$router->add('GET', '/admin/compatibility-duels', [AdminRetentionController::class, 'compatibilityDuels'], $opsGuard);

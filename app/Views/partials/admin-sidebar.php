@@ -16,6 +16,9 @@
       '/admin/audit' => ['fa-clipboard-list', 'Auditoria'],
       '/admin/risk' => ['fa-triangle-exclamation', 'Risco & Abuso'],
       '/admin/safe-dates' => ['fa-shield-heart', 'Encontro Seguro'],
+      '/admin/visitors' => ['fa-eye', 'Radar Visitantes'],
+      '/admin/anonymous-stories' => ['fa-user-secret', 'Histórias Anónimas'],
+      '/admin/compatibility-duels' => ['fa-people-arrows', 'Duelo Compatibilidade'],
       '/admin/settings' => ['fa-gear', 'Configurações'],
   ];
   foreach ($adminLinks as $href => [$icon, $label]):
