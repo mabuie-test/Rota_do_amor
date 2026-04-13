@@ -27,7 +27,7 @@ final class SwipeController extends Controller
         $userId = Auth::id() ?? 0;
         $candidate = $this->service->getNextSwipeCandidate($userId);
         if ($candidate !== []) {
-            $this->dailyRoutes->track($userId, 'discover_view', 1);
+            $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_DISCOVER_VIEW, 'swipe', 1);
         }
         $this->view('swipe/index', ['title' => 'Swipe', 'candidate' => $candidate]);
     }
@@ -47,7 +47,7 @@ final class SwipeController extends Controller
         );
         $this->rateLimiter->hit('swipe_action', $key, $userId);
         if ($id > 0) {
-            $this->dailyRoutes->track($userId, 'swipe_action', 1);
+            $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_SWIPE_ACTION, 'swipe', 1);
         }
 
         Response::json(['ok' => true, 'swipe_id' => $id]);

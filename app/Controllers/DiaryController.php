@@ -53,7 +53,7 @@ final class DiaryController extends Controller
         }
 
         $this->service->createEntry($userId, $this->payloadFromRequest($content));
-        $this->dailyRoutes->track($userId, 'diary_written', 1);
+        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_DIARY_WRITTEN, 'diary', 1);
         Flash::set('success', 'Entrada registada com sucesso.');
         Response::redirect('/diary');
     }

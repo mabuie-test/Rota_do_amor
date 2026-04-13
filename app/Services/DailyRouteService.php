@@ -98,7 +98,7 @@ final class DailyRouteService extends Model
         ];
     }
 
-    public function trackAction(int $userId, string $eventType, int $increment = 1): void
+    public function trackAction(int $userId, string $eventType, int $increment = 1, string $sourceModule = 'unknown'): void
     {
         if ($increment <= 0) {
             return;
@@ -108,6 +108,17 @@ final class DailyRouteService extends Model
         if (($route['status'] ?? '') !== self::ROUTE_STATUS_ACTIVE) {
             return;
         }
+        $this->execute(
+            'INSERT INTO daily_route_event_logs (user_id, daily_route_id, event_type, source_module, increment_value, created_at)
+             VALUES (:user_id, :daily_route_id, :event_type, :source_module, :increment_value, NOW())',
+            [
+                ':user_id' => $userId,
+                ':daily_route_id' => (int) ($route['id'] ?? 0),
+                ':event_type' => $eventType,
+                ':source_module' => mb_substr($sourceModule, 0, 60),
+                ':increment_value' => $increment,
+            ]
+        );
 
         $tasks = $route['tasks'] ?? [];
         if ($tasks === []) {
@@ -201,10 +212,14 @@ final class DailyRouteService extends Model
             ':status' => 'active',
         ]);
 
-        $this->execute('INSERT INTO user_badges (user_id, badge_type, source, is_active, starts_at, ends_at, created_at) VALUES (:user_id, :badge_type, :source, 1, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), NOW())', [
+        $badgeDays = max(7, $isPremium
+            ? $this->settingInt('daily_route_reward_badge_days_premium', 45)
+            : $this->settingInt('daily_route_reward_badge_days', 30));
+        $this->execute('INSERT INTO user_badges (user_id, badge_type, source, is_active, starts_at, ends_at, created_at) VALUES (:user_id, :badge_type, :source, 1, NOW(), DATE_ADD(NOW(), INTERVAL :badge_days DAY), NOW())', [
             ':user_id' => $userId,
             ':badge_type' => $badgeType,
             ':source' => 'daily_route',
+            ':badge_days' => $badgeDays,
         ]);
 
         $this->execute('UPDATE daily_routes SET reward_status = :reward_status, updated_at = NOW() WHERE id = :id', [
@@ -216,7 +231,7 @@ final class DailyRouteService extends Model
             ':daily_route_id' => $routeId,
             ':user_id' => $userId,
             ':reward_type' => 'mini_boost_badge',
-            ':payload' => json_encode(['boost_hours' => $boostHours, 'badge_type' => $badgeType, 'is_premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours, 'premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ':payload' => json_encode(['boost_hours' => $boostHours, 'badge_type' => $badgeType, 'badge_days' => $badgeDays, 'is_premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours, 'premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ':status' => 'claimed',
         ]);
 
@@ -233,6 +248,7 @@ final class DailyRouteService extends Model
             'user_id' => $userId,
             'boost_hours' => $boostHours,
             'badge_type' => $badgeType,
+            'badge_days' => $badgeDays,
             'is_premium' => $isPremium,
             'streak_bonus_hours' => $streakBonusHours,
             'premium_streak_bonus_hours' => $premiumStreakBonusHours,
@@ -259,6 +275,8 @@ final class DailyRouteService extends Model
         $nudgeSent = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_route_nudge_logs WHERE created_at >= {$window}")['c'] ?? 0);
         $nudgeUsers = (int) ($this->safeFetchOne("SELECT COUNT(DISTINCT user_id) AS c FROM daily_route_nudge_logs WHERE created_at >= {$window}")['c'] ?? 0);
         $suspiciousNoProgress = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_routes r WHERE r.route_date >= {$window} AND r.status = 'active' AND NOT EXISTS (SELECT 1 FROM daily_route_tasks t WHERE t.daily_route_id = r.id AND t.current_value > 0)")['c'] ?? 0);
+        $trackedEvents = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_route_event_logs WHERE created_at >= {$window}")['c'] ?? 0);
+        $eventsByModule = $this->safeFetchAll("SELECT source_module, SUM(increment_value) AS total FROM daily_route_event_logs WHERE created_at >= {$window} GROUP BY source_module ORDER BY total DESC LIMIT 8");
 
         return [
             'routes_generated_' . $days . '_days' => $totalRoutes,
@@ -275,6 +293,8 @@ final class DailyRouteService extends Model
             'nudges_sent_' . $days . '_days' => $nudgeSent,
             'nudge_users_' . $days . '_days' => $nudgeUsers,
             'active_routes_without_progress_' . $days . '_days' => $suspiciousNoProgress,
+            'tracked_events_' . $days . '_days' => $trackedEvents,
+            'events_by_module_' . $days . '_days' => $eventsByModule,
         ];
     }
 
@@ -315,15 +335,15 @@ final class DailyRouteService extends Model
                 $stats['sent'] += $this->sendNudgeOnce($userId, (int) ($row['route_id'] ?? 0), 'last_step', $segment, 'Falta só 1 passo para fechar tua Rota Diária', 'Termina o último passo e garante tua recompensa de hoje.');
             }
 
-            if ($pending > 0 && (int) date('G') >= 19 && $inactiveDays <= 2) {
+            if ($pending > 0 && (int) date('G') >= $this->settingInt('daily_route_nudge_end_of_day_hour', 19) && $inactiveDays <= 2) {
                 $stats['sent'] += $this->sendNudgeOnce($userId, (int) ($row['route_id'] ?? 0), 'end_of_day', $segment, 'Ainda dá tempo de concluir tua rota de hoje', 'Fecha tua rota antes do fim do dia para proteger a sequência.');
             }
 
-            if ($inactiveDays >= 3 && $pending > 0) {
+            if ($inactiveDays >= $this->settingInt('daily_route_nudge_inactive_days', 3) && $pending > 0) {
                 $stats['sent'] += $this->sendNudgeOnce($userId, (int) ($row['route_id'] ?? 0), 'inactive_user', $segment, 'Estamos contigo na tua volta', 'Tua Rota Diária está pronta para retomares com intenção e consistência.');
             }
 
-            if ((int) ($row['current_streak'] ?? 0) >= 2 && ((string) ($row['last_completed_date'] ?? '') < date('Y-m-d', strtotime('-1 day'))) && $pending > 0) {
+            if ((int) ($row['current_streak'] ?? 0) >= $this->settingInt('daily_route_nudge_streak_risk_min_streak', 2) && ((string) ($row['last_completed_date'] ?? '') < date('Y-m-d', strtotime('-1 day'))) && $pending > 0) {
                 $stats['sent'] += $this->sendNudgeOnce($userId, (int) ($row['route_id'] ?? 0), 'streak_at_risk', $segment, 'A tua sequência está em risco', 'Conclui a Rota Diária de hoje para não perderes o ritmo que já construíste.');
             }
 
@@ -675,7 +695,8 @@ final class DailyRouteService extends Model
 
     private function nudgeSegment(array $row, int $inactiveDays): string
     {
-        $isNew = strtotime((string) ($row['created_at'] ?? '1970-01-01')) >= strtotime('-14 day');
+        $newUserWindowDays = max(1, $this->settingInt('daily_route_nudge_new_user_window_days', 14));
+        $isNew = strtotime((string) ($row['created_at'] ?? '1970-01-01')) >= strtotime(sprintf('-%d day', $newUserWindowDays));
         if ($isNew) {
             return 'new_user';
         }

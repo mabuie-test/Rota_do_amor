@@ -53,6 +53,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260412_safe_dates_consolidation.sql
    mysql -u root -p < database/migrations/20260412_safe_dates_admin_hardening.sql
    mysql -u root -p < database/migrations/20260413_daily_routes_module.sql
+   mysql -u root -p < database/migrations/20260413_daily_routes_consolidation.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -208,6 +209,7 @@ As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260412_safe_dates_consolidation.sql`.
 - `database/migrations/20260412_safe_dates_admin_hardening.sql`;
 - `database/migrations/20260413_daily_routes_module.sql`.
+- `database/migrations/20260413_daily_routes_consolidation.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;
@@ -234,6 +236,7 @@ A segunda migração adiciona:
   - `GET /daily-route`
   - `POST /daily-route/claim-reward`
 - Entidades: `daily_routes`, `daily_route_tasks`, `daily_route_rewards`, `daily_route_streaks`.
+- Observabilidade de eventos reais: `daily_route_event_logs` (evento + módulo de origem + incremento).
 - Geração idempotente: 1 rota por utilizador/dia com `UNIQUE(user_id, route_date)`.
 - Progresso por eventos reais: discovery/swipe, envio de mensagem, convite com intenção, diário, feed, atualização de perfil/modo e ações de Encontro Seguro.
 - Streak robusta: `current_streak`, `best_streak`, perda automática quando há falha de sequência.
@@ -242,6 +245,8 @@ A segunda migração adiciona:
   - `daily_route_reward_badge_type`
 - Camada premium e retenção configurável por `site_settings`:
   - `daily_route_reward_boost_hours_premium`
+  - `daily_route_reward_badge_days`
+  - `daily_route_reward_badge_days_premium`
   - `daily_route_streak_bonus_threshold`
   - `daily_route_streak_bonus_boost_hours`
   - `daily_route_premium_streak_bonus_threshold`
@@ -251,6 +256,10 @@ A segunda migração adiciona:
   - `daily_route_target_discover_default`
   - `daily_route_target_feed_interactions`
   - `daily_route_target_premium_momentum`
+  - `daily_route_nudge_end_of_day_hour`
+  - `daily_route_nudge_inactive_days`
+  - `daily_route_nudge_streak_risk_min_streak`
+  - `daily_route_nudge_new_user_window_days`
 - Flags de preparo do hub (desligadas por padrão até os módulos existirem):
   - `daily_route_enable_visitors_hub_task`
   - `daily_route_enable_anonymous_stories_task`
@@ -262,6 +271,7 @@ A segunda migração adiciona:
   - Duelo de Compatibilidade (`compatibility_duel_joined`, `compatibility_duel_voted`, `compatibility_duel_action_taken`)
 - Dashboard pessoal: bloco com progresso do dia, sequência atual, recompensa e CTA para continuar.
 - Super dashboard: adoção da Rota Diária, taxa de conclusão, utilizadores com streak ativa, taxa de claim de recompensa e leitura premium/free para governança.
+- Super dashboard: inclui também cobertura de instrumentação por módulo para validar integração real (discover/swipe/messages/invites/diary/feed/profile/safe_dates).
 
 ## Diário do Coração (privado)
 - Rotas de utilizador:

@@ -28,6 +28,12 @@ INSERT INTO site_settings (setting_key,setting_value,value_type,updated_at) VALU
 ('daily_route_premium_streak_bonus_threshold','10','int',NOW()),
 ('daily_route_premium_streak_bonus_boost_hours','1','int',NOW()),
 ('daily_route_premium_discovery_priority_hours','2','int',NOW()),
+('daily_route_reward_badge_days','30','int',NOW()),
+('daily_route_reward_badge_days_premium','45','int',NOW()),
+('daily_route_nudge_end_of_day_hour','19','int',NOW()),
+('daily_route_nudge_inactive_days','3','int',NOW()),
+('daily_route_nudge_streak_risk_min_streak','2','int',NOW()),
+('daily_route_nudge_new_user_window_days','14','int',NOW()),
 ('daily_route_enable_visitors_hub_task','0','bool',NOW()),
 ('daily_route_enable_anonymous_stories_task','0','bool',NOW()),
 ('daily_route_enable_compatibility_duel_task','0','bool',NOW());

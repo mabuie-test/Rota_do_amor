@@ -58,6 +58,8 @@ final class SuperAdminDashboardService extends Model
             'daily_routes_nudges_sent_30_days' => (int) ($dailyRouteMetrics['nudges_sent_30_days'] ?? 0),
             'daily_routes_nudge_users_30_days' => (int) ($dailyRouteMetrics['nudge_users_30_days'] ?? 0),
             'daily_routes_active_routes_without_progress_30_days' => (int) ($dailyRouteMetrics['active_routes_without_progress_30_days'] ?? 0),
+            'daily_routes_tracked_events_30_days' => (int) ($dailyRouteMetrics['tracked_events_30_days'] ?? 0),
+            'daily_routes_events_by_module_30_days' => $dailyRouteMetrics['events_by_module_30_days'] ?? [],
         ];
 
         $operations = [
@@ -130,6 +132,7 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Taxa de claim da recompensa', 'value' => ($product['daily_routes_reward_claim_rate_percent'] ?? 0) . '%'],
                     ['label' => 'Claim premium (30d)', 'value' => ($product['daily_routes_premium_rewards_claimed_30_days'] ?? 0) . ' de ' . ($product['daily_routes_premium_routes_30_days'] ?? 0) . ' (' . ($product['daily_routes_premium_claim_rate_percent'] ?? 0) . '%)'],
                     ['label' => 'Nudges enviados (30d)', 'value' => $product['daily_routes_nudges_sent_30_days'] ?? 0],
+                    ['label' => 'Eventos instrumentados (30d)', 'value' => $product['daily_routes_tracked_events_30_days'] ?? 0],
                     ['label' => 'Rotas activas sem progresso (30d)', 'value' => $product['daily_routes_active_routes_without_progress_30_days'] ?? 0],
                 ],
             ],

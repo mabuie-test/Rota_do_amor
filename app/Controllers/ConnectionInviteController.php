@@ -69,7 +69,7 @@ final class ConnectionInviteController extends Controller
         );
 
         if (!empty($result['ok'])) {
-            $this->dailyRoutes->track($senderId, 'invite_sent', 1);
+            $this->dailyRoutes->trackFromModule($senderId, DailyRouteEventBridge::EVENT_INVITE_SENT, 'invites', 1);
         }
 
         if (Request::expectsJson()) {

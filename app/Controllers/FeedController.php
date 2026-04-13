@@ -56,7 +56,7 @@ final class FeedController extends Controller
             $id = $this->service->createPost($userId, (string) Request::input('content', ''), $storedImages);
             if ($id > 0) {
                 $this->rateLimiter->hitSuccess('feed_post', $key, $userId, ['images_count' => count($storedImages)]);
-                $this->dailyRoutes->track($userId, 'feed_post', 1);
+                $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_POST, 'feed', 1);
                 if (Request::expectsJson()) {
                     Response::json(['ok' => true, 'post_id' => $id, 'images_count' => count($storedImages)]);
                 }
@@ -103,7 +103,7 @@ final class FeedController extends Controller
         $userId = Auth::id() ?? 0;
         $this->service->likePost((int) Request::input('post_id', 0), $userId);
         $this->rateLimiter->hitSuccess('feed_like', $key, $userId);
-        $this->dailyRoutes->track($userId, 'feed_like', 1);
+        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_LIKE, 'feed', 1);
         if (Request::expectsJson()) {
             Response::json(['ok' => true]);
         }
@@ -125,7 +125,7 @@ final class FeedController extends Controller
         $userId = Auth::id() ?? 0;
         $this->service->commentPost((int) Request::input('post_id', 0), $userId, (string) Request::input('comment', ''));
         $this->rateLimiter->hitSuccess('feed_comment', $key, $userId);
-        $this->dailyRoutes->track($userId, 'feed_comment', 1);
+        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_COMMENT, 'feed', 1);
         if (Request::expectsJson()) {
             Response::json(['ok' => true]);
         }
