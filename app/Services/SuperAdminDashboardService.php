@@ -11,7 +11,8 @@ final class SuperAdminDashboardService extends Model
     public function __construct(
         private readonly DiaryService $diary = new DiaryService(),
         private readonly RiskCenterService $risk = new RiskCenterService(),
-        private readonly SafeDateService $safeDates = new SafeDateService()
+        private readonly SafeDateService $safeDates = new SafeDateService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
     ) {
         parent::__construct();
     }
@@ -20,6 +21,7 @@ final class SuperAdminDashboardService extends Model
     {
         $diary = $this->diary->superAdminAnalytics();
         $safeDateMetrics = $this->safeDates->adminMetrics(30);
+        $dailyRouteMetrics = $this->dailyRoutes->superAdminMetrics(30);
 
         $product = [
             'total_users' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users')['c'] ?? 0),
@@ -42,6 +44,14 @@ final class SuperAdminDashboardService extends Model
             'safe_dates_safety_signals_30_days' => (int) ($safeDateMetrics['institutional_safety_signals_total'] ?? 0),
             'safe_dates_proposed_by_premium_30_days' => (int) ($safeDateMetrics['proposed_by_premium_total'] ?? 0),
             'safe_dates_proposed_by_free_30_days' => (int) ($safeDateMetrics['proposed_by_free_total'] ?? 0),
+            'daily_routes_generated_30_days' => (int) ($dailyRouteMetrics['routes_generated_30_days'] ?? 0),
+            'daily_routes_completed_30_days' => (int) ($dailyRouteMetrics['routes_completed_30_days'] ?? 0),
+            'daily_routes_completion_rate_percent' => (float) ($dailyRouteMetrics['completion_rate_percent'] ?? 0),
+            'daily_routes_active_users_30_days' => (int) ($dailyRouteMetrics['active_users_30_days'] ?? 0),
+            'daily_routes_users_with_active_streak' => (int) ($dailyRouteMetrics['users_with_active_streak'] ?? 0),
+            'daily_routes_avg_current_streak' => (float) ($dailyRouteMetrics['avg_current_streak'] ?? 0),
+            'daily_routes_rewards_claimed_30_days' => (int) ($dailyRouteMetrics['rewards_claimed_30_days'] ?? 0),
+            'daily_routes_reward_claim_rate_percent' => (float) ($dailyRouteMetrics['reward_claim_rate_percent'] ?? 0),
         ];
 
         $operations = [
@@ -106,6 +116,9 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Utilizadores no módulo (30d)', 'value' => $product['safe_dates_users_using_module_30_days'] ?? 0],
                     ['label' => 'Sinais segurança (30d)', 'value' => $product['safe_dates_safety_signals_30_days'] ?? 0],
                     ['label' => 'Adoção premium/free (30d)', 'value' => ($product['safe_dates_proposed_by_premium_30_days'] ?? 0) . ' / ' . ($product['safe_dates_proposed_by_free_30_days'] ?? 0)],
+                    ['label' => 'Rotas geradas/concluídas (30d)', 'value' => ($product['daily_routes_generated_30_days'] ?? 0) . ' / ' . ($product['daily_routes_completed_30_days'] ?? 0)],
+                    ['label' => 'Conclusão Rota Diária', 'value' => ($product['daily_routes_completion_rate_percent'] ?? 0) . '%'],
+                    ['label' => 'Utilizadores com streak ativa', 'value' => $product['daily_routes_users_with_active_streak'] ?? 0],
                 ],
             ],
             'safe_dates' => [
@@ -153,6 +166,8 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Adoção total (%)', 'value' => $diary['adoption_rate_percent'] ?? 0],
                     ['label' => 'Adoção 30 dias (%)', 'value' => $diary['adoption_rate_30_days_percent'] ?? 0],
                     ['label' => 'Lift retenção (pontos)', 'value' => $diary['retention_lift_points'] ?? 0],
+                    ['label' => 'Conclusão Rota Diária (30d)', 'value' => ($product['daily_routes_completion_rate_percent'] ?? 0) . '%'],
+                    ['label' => 'Streak média ativa', 'value' => $product['daily_routes_avg_current_streak'] ?? 0],
                 ],
             ],
         ];

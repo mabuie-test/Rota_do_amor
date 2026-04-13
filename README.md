@@ -15,6 +15,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Camada Super Admin com gestão de admins/papéis, centro de auditoria, dashboard executivo, centro de risco & abuso e analytics agregados do Diário do Coração.
 - Área administrativa dedicada de Encontro Seguro (`/admin/safe-dates`) com listagem investigativa, filtros institucionais, paginação robusta e detalhe por encontro.
 - Diário do Coração (privado/premium): criação, edição, listagem, detalhe, remoção, filtros por humor/período e resumo no dashboard pessoal.
+- Rota Diária: missões diárias com progressão por ações reais (discovery, mensagens, convites, diário, feed, perfil e Encontro Seguro), streak e recompensa integrada (mini boost + badge).
 - Scripts CLI para reconciliação de pagamentos, expiração de subscrições/boosts e envio de lembretes.
 
 ## Requisitos
@@ -51,6 +52,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260412_safe_dates_module.sql
    mysql -u root -p < database/migrations/20260412_safe_dates_consolidation.sql
    mysql -u root -p < database/migrations/20260412_safe_dates_admin_hardening.sql
+   mysql -u root -p < database/migrations/20260413_daily_routes_module.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -203,7 +205,8 @@ As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260411_chat_realtime_receipts.sql`.
 - `database/migrations/20260412_safe_dates_module.sql`;
 - `database/migrations/20260412_safe_dates_consolidation.sql`.
-- `database/migrations/20260412_safe_dates_admin_hardening.sql`.
+- `database/migrations/20260412_safe_dates_admin_hardening.sql`;
+- `database/migrations/20260413_daily_routes_module.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;
@@ -224,6 +227,20 @@ A segunda migração adiciona:
 - `database/`: schema, seeds e migrações
 - `scripts/`: automações operacionais
 
+
+## Rota Diária (retenção e hábito)
+- Rotas de utilizador:
+  - `GET /daily-route`
+  - `POST /daily-route/claim-reward`
+- Entidades: `daily_routes`, `daily_route_tasks`, `daily_route_rewards`, `daily_route_streaks`.
+- Geração idempotente: 1 rota por utilizador/dia com `UNIQUE(user_id, route_date)`.
+- Progresso por eventos reais: discovery/swipe, envio de mensagem, convite com intenção, diário, feed, atualização de perfil/modo e ações de Encontro Seguro.
+- Streak robusta: `current_streak`, `best_streak`, perda automática quando há falha de sequência.
+- Recompensa V1 configurável por `site_settings`:
+  - `daily_route_reward_boost_hours`
+  - `daily_route_reward_badge_type`
+- Dashboard pessoal: bloco com progresso do dia, sequência atual, recompensa e CTA para continuar.
+- Super dashboard: adoção da Rota Diária, taxa de conclusão, utilizadores com streak ativa e taxa de claim de recompensa.
 
 ## Diário do Coração (privado)
 - Rotas de utilizador:

@@ -11,6 +11,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\BadgeService;
 use App\Services\ConnectionModeService;
+use App\Services\DailyRouteService;
 use App\Services\ProfileService;
 use App\Services\UploadService;
 use App\Services\UserDashboardService;
@@ -25,7 +26,8 @@ final class ProfileController extends Controller
         private readonly BadgeService $badgeService = new BadgeService(),
         private readonly UploadService $uploads = new UploadService(),
         private readonly ConnectionModeService $connectionModes = new ConnectionModeService(),
-        private readonly UserDashboardService $dashboard = new UserDashboardService()
+        private readonly UserDashboardService $dashboard = new UserDashboardService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
     ) {
     }
 
@@ -63,7 +65,11 @@ final class ProfileController extends Controller
 
     public function update(): void
     {
-        $ok = $this->userService->updateProfile(Auth::id() ?? 0, Request::all());
+        $userId = Auth::id() ?? 0;
+        $ok = $this->userService->updateProfile($userId, Request::all());
+        if ($ok) {
+            $this->dailyRoutes->trackAction($userId, 'profile_updated', 1);
+        }
 
         if (Request::expectsJson()) {
             Response::json(['ok' => $ok], $ok ? 200 : 422);
@@ -84,13 +90,20 @@ final class ProfileController extends Controller
         )), static fn(string $item): bool => $item !== ''));
 
         $ok = $this->profileService->syncInterests($userId, $interests);
+        if ($ok) {
+            $this->dailyRoutes->trackAction($userId, 'profile_interests_updated', 1);
+        }
         Flash::set($ok ? 'success' : 'error', $ok ? 'Interesses atualizados.' : 'Não foi possível atualizar interesses.');
         Response::redirect('/profile');
     }
 
     public function updatePreferences(): void
     {
-        $ok = $this->profileService->upsertPreferences(Auth::id() ?? 0, Request::all());
+        $userId = Auth::id() ?? 0;
+        $ok = $this->profileService->upsertPreferences($userId, Request::all());
+        if ($ok) {
+            $this->dailyRoutes->trackAction($userId, 'profile_preferences_updated', 1);
+        }
         Flash::set($ok ? 'success' : 'error', $ok ? 'Preferências atualizadas.' : 'Não foi possível atualizar preferências.');
         Response::redirect('/profile');
     }
@@ -99,6 +112,9 @@ final class ProfileController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $ok = $this->connectionModes->upsertForUser($userId, Request::all());
+        if ($ok) {
+            $this->dailyRoutes->trackAction($userId, 'heart_mode_updated', 1);
+        }
 
         Flash::set($ok ? 'success' : 'error', $ok
             ? 'Modo do Coração e Ritmo Relacional atualizados com sucesso.'
@@ -111,7 +127,9 @@ final class ProfileController extends Controller
     {
         try {
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'profiles');
-            $id = $this->profileService->savePhoto(Auth::id() ?? 0, $stored['path'], true);
+            $userId = Auth::id() ?? 0;
+            $id = $this->profileService->savePhoto($userId, $stored['path'], true);
+            $this->dailyRoutes->trackAction($userId, 'profile_photo_uploaded', 1);
             if (Request::expectsJson()) {
                 Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
             }
@@ -130,7 +148,9 @@ final class ProfileController extends Controller
     {
         try {
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'gallery');
-            $id = $this->profileService->savePhoto(Auth::id() ?? 0, $stored['path'], false);
+            $userId = Auth::id() ?? 0;
+            $id = $this->profileService->savePhoto($userId, $stored['path'], false);
+            $this->dailyRoutes->trackAction($userId, 'profile_photo_uploaded', 1);
             if (Request::expectsJson()) {
                 Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
             }
