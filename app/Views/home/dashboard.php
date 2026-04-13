@@ -19,7 +19,10 @@
 <div class="rd-card mb-3"><div class="card-body">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <h6 class="mb-0"><i class="fa-solid fa-route me-1"></i>Rota Diária de hoje</h6>
-    <a class="btn btn-sm btn-rd-primary" href="/daily-route"><?= (($dailyRoute['can_claim_reward'] ?? false) === true) ? 'Resgatar recompensa' : 'Continuar rota' ?></a>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-rd-soft" href="<?= e((string) ($dailyRoute['next_task_cta_url'] ?? '/daily-route')) ?>">Próxima ação</a>
+      <a class="btn btn-sm btn-rd-primary" href="/daily-route"><?= (($dailyRoute['can_claim_reward'] ?? false) === true) ? 'Resgatar recompensa' : 'Continuar rota' ?></a>
+    </div>
   </div>
   <p class="small mb-1 mt-2"><?= (int) ($dailyRoute['progress_completed'] ?? 0) ?> de <?= (int) ($dailyRoute['progress_total'] ?? 0) ?> passos concluídos · Sequência: <strong><?= (int) ($dailyRoute['streak_current'] ?? 0) ?> dias</strong></p>
   <div class="progress mb-2"><div class="progress-bar" role="progressbar" style="width: <?= (int) ($dailyRoute['progress_percent'] ?? 0) ?>%"></div></div>

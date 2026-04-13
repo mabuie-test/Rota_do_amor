@@ -20,6 +20,9 @@
             <div class="fw-semibold"><?= e((string) ($task['title'] ?? 'Tarefa')) ?></div>
             <div class="small text-muted"><?= e((string) ($task['description'] ?? '')) ?></div>
             <div class="small text-muted"><?= (int) ($task['current_value'] ?? 0) ?>/<?= (int) ($task['target_value'] ?? 1) ?></div>
+            <?php if (($task['status'] ?? 'pending') !== 'completed'): ?>
+              <a class="small" href="<?= e((string) ($route['next_task_cta_url'] ?? '/daily-route')) ?>">Ir para ação recomendada</a>
+            <?php endif; ?>
           </div>
           <span class="badge <?= (($task['status'] ?? 'pending') === 'completed') ? 'text-bg-success' : 'text-bg-secondary' ?>"><?= (($task['status'] ?? 'pending') === 'completed') ? 'Concluída' : 'Pendente' ?></span>
         </div>

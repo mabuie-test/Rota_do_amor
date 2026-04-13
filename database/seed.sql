@@ -24,4 +24,10 @@ INSERT INTO site_settings (setting_key,setting_value,value_type,updated_at) VALU
 ('daily_route_target_discover_active','8','int',NOW()),
 ('daily_route_target_discover_default','5','int',NOW()),
 ('daily_route_target_feed_interactions','2','int',NOW()),
-('daily_route_target_premium_momentum','1','int',NOW());
+('daily_route_target_premium_momentum','1','int',NOW()),
+('daily_route_premium_streak_bonus_threshold','10','int',NOW()),
+('daily_route_premium_streak_bonus_boost_hours','1','int',NOW()),
+('daily_route_premium_discovery_priority_hours','2','int',NOW()),
+('daily_route_enable_visitors_hub_task','0','bool',NOW()),
+('daily_route_enable_anonymous_stories_task','0','bool',NOW()),
+('daily_route_enable_compatibility_duel_task','0','bool',NOW());
