@@ -90,6 +90,7 @@ final class DailyRouteService extends Model
             'progress_total' => $total,
             'progress_percent' => $total > 0 ? (int) round(($completed / $total) * 100) : 0,
             'tasks' => $tasks,
+            'next_task_cta_url' => $this->nextTaskCtaUrl($tasks),
             'streak_current' => (int) ($streak['current_streak'] ?? 0),
             'streak_best' => (int) ($streak['best_streak'] ?? 0),
             'reward_label' => $this->rewardLabel(),
@@ -187,8 +188,12 @@ final class DailyRouteService extends Model
         $streakDays = (int) ($route['streak_snapshot'] ?? 0);
         $streakThreshold = max(3, $this->settingInt('daily_route_streak_bonus_threshold', 7));
         $streakBonusHours = ($streakDays >= $streakThreshold) ? max(0, $this->settingInt('daily_route_streak_bonus_boost_hours', 1)) : 0;
+        $premiumStreakThreshold = max($streakThreshold, $this->settingInt('daily_route_premium_streak_bonus_threshold', 10));
+        $premiumStreakBonusHours = ($isPremium && $streakDays >= $premiumStreakThreshold) ? max(0, $this->settingInt('daily_route_premium_streak_bonus_boost_hours', 1)) : 0;
         $boostHours += $streakBonusHours;
+        $boostHours += $premiumStreakBonusHours;
         $badgeType = (string) $this->settingString('daily_route_reward_badge_type', 'constancia_diaria');
+        $premiumDiscoveryPriorityHours = $isPremium ? max(0, $this->settingInt('daily_route_premium_discovery_priority_hours', 2)) : 0;
 
         $this->execute('INSERT INTO user_boosts (user_id, payment_id, starts_at, ends_at, status, created_at) VALUES (:user_id, NULL, NOW(), DATE_ADD(NOW(), INTERVAL :hours HOUR), :status, NOW())', [
             ':user_id' => $userId,
@@ -211,7 +216,7 @@ final class DailyRouteService extends Model
             ':daily_route_id' => $routeId,
             ':user_id' => $userId,
             ':reward_type' => 'mini_boost_badge',
-            ':payload' => json_encode(['boost_hours' => $boostHours, 'badge_type' => $badgeType, 'is_premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ':payload' => json_encode(['boost_hours' => $boostHours, 'badge_type' => $badgeType, 'is_premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours, 'premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ':status' => 'claimed',
         ]);
 
@@ -221,6 +226,7 @@ final class DailyRouteService extends Model
             'Concluíste a rota e ganhaste recompensa',
             'Mini boost aplicado e badge de constância ativo.',
             ['daily_route_id' => $routeId, 'boost_hours' => $boostHours, 'premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours]
+            + ['premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours]
         );
 
         $this->audit->logSystemEvent('daily_route_reward_claimed', 'daily_route', $routeId, [
@@ -229,6 +235,8 @@ final class DailyRouteService extends Model
             'badge_type' => $badgeType,
             'is_premium' => $isPremium,
             'streak_bonus_hours' => $streakBonusHours,
+            'premium_streak_bonus_hours' => $premiumStreakBonusHours,
+            'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours,
         ]);
 
         return ['ok' => true, 'message' => 'Recompensa aplicada com sucesso.'];
@@ -245,6 +253,8 @@ final class DailyRouteService extends Model
         $streakUsers = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_route_streaks WHERE current_streak > 0")['c'] ?? 0);
         $avgStreak = round((float) ($this->safeFetchOne('SELECT COALESCE(AVG(current_streak), 0) AS v FROM daily_route_streaks')['v'] ?? 0), 2);
         $claimedRewards = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_routes WHERE route_date >= {$window} AND reward_status = 'claimed'")['c'] ?? 0);
+        $premiumRoutes = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_routes r WHERE r.route_date >= {$window} AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = r.user_id AND s.status='active' AND s.ends_at > r.created_at)")['c'] ?? 0);
+        $premiumClaims = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_routes r WHERE r.route_date >= {$window} AND r.reward_status = 'claimed' AND EXISTS (SELECT 1 FROM subscriptions s WHERE s.user_id = r.user_id AND s.status='active' AND s.ends_at > r.created_at)")['c'] ?? 0);
 
         $nudgeSent = (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM daily_route_nudge_logs WHERE created_at >= {$window}")['c'] ?? 0);
         $nudgeUsers = (int) ($this->safeFetchOne("SELECT COUNT(DISTINCT user_id) AS c FROM daily_route_nudge_logs WHERE created_at >= {$window}")['c'] ?? 0);
@@ -259,6 +269,9 @@ final class DailyRouteService extends Model
             'avg_current_streak' => $avgStreak,
             'rewards_claimed_' . $days . '_days' => $claimedRewards,
             'reward_claim_rate_percent' => $completedRoutes > 0 ? round(($claimedRewards / $completedRoutes) * 100, 2) : 0.0,
+            'premium_routes_' . $days . '_days' => $premiumRoutes,
+            'premium_rewards_claimed_' . $days . '_days' => $premiumClaims,
+            'premium_claim_rate_percent' => $premiumRoutes > 0 ? round(($premiumClaims / $premiumRoutes) * 100, 2) : 0.0,
             'nudges_sent_' . $days . '_days' => $nudgeSent,
             'nudge_users_' . $days . '_days' => $nudgeUsers,
             'active_routes_without_progress_' . $days . '_days' => $suspiciousNoProgress,
@@ -405,7 +418,7 @@ final class DailyRouteService extends Model
             );
         }
 
-        return $tasks;
+        return array_merge($tasks, $this->generateFutureHubTasks($profile));
     }
 
     private function buildTask(string $taskType, string $title, string $description, int $targetValue, int $sortOrder): array
@@ -640,6 +653,7 @@ final class DailyRouteService extends Model
             return 0;
         }
 
+        [$title, $body] = $this->segmentCopy($segment, $title, $body);
         $this->notifications->create($userId, 'daily_route_' . $nudgeType, $title, $body, ['daily_route_id' => $routeId, 'segment' => $segment]);
         $this->execute(
             'INSERT INTO daily_route_nudge_logs (user_id, route_id, nudge_type, segment, created_at) VALUES (:user_id, :route_id, :nudge_type, :segment, NOW())',
@@ -682,6 +696,60 @@ final class DailyRouteService extends Model
         }
 
         return 'core_user';
+    }
+
+    private function generateFutureHubTasks(array $profile): array
+    {
+        $tasks = [];
+        if ($this->settingInt('daily_route_enable_visitors_hub_task', 0) === 1) {
+            $tasks[] = $this->buildTask('visitors_hub_action', 'Radar de Visitantes: agir em 1 visitante', 'Prepara tua progressão para quando o Radar de Visitantes estiver ativo.', 1, 20);
+        }
+        if ($this->settingInt('daily_route_enable_anonymous_stories_task', 0) === 1) {
+            $tasks[] = $this->buildTask('anonymous_story_action', 'Histórias Anónimas: publicar ou interagir', 'Mantém o hábito com narrativa social segura e intencional.', 1, 21);
+        }
+        if ($this->settingInt('daily_route_enable_compatibility_duel_task', 0) === 1) {
+            $tasks[] = $this->buildTask('compatibility_duel_action', 'Duelo de Compatibilidade: participar', 'Consolida aprendizagem relacional com decisões rápidas e contextualizadas.', 1, 22);
+        }
+        if ($tasks !== [] && !$profile['is_premium']) {
+            return [];
+        }
+
+        return $tasks;
+    }
+
+    private function segmentCopy(string $segment, string $title, string $body): array
+    {
+        return match ($segment) {
+            'new_user' => [$title, $body . ' Começa simples: uma ação já cria o teu loop de hábito.'],
+            'inactive_user' => ['Volta com um passo leve hoje', 'Retoma sem pressão: conclui um passo da Rota Diária e recupera consistência.'],
+            'premium_user' => [$title, $body . ' Tens rota premium com vantagem leve de progressão hoje.'],
+            'without_diary' => [$title, $body . ' Uma entrada curta no Diário pode desbloquear clareza e progresso.'],
+            'matches_without_conversation' => ['Tens matches à espera de conversa', 'Abre uma conversa com intenção para avançar tua rota e teu momento relacional.'],
+            'incomplete_profile' => ['O teu perfil pode fechar mais matches hoje', 'Atualiza foto/interesses/preferências e transforma visualizações em conversas.'],
+            default => [$title, $body],
+        };
+    }
+
+    private function nextTaskCtaUrl(array $tasks): string
+    {
+        foreach ($tasks as $task) {
+            if ((string) ($task['status'] ?? '') === self::TASK_STATUS_COMPLETED) {
+                continue;
+            }
+
+            return match ((string) ($task['task_type'] ?? '')) {
+                'view_profiles', 'comeback_action' => '/discover',
+                'reply_messages' => '/messages',
+                'send_invites' => '/invites/received',
+                'write_diary' => '/diary/new',
+                'feed_interactions' => '/feed',
+                'complete_profile', 'update_heart_mode' => '/profile',
+                'safe_date_action' => '/dates',
+                default => '/daily-route',
+            };
+        }
+
+        return '/daily-route';
     }
 
     private function settingInt(string $key, int $default): int
