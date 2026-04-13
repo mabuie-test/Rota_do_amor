@@ -13,6 +13,7 @@ use App\Services\AnonymousStoryService;
 use App\Services\AuditService;
 use App\Services\CompatibilityDuelService;
 use App\Services\ProfileVisitService;
+use Throwable;
 
 final class AdminRetentionController extends Controller
 {
@@ -38,7 +39,13 @@ final class AdminRetentionController extends Controller
             'days' => (int) Request::input('days', 30),
         ];
 
-        $result = $this->visitors->adminList($filters);
+        try {
+            $result = $this->visitors->adminList($filters);
+        } catch (Throwable $exception) {
+            error_log('[admin.visitors_fallback] ' . $exception->getMessage());
+            $result = ['items' => [], 'filters' => $filters, 'pagination' => ['page' => 1, 'per_page' => 25, 'total' => 0, 'total_pages' => 1], 'overview' => [], 'leaders' => ['most_visited' => [], 'most_visitors' => []], 'premium_policy' => [], 'source_contexts' => []];
+            Flash::set('warning', 'Não foi possível carregar todos os dados do Radar de Visitantes.');
+        }
         $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'visitors_admin_list_viewed', 'profile_visit', null, ['module' => 'visitors', 'filters' => $filters]);
 
         if (Request::expectsJson()) {
@@ -73,7 +80,13 @@ final class AdminRetentionController extends Controller
             'days' => (int) Request::input('days', 30),
         ];
 
-        $result = $this->stories->adminList($filters);
+        try {
+            $result = $this->stories->adminList($filters);
+        } catch (Throwable $exception) {
+            error_log('[admin.anonymous_stories_fallback] ' . $exception->getMessage());
+            $result = ['items' => [], 'filters' => $filters, 'pagination' => ['page' => 1, 'per_page' => 25, 'total' => 0, 'total_pages' => 1], 'overview' => [], 'statuses' => [], 'categories' => [], 'report_statuses' => []];
+            Flash::set('warning', 'Não foi possível carregar toda a moderação de histórias.');
+        }
         $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'anonymous_stories_admin_list_viewed', 'anonymous_story', null, ['module' => 'anonymous_stories', 'filters' => $filters]);
 
         if (Request::expectsJson()) {
@@ -95,7 +108,12 @@ final class AdminRetentionController extends Controller
     public function anonymousStoryShow(array $params): void
     {
         $id = (int) ($params['id'] ?? 0);
-        $detail = $this->stories->adminDetail($id);
+        try {
+            $detail = $this->stories->adminDetail($id);
+        } catch (Throwable $exception) {
+            error_log('[admin.anonymous_story_detail_fallback] ' . $exception->getMessage());
+            $detail = [];
+        }
 
         if ($detail === []) {
             Response::abort(404, 'História não encontrada.');
@@ -142,7 +160,13 @@ final class AdminRetentionController extends Controller
             'days' => (int) Request::input('days', 30),
         ];
 
-        $result = $this->duels->adminList($filters);
+        try {
+            $result = $this->duels->adminList($filters);
+        } catch (Throwable $exception) {
+            error_log('[admin.compatibility_duels_fallback] ' . $exception->getMessage());
+            $result = ['items' => [], 'filters' => $filters, 'pagination' => ['page' => 1, 'per_page' => 25, 'total' => 0, 'total_pages' => 1], 'overview' => [], 'statuses' => [], 'premium_policy' => []];
+            Flash::set('warning', 'Não foi possível carregar os dados do Duelo de Compatibilidade.');
+        }
         $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'compatibility_duels_admin_list_viewed', 'compatibility_duel', null, ['module' => 'compatibility_duel', 'filters' => $filters]);
 
         if (Request::expectsJson()) {

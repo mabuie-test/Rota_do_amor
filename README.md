@@ -366,3 +366,36 @@ Implementado estado funcional real integrado com ecossistema atual:
 ### Migração incremental nova
 - `database/migrations/20260413_retention_modules_visitors_stories_duels.sql`
   - cria: `profile_visits`, `anonymous_stories`, `anonymous_story_reactions`, `anonymous_story_comments`, `anonymous_story_reports`, `compatibility_duels`, `compatibility_duel_options`, `compatibility_duel_choices`.
+
+## Cron jobs em host partilhado (produção)
+Use caminhos absolutos e `cd` explícito para evitar dependência de cwd:
+
+```bash
+cd /home/USER/public_html/Rota_do_amor && /usr/bin/php scripts/generate_daily_compatibility_duels.php 5000
+cd /home/USER/public_html/Rota_do_amor && /usr/bin/php scripts/rotate_story_of_day.php
+cd /home/USER/public_html/Rota_do_amor && /usr/bin/php scripts/send_daily_route_nudges.php
+```
+
+Todos os scripts acima:
+- exigem execução via CLI;
+- retornam `exit 0` em sucesso e `exit 1` em erro;
+- escrevem mensagem legível para stdout/stderr (útil para cron mail/log).
+
+## Checklist final de produção (executável)
+1. Aplicar migrations pendentes (instâncias antigas).
+2. Executar `php scripts/verify_production_readiness.php`.
+3. Validar `site_settings` obrigatórios (visitors, duel, daily_route e reward/nudge).
+4. Testar `/dashboard` com utilizador ativo.
+5. Testar `/visitors`.
+6. Testar `/stories/anonymous`.
+7. Testar `/compatibility-duel`.
+8. Testar `/admin/visitors`.
+9. Testar `/admin/anonymous-stories`.
+10. Testar `/admin/compatibility-duels`.
+11. Testar cron jobs (`generate_daily_compatibility_duels`, `rotate_story_of_day`, `send_daily_route_nudges`).
+12. Validar logs de erro PHP/webserver.
+13. Simular falha parcial de módulo e confirmar que `/dashboard` continua a renderizar.
+14. Confirmar status final `READY` do readiness check antes de go-live.
+
+## Nota de hardening do dashboard
+O dashboard agora opera com **degradação graciosa por bloco**: falhas em módulos como visitantes, histórias, duelo ou rota diária não devem derrubar a página inteira; cada bloco cai para fallback próprio com logging contextual para investigação.

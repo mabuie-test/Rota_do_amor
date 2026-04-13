@@ -11,6 +11,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\CompatibilityDuelService;
 use App\Services\DailyRouteEventBridge;
+use Throwable;
 
 final class CompatibilityDuelController extends Controller
 {
@@ -23,8 +24,15 @@ final class CompatibilityDuelController extends Controller
     public function index(): void
     {
         $userId = Auth::id() ?? 0;
-        $duel = $this->service->getOrCreateDailyDuel($userId);
-        $policy = $this->service->premiumPolicy();
+        try {
+            $duel = $this->service->getOrCreateDailyDuel($userId);
+            $policy = $this->service->premiumPolicy();
+        } catch (Throwable $exception) {
+            error_log('[compatibility_duel.index_fallback] ' . $exception->getMessage());
+            $duel = [];
+            $policy = ['free_daily_duels' => 1, 'premium_daily_duels' => 3, 'extra_duels_enabled' => false, 'premium_insights_enabled' => false];
+            Flash::set('warning', 'Duelo indisponível temporariamente.');
+        }
         if (!empty($duel)) {
             $this->dailyRoutes->trackFromModule($userId, 'compatibility_duel_joined', 'compatibility_duel', 1);
         }

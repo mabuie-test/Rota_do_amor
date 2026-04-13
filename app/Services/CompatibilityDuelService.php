@@ -19,27 +19,34 @@ final class CompatibilityDuelService extends Model
 
     public function getOrCreateDailyDuel(int $userId): array
     {
-        $duel = $this->fetchOne('SELECT * FROM compatibility_duels WHERE user_id = :user_id AND duel_date = CURDATE() LIMIT 1', [':user_id' => $userId]);
-        if (!$duel) {
-            $duelId = $this->createDuel($userId);
-            $duel = $this->fetchOne('SELECT * FROM compatibility_duels WHERE id = :id LIMIT 1', [':id' => $duelId]);
-        }
+        try {
+            $duel = $this->fetchOne('SELECT * FROM compatibility_duels WHERE user_id = :user_id AND duel_date = CURDATE() LIMIT 1', [':user_id' => $userId]);
+            if (!$duel) {
+                $duelId = $this->createDuel($userId);
+                if ($duelId > 0) {
+                    $duel = $this->fetchOne('SELECT * FROM compatibility_duels WHERE id = :id LIMIT 1', [':id' => $duelId]);
+                }
+            }
 
-        if (!$duel) {
+            if (!$duel) {
+                return [];
+            }
+
+            $options = $this->fetchAllRows(
+                'SELECT o.*, CONCAT(u.first_name, " ", u.last_name) AS candidate_name, u.profile_photo_path, u.profession, u.relationship_goal
+                 FROM compatibility_duel_options o
+                 JOIN users u ON u.id = o.candidate_user_id
+                 WHERE o.duel_id = :duel_id
+                 ORDER BY o.sort_order ASC, o.id ASC',
+                [':duel_id' => (int) $duel['id']]
+            );
+
+            $duel['options'] = $options;
+            return $duel;
+        } catch (Throwable $exception) {
+            error_log('[compatibility_duel.get_or_create_fallback] ' . $exception->getMessage());
             return [];
         }
-
-        $options = $this->fetchAllRows(
-            'SELECT o.*, CONCAT(u.first_name, " ", u.last_name) AS candidate_name, u.profile_photo_path, u.profession, u.relationship_goal
-             FROM compatibility_duel_options o
-             JOIN users u ON u.id = o.candidate_user_id
-             WHERE o.duel_id = :duel_id
-             ORDER BY o.sort_order ASC, o.id ASC',
-            [':duel_id' => (int) $duel['id']]
-        );
-
-        $duel['options'] = $options;
-        return $duel;
     }
 
     public function vote(int $duelId, int $userId, int $selectedOptionId): bool
@@ -137,6 +144,7 @@ final class CompatibilityDuelService extends Model
 
     public function adminList(array $filters): array
     {
+        try {
         $days = max(1, min(90, (int) ($filters['days'] ?? 30)));
         $conditions = ["d.created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)"];
         $params = [];
@@ -201,6 +209,17 @@ final class CompatibilityDuelService extends Model
             'statuses' => ['open', 'voted', 'engaged', 'expired'],
             'premium_policy' => $this->premiumPolicy(),
         ];
+        } catch (Throwable $exception) {
+            error_log('[compatibility_duel.admin_list_fallback] ' . $exception->getMessage());
+            return [
+                'items' => [],
+                'filters' => $filters,
+                'pagination' => ['page' => 1, 'per_page' => 25, 'total' => 0, 'total_pages' => 1],
+                'overview' => $this->superAdminMetrics(),
+                'statuses' => ['open', 'voted', 'engaged', 'expired'],
+                'premium_policy' => $this->premiumPolicy(),
+            ];
+        }
     }
 
     public function premiumPolicy(): array
@@ -215,6 +234,7 @@ final class CompatibilityDuelService extends Model
 
     private function createDuel(int $userId): int
     {
+        try {
         $profiles = $this->discovery->searchProfiles(['exclude_user_id' => $userId]);
         $profiles = array_slice($profiles, 0, 12);
         if (count($profiles) < 2) {
@@ -248,6 +268,10 @@ final class CompatibilityDuelService extends Model
         $this->audit->logSystemEvent('compatibility_duel_generated', 'compatibility_duel', $duelId, ['user_id' => $userId]);
 
         return $duelId;
+        } catch (Throwable $exception) {
+            error_log('[compatibility_duel.create_fallback] ' . $exception->getMessage());
+            return 0;
+        }
     }
 
     private function settingInt(string $key, int $default): int

@@ -7,11 +7,16 @@ require __DIR__ . '/bootstrap.php';
 use App\Core\Database;
 use App\Services\AuditService;
 
-$db = Database::connection();
-$audit = new AuditService();
-
-$db->beginTransaction();
 try {
+    if (PHP_SAPI !== 'cli') {
+        throw new RuntimeException('This script must run in CLI mode.');
+    }
+
+    $db = Database::connection();
+    $audit = new AuditService();
+
+    $db->beginTransaction();
+
     $db->exec("UPDATE anonymous_stories SET is_story_of_day = 0, updated_at = NOW() WHERE is_story_of_day = 1");
 
     $stmt = $db->query("SELECT s.id FROM anonymous_stories s
@@ -22,19 +27,28 @@ try {
         LIMIT 1");
     $top = $stmt->fetch();
 
-    if ($top) {
-        $storyId = (int) ($top['id'] ?? 0);
-        $upd = $db->prepare("UPDATE anonymous_stories SET is_story_of_day = 1, is_featured = 1, status='featured', updated_at = NOW() WHERE id = :id");
-        $upd->execute([':id' => $storyId]);
-        $audit->logSystemEvent('anonymous_story_story_of_day_rotated', 'anonymous_story', $storyId, ['origin' => 'cron']);
+    if (!$top) {
+        $db->commit();
+        echo "[anonymous_story] no eligible stories found, rotation skipped\n";
+        exit(0);
     }
 
+    $storyId = (int) ($top['id'] ?? 0);
+    if ($storyId <= 0) {
+        throw new RuntimeException('Invalid story id computed for story of the day rotation.');
+    }
+
+    $upd = $db->prepare("UPDATE anonymous_stories SET is_story_of_day = 1, is_featured = 1, status='featured', updated_at = NOW() WHERE id = :id");
+    $upd->execute([':id' => $storyId]);
+    $audit->logSystemEvent('anonymous_story_story_of_day_rotated', 'anonymous_story', $storyId, ['origin' => 'cron']);
+
     $db->commit();
-    echo "[anonymous_story] story_of_day_rotated\n";
-} catch (Throwable $e) {
-    if ($db->inTransaction()) {
+    echo "[anonymous_story] story_of_day_rotated story_id={$storyId}\n";
+    exit(0);
+} catch (Throwable $exception) {
+    if (isset($db) && $db instanceof PDO && $db->inTransaction()) {
         $db->rollBack();
     }
-    fwrite(STDERR, '[anonymous_story] failed: ' . $e->getMessage() . PHP_EOL);
+    fwrite(STDERR, '[anonymous_story] failed: ' . $exception->getMessage() . PHP_EOL);
     exit(1);
 }

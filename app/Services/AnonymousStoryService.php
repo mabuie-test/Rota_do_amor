@@ -18,43 +18,51 @@ final class AnonymousStoryService extends Model
 
     public function listStories(int $viewerId, int $page = 1, int $perPage = 20): array
     {
-        $page = max(1, $page);
-        $perPage = min(30, max(10, $perPage));
-        $offset = ($page - 1) * $perPage;
+        try {
+            $page = max(1, $page);
+            $perPage = min(30, max(10, $perPage));
+            $offset = ($page - 1) * $perPage;
 
-        $total = (int) ($this->fetchOne("SELECT COUNT(*) c FROM anonymous_stories WHERE status IN ('published','featured')")['c'] ?? 0);
+            $total = (int) ($this->fetchOne("SELECT COUNT(*) c FROM anonymous_stories WHERE status IN ('published','featured')")['c'] ?? 0);
 
-        $sql = "SELECT s.id, s.category, s.title, s.content, s.status, s.is_featured, s.created_at,
-                       (SELECT COUNT(*) FROM anonymous_story_reactions r WHERE r.story_id = s.id) AS reactions_count,
-                       (SELECT COUNT(*) FROM anonymous_story_comments c WHERE c.story_id = s.id AND c.status='active') AS comments_count,
-                       (SELECT COUNT(*) FROM anonymous_story_reactions r WHERE r.story_id = s.id AND r.user_id = :viewer) AS reacted_by_viewer
-                FROM anonymous_stories s
-                WHERE s.status IN ('published','featured')
-                ORDER BY s.is_featured DESC, s.created_at DESC
-                LIMIT :limit OFFSET :offset";
+            $sql = "SELECT s.id, s.category, s.title, s.content, s.status, s.is_featured, s.created_at,
+                           (SELECT COUNT(*) FROM anonymous_story_reactions r WHERE r.story_id = s.id) AS reactions_count,
+                           (SELECT COUNT(*) FROM anonymous_story_comments c WHERE c.story_id = s.id AND c.status='active') AS comments_count,
+                           (SELECT COUNT(*) FROM anonymous_story_reactions r WHERE r.story_id = s.id AND r.user_id = :viewer) AS reacted_by_viewer
+                    FROM anonymous_stories s
+                    WHERE s.status IN ('published','featured')
+                    ORDER BY s.is_featured DESC, s.created_at DESC
+                    LIMIT :limit OFFSET :offset";
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':viewer', $viewerId, \PDO::PARAM_INT);
-        $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
-        $stmt->execute();
-        $items = $stmt->fetchAll();
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':viewer', $viewerId, \PDO::PARAM_INT);
+            $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+            $stmt->execute();
+            $items = $stmt->fetchAll();
 
-        $storyIds = array_map(static fn(array $row): int => (int) $row['id'], $items);
-        $comments = $this->loadComments($storyIds);
-        foreach ($items as &$item) {
-            $item['comments_preview'] = $comments[(int) ($item['id'] ?? 0)] ?? [];
+            $storyIds = array_map(static fn(array $row): int => (int) $row['id'], $items);
+            $comments = $this->loadComments($storyIds);
+            foreach ($items as &$item) {
+                $item['comments_preview'] = $comments[(int) ($item['id'] ?? 0)] ?? [];
+            }
+
+            return [
+                'items' => $items,
+                'pagination' => [
+                    'page' => $page,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'total_pages' => (int) max(1, ceil($total / max(1, $perPage))),
+                ],
+            ];
+        } catch (Throwable $exception) {
+            error_log('[anonymous_stories.list_fallback] ' . $exception->getMessage());
+            return [
+                'items' => [],
+                'pagination' => ['page' => 1, 'per_page' => 15, 'total' => 0, 'total_pages' => 1],
+            ];
         }
-
-        return [
-            'items' => $items,
-            'pagination' => [
-                'page' => $page,
-                'per_page' => $perPage,
-                'total' => $total,
-                'total_pages' => (int) ceil($total / max(1, $perPage)),
-            ],
-        ];
     }
 
     public function publish(int $authorId, array $payload): int
@@ -169,6 +177,7 @@ final class AnonymousStoryService extends Model
 
     public function adminList(array $filters): array
     {
+        try {
         $days = max(1, min(90, (int) ($filters['days'] ?? 30)));
         $conditions = ["s.created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)"];
         $params = [];
@@ -248,6 +257,18 @@ final class AnonymousStoryService extends Model
             'categories' => ['relacoes', 'amor', 'encontros', 'duvidas', 'ciumes', 'red_flags', 'green_flags'],
             'report_statuses' => ['none', 'pending', 'reviewing', 'resolved', 'dismissed'],
         ];
+        } catch (Throwable $exception) {
+            error_log('[anonymous_stories.admin_list_fallback] ' . $exception->getMessage());
+            return [
+                'items' => [],
+                'filters' => $filters,
+                'pagination' => ['page' => 1, 'per_page' => 25, 'total' => 0, 'total_pages' => 1],
+                'overview' => $this->adminMetrics(),
+                'statuses' => ['draft', 'published', 'featured', 'hidden', 'moderated', 'removed'],
+                'categories' => ['relacoes', 'amor', 'encontros', 'duvidas', 'ciumes', 'red_flags', 'green_flags'],
+                'report_statuses' => ['none', 'pending', 'reviewing', 'resolved', 'dismissed'],
+            ];
+        }
     }
 
     public function adminDetail(int $storyId): array
@@ -255,7 +276,7 @@ final class AnonymousStoryService extends Model
         if ($storyId <= 0) {
             return [];
         }
-
+        try {
         $story = $this->fetchOne(
             "SELECT s.*, CONCAT(u.first_name, ' ', u.last_name) author_name, u.email AS author_email
              FROM anonymous_stories s
@@ -291,6 +312,10 @@ final class AnonymousStoryService extends Model
             'moderation' => '/admin/moderation',
         ];
         return $story;
+        } catch (Throwable $exception) {
+            error_log('[anonymous_stories.admin_detail_fallback] ' . $exception->getMessage());
+            return [];
+        }
     }
 
     public function applyAdminAction(int $storyId, int $adminId, string $action, string $note = ''): array

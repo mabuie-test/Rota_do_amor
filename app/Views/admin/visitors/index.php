@@ -17,3 +17,8 @@
 <?php if ($items === []): ?><tr><td colspan="6" class="small text-muted">Sem visitas para os filtros aplicados.</td></tr><?php endif; ?>
 <?php foreach ($items as $item): ?><tr><td>#<?= (int) $item['id'] ?></td><td><a href="<?= e(url((string) ($item['links']['visitor'] ?? '/admin/users'))) ?>">#<?= (int) $item['visitor_user_id'] ?></a> → <a href="<?= e(url((string) ($item['links']['visited'] ?? '/admin/users'))) ?>">#<?= (int) $item['visited_user_id'] ?></a></td><td><?= e((string) ($item['source_context'] ?? 'discover')) ?></td><td><?= !empty($item['visitor_is_premium']) ? 'premium' : 'free' ?> · total visitante <?= (int) ($item['visitor_visits'] ?? 0) ?></td><td><?= e((string) ($item['created_at'] ?? '')) ?></td><td><a class="btn btn-sm btn-outline-secondary" href="<?= e(url((string) ($item['links']['audit'] ?? '/admin/audit'))) ?>">audit</a></td></tr><?php endforeach; ?>
 </tbody></table></div></div>
+<?php if ((int) ($pagination['total_pages'] ?? 1) > 1): ?>
+<div class="small text-muted mt-2">
+  Página <?= (int) ($pagination['page'] ?? 1) ?> de <?= (int) ($pagination['total_pages'] ?? 1) ?> · total <?= (int) ($pagination['total'] ?? 0) ?> registos
+</div>
+<?php endif; ?>
