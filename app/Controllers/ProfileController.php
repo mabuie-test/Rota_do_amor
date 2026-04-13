@@ -11,7 +11,7 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\BadgeService;
 use App\Services\ConnectionModeService;
-use App\Services\DailyRouteService;
+use App\Services\DailyRouteEventBridge;
 use App\Services\ProfileService;
 use App\Services\UploadService;
 use App\Services\UserDashboardService;
@@ -27,7 +27,7 @@ final class ProfileController extends Controller
         private readonly UploadService $uploads = new UploadService(),
         private readonly ConnectionModeService $connectionModes = new ConnectionModeService(),
         private readonly UserDashboardService $dashboard = new UserDashboardService(),
-        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+        private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge()
     ) {
     }
 
@@ -68,7 +68,7 @@ final class ProfileController extends Controller
         $userId = Auth::id() ?? 0;
         $ok = $this->userService->updateProfile($userId, Request::all());
         if ($ok) {
-            $this->dailyRoutes->trackAction($userId, 'profile_updated', 1);
+            $this->dailyRoutes->track($userId, 'profile_updated', 1);
         }
 
         if (Request::expectsJson()) {
@@ -91,7 +91,7 @@ final class ProfileController extends Controller
 
         $ok = $this->profileService->syncInterests($userId, $interests);
         if ($ok) {
-            $this->dailyRoutes->trackAction($userId, 'profile_interests_updated', 1);
+            $this->dailyRoutes->track($userId, 'profile_interests_updated', 1);
         }
         Flash::set($ok ? 'success' : 'error', $ok ? 'Interesses atualizados.' : 'Não foi possível atualizar interesses.');
         Response::redirect('/profile');
@@ -102,7 +102,7 @@ final class ProfileController extends Controller
         $userId = Auth::id() ?? 0;
         $ok = $this->profileService->upsertPreferences($userId, Request::all());
         if ($ok) {
-            $this->dailyRoutes->trackAction($userId, 'profile_preferences_updated', 1);
+            $this->dailyRoutes->track($userId, 'profile_preferences_updated', 1);
         }
         Flash::set($ok ? 'success' : 'error', $ok ? 'Preferências atualizadas.' : 'Não foi possível atualizar preferências.');
         Response::redirect('/profile');
@@ -113,7 +113,7 @@ final class ProfileController extends Controller
         $userId = Auth::id() ?? 0;
         $ok = $this->connectionModes->upsertForUser($userId, Request::all());
         if ($ok) {
-            $this->dailyRoutes->trackAction($userId, 'heart_mode_updated', 1);
+            $this->dailyRoutes->track($userId, 'heart_mode_updated', 1);
         }
 
         Flash::set($ok ? 'success' : 'error', $ok
@@ -129,7 +129,7 @@ final class ProfileController extends Controller
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'profiles');
             $userId = Auth::id() ?? 0;
             $id = $this->profileService->savePhoto($userId, $stored['path'], true);
-            $this->dailyRoutes->trackAction($userId, 'profile_photo_uploaded', 1);
+            $this->dailyRoutes->track($userId, 'profile_photo_uploaded', 1);
             if (Request::expectsJson()) {
                 Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
             }
@@ -150,7 +150,7 @@ final class ProfileController extends Controller
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'gallery');
             $userId = Auth::id() ?? 0;
             $id = $this->profileService->savePhoto($userId, $stored['path'], false);
-            $this->dailyRoutes->trackAction($userId, 'profile_photo_uploaded', 1);
+            $this->dailyRoutes->track($userId, 'profile_photo_uploaded', 1);
             if (Request::expectsJson()) {
                 Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
             }

@@ -62,8 +62,28 @@ CREATE TABLE IF NOT EXISTS daily_route_streaks (
   INDEX idx_daily_route_streaks_current (current_streak, best_streak)
 );
 
+CREATE TABLE IF NOT EXISTS daily_route_nudge_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  route_id BIGINT NOT NULL,
+  nudge_type VARCHAR(80) NOT NULL,
+  segment VARCHAR(60) NOT NULL,
+  created_at DATETIME NOT NULL,
+  CONSTRAINT fk_daily_route_nudges_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_daily_route_nudges_route FOREIGN KEY (route_id) REFERENCES daily_routes(id) ON DELETE CASCADE,
+  INDEX idx_daily_route_nudges_route_type (route_id, nudge_type, created_at),
+  INDEX idx_daily_route_nudges_user_created (user_id, created_at)
+);
+
 INSERT INTO site_settings (setting_key, setting_value, value_type, updated_at)
 VALUES
 ('daily_route_reward_boost_hours', '2', 'int', NOW()),
-('daily_route_reward_badge_type', 'constancia_diaria', 'string', NOW())
+('daily_route_reward_badge_type', 'constancia_diaria', 'string', NOW()),
+('daily_route_reward_boost_hours_premium', '3', 'int', NOW()),
+('daily_route_streak_bonus_threshold', '7', 'int', NOW()),
+('daily_route_streak_bonus_boost_hours', '1', 'int', NOW()),
+('daily_route_target_discover_active', '8', 'int', NOW()),
+('daily_route_target_discover_default', '5', 'int', NOW()),
+('daily_route_target_feed_interactions', '2', 'int', NOW()),
+('daily_route_target_premium_momentum', '1', 'int', NOW())
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), value_type = VALUES(value_type), updated_at = VALUES(updated_at);

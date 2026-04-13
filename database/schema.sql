@@ -608,6 +608,19 @@ CREATE TABLE daily_route_streaks (
   INDEX idx_daily_route_streaks_current (current_streak, best_streak)
 );
 
+CREATE TABLE daily_route_nudge_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  route_id BIGINT NOT NULL,
+  nudge_type VARCHAR(80) NOT NULL,
+  segment VARCHAR(60) NOT NULL,
+  created_at DATETIME NOT NULL,
+  CONSTRAINT fk_daily_route_nudges_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_daily_route_nudges_route FOREIGN KEY (route_id) REFERENCES daily_routes(id) ON DELETE CASCADE,
+  INDEX idx_daily_route_nudges_route_type (route_id, nudge_type, created_at),
+  INDEX idx_daily_route_nudges_user_created (user_id, created_at)
+);
+
 CREATE TABLE notifications (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,

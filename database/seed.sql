@@ -17,4 +17,11 @@ INSERT INTO site_settings (setting_key,setting_value,value_type,updated_at) VALU
 ('safe_dates_max_open_free','2','int',NOW()),
 ('safe_dates_max_open_premium','5','int',NOW()),
 ('daily_route_reward_boost_hours','2','int',NOW()),
-('daily_route_reward_badge_type','constancia_diaria','string',NOW());
+('daily_route_reward_badge_type','constancia_diaria','string',NOW()),
+('daily_route_reward_boost_hours_premium','3','int',NOW()),
+('daily_route_streak_bonus_threshold','7','int',NOW()),
+('daily_route_streak_bonus_boost_hours','1','int',NOW()),
+('daily_route_target_discover_active','8','int',NOW()),
+('daily_route_target_discover_default','5','int',NOW()),
+('daily_route_target_feed_interactions','2','int',NOW()),
+('daily_route_target_premium_momentum','1','int',NOW());
