@@ -12,6 +12,7 @@ use App\Core\Response;
 use App\Services\AuthService;
 use App\Services\RateLimiterService;
 use App\Services\UserDashboardService;
+use Throwable;
 
 final class AuthController extends Controller
 {
@@ -68,7 +69,13 @@ final class AuthController extends Controller
     public function dashboard(): void
     {
         $userId = Auth::id() ?? 0;
-        $dashboard = $this->dashboardService->build($userId);
+        try {
+            $dashboard = $this->dashboardService->build($userId);
+        } catch (Throwable $exception) {
+            error_log('[dashboard.render_fallback] ' . $exception->getMessage());
+            $dashboard = [];
+            Flash::set('warning', 'Alguns blocos do dashboard estão temporariamente indisponíveis.');
+        }
         $this->view('home/dashboard', ['title' => 'Dashboard', 'dashboard' => $dashboard]);
     }
 }

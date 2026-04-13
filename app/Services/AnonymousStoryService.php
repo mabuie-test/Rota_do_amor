@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use Throwable;
 
 final class AnonymousStoryService extends Model
 {
@@ -132,13 +133,21 @@ final class AnonymousStoryService extends Model
 
     public function dashboardHighlight(int $viewerId): array
     {
-        $top = $this->fetchOne("SELECT id, category, title, content, created_at FROM anonymous_stories WHERE status IN ('published','featured') ORDER BY is_featured DESC, created_at DESC LIMIT 1") ?: [];
-        $myInteractions = (int) ($this->fetchOne('SELECT COUNT(*) c FROM anonymous_story_reactions WHERE user_id = :user_id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)', [':user_id' => $viewerId])['c'] ?? 0);
+        try {
+            $top = $this->fetchOne("SELECT id, category, title, content, created_at FROM anonymous_stories WHERE status IN ('published','featured') ORDER BY is_featured DESC, created_at DESC LIMIT 1") ?: [];
+            $myInteractions = (int) ($this->fetchOne('SELECT COUNT(*) c FROM anonymous_story_reactions WHERE user_id = :user_id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)', [':user_id' => $viewerId])['c'] ?? 0);
 
-        return [
-            'story' => $top,
-            'my_interactions_last_7d' => $myInteractions,
-        ];
+            return [
+                'story' => $top,
+                'my_interactions_last_7d' => $myInteractions,
+            ];
+        } catch (Throwable $exception) {
+            error_log('[anonymous_stories.dashboard_fallback] ' . $exception->getMessage());
+            return [
+                'story' => [],
+                'my_interactions_last_7d' => 0,
+            ];
+        }
     }
 
     public function adminMetrics(int $days = 30): array

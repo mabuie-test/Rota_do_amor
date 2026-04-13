@@ -71,31 +71,36 @@ final class DailyRouteService extends Model
 
     public function getDashboardSummary(int $userId): array
     {
-        $route = $this->getOrCreateTodayRoute($userId);
-        if ($route === []) {
+        try {
+            $route = $this->getOrCreateTodayRoute($userId);
+            if ($route === []) {
+                return [];
+            }
+
+            $tasks = $route['tasks'] ?? [];
+            $completed = count(array_filter($tasks, static fn(array $task): bool => (string) ($task['status'] ?? '') === self::TASK_STATUS_COMPLETED));
+            $total = count($tasks);
+            $streak = $this->safeFetchOne('SELECT current_streak, best_streak FROM daily_route_streaks WHERE user_id = :user_id LIMIT 1', [':user_id' => $userId]) ?: [];
+
+            return [
+                'id' => (int) ($route['id'] ?? 0),
+                'route_date' => (string) ($route['route_date'] ?? date('Y-m-d')),
+                'status' => (string) ($route['status'] ?? self::ROUTE_STATUS_ACTIVE),
+                'reward_status' => (string) ($route['reward_status'] ?? 'pending'),
+                'progress_completed' => $completed,
+                'progress_total' => $total,
+                'progress_percent' => $total > 0 ? (int) round(($completed / $total) * 100) : 0,
+                'tasks' => $tasks,
+                'next_task_cta_url' => $this->nextTaskCtaUrl($tasks),
+                'streak_current' => (int) ($streak['current_streak'] ?? 0),
+                'streak_best' => (int) ($streak['best_streak'] ?? 0),
+                'reward_label' => $this->rewardLabel(),
+                'can_claim_reward' => (string) ($route['reward_status'] ?? '') === 'claimable',
+            ];
+        } catch (Throwable $exception) {
+            error_log('[daily_route.dashboard_fallback] ' . $exception->getMessage());
             return [];
         }
-
-        $tasks = $route['tasks'] ?? [];
-        $completed = count(array_filter($tasks, static fn(array $task): bool => (string) ($task['status'] ?? '') === self::TASK_STATUS_COMPLETED));
-        $total = count($tasks);
-        $streak = $this->safeFetchOne('SELECT current_streak, best_streak FROM daily_route_streaks WHERE user_id = :user_id LIMIT 1', [':user_id' => $userId]) ?: [];
-
-        return [
-            'id' => (int) ($route['id'] ?? 0),
-            'route_date' => (string) ($route['route_date'] ?? date('Y-m-d')),
-            'status' => (string) ($route['status'] ?? self::ROUTE_STATUS_ACTIVE),
-            'reward_status' => (string) ($route['reward_status'] ?? 'pending'),
-            'progress_completed' => $completed,
-            'progress_total' => $total,
-            'progress_percent' => $total > 0 ? (int) round(($completed / $total) * 100) : 0,
-            'tasks' => $tasks,
-            'next_task_cta_url' => $this->nextTaskCtaUrl($tasks),
-            'streak_current' => (int) ($streak['current_streak'] ?? 0),
-            'streak_best' => (int) ($streak['best_streak'] ?? 0),
-            'reward_label' => $this->rewardLabel(),
-            'can_claim_reward' => (string) ($route['reward_status'] ?? '') === 'claimable',
-        ];
     }
 
     public function trackAction(int $userId, string $eventType, int $increment = 1, string $sourceModule = 'unknown'): void

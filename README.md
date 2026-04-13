@@ -314,6 +314,34 @@ A segunda migração adiciona:
 4. Revisar risco: utilizadores com reincidência de denúncias/bloqueios e anomalias de mensagens.
 5. Confirmar retenção: métricas agregadas do Diário do Coração no super dashboard.
 
+## Troubleshooting · erro 500 após login (`/dashboard`)
+Se o login autentica mas quebra no redirect para dashboard, o cenário típico é **host com schema/migrations incompletas** para os módulos recentes (Rota Diária, Visitantes, Histórias, Duelo).
+
+### Passo 1 — validar alinhamento de banco no host
+```bash
+php scripts/verify_production_readiness.php
+```
+Se devolver `NOT READY`, aplique as migrações pendentes na ordem oficial (ver secção de instalação para instâncias antigas).
+
+### Passo 2 — validar blocos críticos do dashboard
+Após migração, valide manualmente:
+- `/dashboard` (utilizador normal);
+- `/visitors`;
+- `/stories/anonymous`;
+- `/compatibility-duel`.
+
+### Passo 3 — validar governança/admin dos módulos novos
+- `/admin/visitors`
+- `/admin/anonymous-stories`
+- `/admin/compatibility-duels`
+
+### Passo 4 — validar settings obrigatórios
+Confirme existência das chaves de `site_settings` ligadas a premium/limites:
+- visitors (`visitors_*`)
+- stories (`anonymous_story_*`)
+- duel (`compatibility_duel_*`)
+- rota diária de retenção (`daily_route_enable_*`)
+
 ## Novos módulos de retenção (Radar + Histórias + Duelo)
 Implementado estado funcional real integrado com ecossistema atual:
 - **Radar de Visitantes** (`/visitors`, `/visitors/summary`): registo de visitas de perfil com deduplicação temporal, separação free/premium, sinais de recorrência e CTA para reengajar discovery/convites.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use Throwable;
 
 final class ProfileVisitService extends Model
 {
@@ -89,54 +90,65 @@ final class ProfileVisitService extends Model
 
     public function getSummaryForUser(int $userId, bool $isPremium): array
     {
-        $policy = $this->premiumPolicy();
-        $freeVisible = max(0, (int) ($policy['free_visible_visitors'] ?? 2));
-        $total24h = (int) ($this->fetchOne('SELECT COUNT(*) c FROM profile_visits WHERE visited_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)', [':id' => $userId])['c'] ?? 0);
-        $unique7d = (int) ($this->fetchOne('SELECT COUNT(DISTINCT visitor_user_id) c FROM profile_visits WHERE visited_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)', [':id' => $userId])['c'] ?? 0);
-        $repeat7d = (int) ($this->fetchOne('SELECT COUNT(*) c FROM (SELECT visitor_user_id FROM profile_visits WHERE visited_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY visitor_user_id HAVING COUNT(*) >= 2) t', [':id' => $userId])['c'] ?? 0);
+        try {
+            $policy = $this->premiumPolicy();
+            $freeVisible = max(0, (int) ($policy['free_visible_visitors'] ?? 2));
+            $total24h = (int) ($this->fetchOne('SELECT COUNT(*) c FROM profile_visits WHERE visited_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)', [':id' => $userId])['c'] ?? 0);
+            $unique7d = (int) ($this->fetchOne('SELECT COUNT(DISTINCT visitor_user_id) c FROM profile_visits WHERE visited_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)', [':id' => $userId])['c'] ?? 0);
+            $repeat7d = (int) ($this->fetchOne('SELECT COUNT(*) c FROM (SELECT visitor_user_id FROM profile_visits WHERE visited_user_id = :id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) GROUP BY visitor_user_id HAVING COUNT(*) >= 2) t', [':id' => $userId])['c'] ?? 0);
 
-        $recent = $this->fetchAllRows(
-            "SELECT pv.id, pv.visitor_user_id, pv.source_context, pv.created_at,
-                    CONCAT(u.first_name, ' ', u.last_name) visitor_name,
-                    u.profile_photo_path visitor_photo,
-                    (SELECT COUNT(*) FROM profile_visits p2 WHERE p2.visited_user_id = pv.visited_user_id AND p2.visitor_user_id = pv.visitor_user_id AND p2.created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)) AS visits_from_same
-             FROM profile_visits pv
-             JOIN users u ON u.id = pv.visitor_user_id
-             WHERE pv.visited_user_id = :id
-             ORDER BY pv.created_at DESC
-             LIMIT 40",
-            [':id' => $userId]
-        );
+            $recent = $this->fetchAllRows(
+                "SELECT pv.id, pv.visitor_user_id, pv.source_context, pv.created_at,
+                        CONCAT(u.first_name, ' ', u.last_name) visitor_name,
+                        u.profile_photo_path visitor_photo,
+                        (SELECT COUNT(*) FROM profile_visits p2 WHERE p2.visited_user_id = pv.visited_user_id AND p2.visitor_user_id = pv.visitor_user_id AND p2.created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)) AS visits_from_same
+                 FROM profile_visits pv
+                 JOIN users u ON u.id = pv.visitor_user_id
+                 WHERE pv.visited_user_id = :id
+                 ORDER BY pv.created_at DESC
+                 LIMIT 40",
+                [':id' => $userId]
+            );
 
-        if (!$isPremium) {
-            $recent = array_map(static function (array $item, int $index) use ($freeVisible): array {
-                $visible = $index < $freeVisible;
-                if ($visible) {
-                    $item['is_blurred'] = 0;
-                    $item['visitor_name'] = explode(' ', (string) ($item['visitor_name'] ?? 'Perfil oculto'))[0] . ' •';
-                    return $item;
-                }
+            if (!$isPremium) {
+                $recent = array_map(static function (array $item, int $index) use ($freeVisible): array {
+                    $visible = $index < $freeVisible;
+                    if ($visible) {
+                        $item['is_blurred'] = 0;
+                        $item['visitor_name'] = explode(' ', (string) ($item['visitor_name'] ?? 'Perfil oculto'))[0] . ' •';
+                        return $item;
+                    }
 
-                return [
-                    'id' => (int) ($item['id'] ?? 0),
-                    'visitor_user_id' => 0,
-                    'visitor_name' => 'Visitante oculto',
-                    'visitor_photo' => null,
-                    'source_context' => 'unknown',
-                    'created_at' => $item['created_at'] ?? null,
-                    'visits_from_same' => (int) ($item['visits_from_same'] ?? 1),
-                    'is_blurred' => 1,
-                ];
-            }, $recent, array_keys($recent));
+                    return [
+                        'id' => (int) ($item['id'] ?? 0),
+                        'visitor_user_id' => 0,
+                        'visitor_name' => 'Visitante oculto',
+                        'visitor_photo' => null,
+                        'source_context' => 'unknown',
+                        'created_at' => $item['created_at'] ?? null,
+                        'visits_from_same' => (int) ($item['visits_from_same'] ?? 1),
+                        'is_blurred' => 1,
+                    ];
+                }, $recent, array_keys($recent));
+            }
+
+            return [
+                'total_last_24h' => $total24h,
+                'unique_last_7d' => $unique7d,
+                'repeat_visitors_last_7d' => $repeat7d,
+                'recent' => $recent,
+                'premium_locked' => !$isPremium,
+            ];
+        } catch (Throwable $exception) {
+            error_log('[visitors.summary_fallback] ' . $exception->getMessage());
+            return [
+                'total_last_24h' => 0,
+                'unique_last_7d' => 0,
+                'repeat_visitors_last_7d' => 0,
+                'recent' => [],
+                'premium_locked' => !$isPremium,
+            ];
         }
-
-        return [
-            'total_last_24h' => $total24h,
-            'unique_last_7d' => $unique7d,
-            'repeat_visitors_last_7d' => $repeat7d,
-            'recent' => $recent,
-            'premium_locked' => !$isPremium,
-        ];
     }
 
     public function superAdminMetrics(int $days = 30): array

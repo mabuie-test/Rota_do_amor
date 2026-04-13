@@ -36,12 +36,13 @@ final class UserDashboardService extends Model
             return [];
         }
 
-        $daysRemaining = $this->subscriptions->getDaysRemaining($userId);
+        $moduleHealth = [];
+        $daysRemaining = $this->safeModuleCall('subscription_days_remaining', fn(): int => $this->subscriptions->getDaysRemaining($userId), 0, $moduleHealth);
         $accountStatus = (string) ($user['status'] ?? 'pending_activation');
-        $unread = $this->messages->getUnreadCount($userId);
-        $matches = $this->matches->getUserMatches($userId);
-        $isBoosted = $this->boosts->isUserBoosted($userId);
-        $badges = $this->badges->getUserBadges($userId);
+        $unread = $this->safeModuleCall('messages_unread', fn(): int => $this->messages->getUnreadCount($userId), 0, $moduleHealth);
+        $matches = $this->safeModuleCall('matches', fn(): array => $this->matches->getUserMatches($userId), [], $moduleHealth);
+        $isBoosted = $this->safeModuleCall('boost_state', fn(): bool => $this->boosts->isUserBoosted($userId), false, $moduleHealth);
+        $badges = $this->safeModuleCall('badges', fn(): array => $this->badges->getUserBadges($userId), [], $moduleHealth);
         $profileSignals = $this->loadProfileSignals($userId);
         $completion = $this->profileCompletion($user, $profileSignals);
         $compatibilityAverage = $this->averageCompatibility($userId);
@@ -49,13 +50,13 @@ final class UserDashboardService extends Model
         $heartMode = $this->safeConnectionMode($userId);
         $momentAlignment = $this->averageMomentAlignment($userId);
         $inviteSignals = $this->inviteSignals($userId);
-        $diarySummary = $this->diary->dashboardSummary($userId);
-        $nextSafeDate = $this->safeDates->summaryForUserDashboard($userId);
-        $dailyRoute = $this->dailyRoutes->getDashboardSummary($userId);
-        $isPremium = (bool) $this->premium->userHasPremium($userId);
-        $visitorsSummary = $this->visitors->getSummaryForUser($userId, $isPremium);
-        $storyHighlight = $this->stories->dashboardHighlight($userId);
-        $duelSummary = $this->duels->dashboardSummary($userId);
+        $diarySummary = $this->safeModuleCall('diary', fn(): array => $this->diary->dashboardSummary($userId), [], $moduleHealth);
+        $nextSafeDate = $this->safeModuleCall('safe_dates', fn(): array => $this->safeDates->summaryForUserDashboard($userId), [], $moduleHealth);
+        $dailyRoute = $this->safeModuleCall('daily_route', fn(): array => $this->dailyRoutes->getDashboardSummary($userId), [], $moduleHealth);
+        $isPremium = $this->safeModuleCall('premium', fn(): bool => (bool) $this->premium->userHasPremium($userId), false, $moduleHealth);
+        $visitorsSummary = $this->safeModuleCall('visitors', fn(): array => $this->visitors->getSummaryForUser($userId, $isPremium), [], $moduleHealth);
+        $storyHighlight = $this->safeModuleCall('anonymous_stories', fn(): array => $this->stories->dashboardHighlight($userId), [], $moduleHealth);
+        $duelSummary = $this->safeModuleCall('compatibility_duel', fn(): array => $this->duels->dashboardSummary($userId), [], $moduleHealth);
 
         return [
             'account_status' => $accountStatus,
@@ -94,6 +95,7 @@ final class UserDashboardService extends Model
             'premium_context' => $this->premiumContext($daysRemaining, $isBoosted, $boostImpact, $completion['attractiveness_percent'], $isPremium),
             'last_activity_at' => $user['last_activity_at'] ?? null,
             'primary_focus' => $this->buildPrimaryFocus($accountStatus, $daysRemaining, $completion['percent'], $profileSignals, $isBoosted),
+            'module_health' => $moduleHealth,
         ];
     }
 
@@ -346,6 +348,18 @@ final class UserDashboardService extends Model
                 'intention_icon' => 'fa-heart-pulse',
                 'pace_icon' => 'fa-wave-square',
             ];
+        }
+    }
+
+    private function safeModuleCall(string $module, callable $resolver, mixed $default, array &$moduleHealth): mixed
+    {
+        try {
+            $moduleHealth[$module] = 'ok';
+            return $resolver();
+        } catch (Throwable $exception) {
+            $moduleHealth[$module] = 'fallback';
+            error_log(sprintf('[dashboard.module_fallback] module=%s reason=%s', $module, $exception->getMessage()));
+            return $default;
         }
     }
 }
