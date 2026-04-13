@@ -72,8 +72,8 @@ final class AuthController extends Controller
         try {
             $dashboard = $this->dashboardService->build($userId);
         } catch (Throwable $exception) {
-            error_log('[dashboard.render_fallback] ' . $exception->getMessage());
-            $dashboard = [];
+            error_log(sprintf('[dashboard.render_fallback] user_id=%d reason=%s', $userId, $exception->getMessage()));
+            $dashboard = $this->dashboardService->fallbackDashboardData();
             Flash::set('warning', 'Alguns blocos do dashboard estão temporariamente indisponíveis.');
         }
         $this->view('home/dashboard', ['title' => 'Dashboard', 'dashboard' => $dashboard]);

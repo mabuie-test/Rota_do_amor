@@ -33,7 +33,7 @@ final class UserDashboardService extends Model
     {
         $user = $this->safeFetchOne('SELECT * FROM users WHERE id = :id', [':id' => $userId]) ?: [];
         if ($user === []) {
-            return [];
+            return $this->fallbackDashboardData();
         }
 
         $moduleHealth = [];
@@ -43,13 +43,13 @@ final class UserDashboardService extends Model
         $matches = $this->safeModuleCall('matches', fn(): array => $this->matches->getUserMatches($userId), [], $moduleHealth);
         $isBoosted = $this->safeModuleCall('boost_state', fn(): bool => $this->boosts->isUserBoosted($userId), false, $moduleHealth);
         $badges = $this->safeModuleCall('badges', fn(): array => $this->badges->getUserBadges($userId), [], $moduleHealth);
-        $profileSignals = $this->loadProfileSignals($userId);
-        $completion = $this->profileCompletion($user, $profileSignals);
-        $compatibilityAverage = $this->averageCompatibility($userId);
-        $boostImpact = $this->boostImpact($userId);
+        $profileSignals = $this->safeModuleCall('profile_signals', fn(): array => $this->loadProfileSignals($userId), [], $moduleHealth);
+        $completion = $this->safeModuleCall('profile_completion', fn(): array => $this->profileCompletion($user, $profileSignals), ['percent' => 0, 'missing' => [], 'checks' => [], 'attractiveness_percent' => 0], $moduleHealth);
+        $compatibilityAverage = $this->safeModuleCall('compatibility_avg', fn(): float => $this->averageCompatibility($userId), 0.0, $moduleHealth);
+        $boostImpact = $this->safeModuleCall('boost_impact', fn(): array => $this->boostImpact($userId), ['active_count' => 0, 'next_ends_at' => null], $moduleHealth);
         $heartMode = $this->safeConnectionMode($userId);
-        $momentAlignment = $this->averageMomentAlignment($userId);
-        $inviteSignals = $this->inviteSignals($userId);
+        $momentAlignment = $this->safeModuleCall('moment_alignment', fn(): array => $this->averageMomentAlignment($userId), ['intention' => 0.0, 'pace' => 0.0, 'suggest_refresh' => false], $moduleHealth);
+        $inviteSignals = $this->safeModuleCall('invites', fn(): array => $this->inviteSignals($userId), ['pending_received' => 0, 'pending_priority' => 0, 'accepted_total' => 0, 'likes_me_preview' => []], $moduleHealth);
         $diarySummary = $this->safeModuleCall('diary', fn(): array => $this->diary->dashboardSummary($userId), [], $moduleHealth);
         $nextSafeDate = $this->safeModuleCall('safe_dates', fn(): array => $this->safeDates->summaryForUserDashboard($userId), [], $moduleHealth);
         $dailyRoute = $this->safeModuleCall('daily_route', fn(): array => $this->dailyRoutes->getDashboardSummary($userId), [], $moduleHealth);
@@ -96,6 +96,49 @@ final class UserDashboardService extends Model
             'last_activity_at' => $user['last_activity_at'] ?? null,
             'primary_focus' => $this->buildPrimaryFocus($accountStatus, $daysRemaining, $completion['percent'], $profileSignals, $isBoosted),
             'module_health' => $moduleHealth,
+        ];
+    }
+
+    public function fallbackDashboardData(): array
+    {
+        return [
+            'account_status' => 'pending_activation',
+            'subscription_active' => false,
+            'days_remaining' => 0,
+            'unread_messages' => 0,
+            'total_matches' => 0,
+            'boost_active' => false,
+            'boost_impact' => ['active_count' => 0, 'next_ends_at' => null],
+            'active_badges' => [],
+            'profile_completion_percent' => 0,
+            'profile_attractiveness_percent' => 0,
+            'profile_missing_items' => [],
+            'profile_checklist' => [],
+            'profile_signals' => [],
+            'trust_indicator' => 'Baixa',
+            'verification_progress' => ['status' => 'not_started', 'label' => 'Verificação não iniciada', 'updated_at' => null],
+            'avg_compatibility' => 0,
+            'heart_mode' => $this->safeConnectionMode(0),
+            'avg_intention_alignment' => 0,
+            'avg_pace_alignment' => 0,
+            'heart_mode_should_refresh' => false,
+            'pending_received_invites' => 0,
+            'pending_priority_invites' => 0,
+            'accepted_invites_total' => 0,
+            'likes_me_preview' => [],
+            'diary_summary' => [],
+            'next_safe_date' => [],
+            'daily_route' => [],
+            'visitors_summary' => [],
+            'anonymous_story_highlight' => [],
+            'compatibility_duel_summary' => [],
+            'alerts' => ['Alguns blocos do dashboard estão temporariamente indisponíveis.'],
+            'actions' => [],
+            'retention_context' => ['risk_level' => 'baixo', 'engagement_signal' => 'frio', 'premium_opportunity' => true],
+            'premium_context' => ['subscription_state' => 'expirada', 'subscription_urgency' => 'alta', 'boost_estimated_impact' => 'visibilidade normal (sem boost ativo)', 'boost_readiness_score' => 0, 'boost_active_count' => 0, 'safe_date_plan' => 'free', 'safe_date_daily_limit' => 5],
+            'last_activity_at' => null,
+            'primary_focus' => 'Completar configuração da conta para ativar todos os blocos.',
+            'module_health' => ['dashboard' => 'fallback'],
         ];
     }
 

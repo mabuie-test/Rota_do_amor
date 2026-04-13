@@ -12,6 +12,7 @@ use App\Core\Response;
 use App\Services\AnonymousStoryService;
 use App\Services\DailyRouteEventBridge;
 use App\Services\RateLimiterService;
+use Throwable;
 
 final class AnonymousStoryController extends Controller
 {
@@ -26,7 +27,13 @@ final class AnonymousStoryController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $page = max(1, (int) Request::input('page', 1));
-        $stories = $this->service->listStories($userId, $page, 15);
+        try {
+            $stories = $this->service->listStories($userId, $page, 15);
+        } catch (Throwable $exception) {
+            error_log('[anonymous_stories.index_fallback] ' . $exception->getMessage());
+            $stories = ['items' => [], 'pagination' => ['page' => 1, 'per_page' => 15, 'total' => 0, 'total_pages' => 1]];
+            Flash::set('warning', 'As histórias estão temporariamente indisponíveis.');
+        }
         $this->view('stories/anonymous/index', ['title' => 'Histórias Anónimas', 'stories' => $stories['items'], 'pagination' => $stories['pagination']]);
     }
 

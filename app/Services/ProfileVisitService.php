@@ -169,6 +169,7 @@ final class ProfileVisitService extends Model
 
     public function adminList(array $filters): array
     {
+        try {
         $days = max(1, min(90, (int) ($filters['days'] ?? 30)));
         $conditions = ["pv.created_at >= DATE_SUB(NOW(), INTERVAL {$days} DAY)"];
         $params = [];
@@ -243,6 +244,18 @@ final class ProfileVisitService extends Model
             'premium_policy' => $this->premiumPolicy(),
             'source_contexts' => array_values(array_filter(array_map(static fn(array $r): string => (string) ($r['source_context'] ?? ''), $this->fetchAllRows('SELECT DISTINCT source_context FROM profile_visits ORDER BY source_context ASC LIMIT 20')))),
         ];
+        } catch (Throwable $exception) {
+            error_log('[visitors.admin_list_fallback] ' . $exception->getMessage());
+            return [
+                'items' => [],
+                'filters' => $filters,
+                'pagination' => ['page' => 1, 'per_page' => 25, 'total' => 0, 'total_pages' => 1],
+                'overview' => $this->superAdminMetrics(),
+                'leaders' => ['most_visited' => [], 'most_visitors' => []],
+                'premium_policy' => $this->premiumPolicy(),
+                'source_contexts' => [],
+            ];
+        }
     }
 
     public function premiumPolicy(): array
@@ -257,7 +270,11 @@ final class ProfileVisitService extends Model
 
     private function settingInt(string $key, int $default): int
     {
-        $row = $this->fetchOne('SELECT setting_value FROM site_settings WHERE setting_key = :k LIMIT 1', [':k' => $key]);
-        return is_numeric($row['setting_value'] ?? null) ? (int) $row['setting_value'] : $default;
+        try {
+            $row = $this->fetchOne('SELECT setting_value FROM site_settings WHERE setting_key = :k LIMIT 1', [':k' => $key]);
+            return is_numeric($row['setting_value'] ?? null) ? (int) $row['setting_value'] : $default;
+        } catch (Throwable) {
+            return $default;
+        }
     }
 }
