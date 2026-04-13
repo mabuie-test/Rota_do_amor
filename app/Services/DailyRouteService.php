@@ -731,10 +731,6 @@ final class DailyRouteService extends Model
         if ($this->settingInt('daily_route_enable_compatibility_duel_task', 0) === 1) {
             $tasks[] = $this->buildTask('compatibility_duel_action', 'Duelo de Compatibilidade: participar', 'Consolida aprendizagem relacional com decisões rápidas e contextualizadas.', 1, 22);
         }
-        if ($tasks !== [] && !$profile['is_premium']) {
-            return [];
-        }
-
         return $tasks;
     }
 
@@ -766,6 +762,9 @@ final class DailyRouteService extends Model
                 'feed_interactions' => '/feed',
                 'complete_profile', 'update_heart_mode' => '/profile',
                 'safe_date_action' => '/dates',
+                'visitors_hub_action' => '/visitors',
+                'anonymous_story_action' => '/stories/anonymous',
+                'compatibility_duel_action' => '/compatibility-duel',
                 default => '/daily-route',
             };
         }

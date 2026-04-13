@@ -146,6 +146,7 @@ final class RiskCenterService extends Model
                 HAVING SUM(CASE WHEN status IN ('reschedule_requested','rescheduled') THEN 1 ELSE 0 END) >= 6
             ) t")['c'] ?? 0),
             'safe_dates_safety_signals_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM safe_date_private_feedback WHERE safety_signal IN ('attention','emergency') AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
+            'anonymous_story_reports_pending' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM anonymous_story_reports WHERE status='pending'")['c'] ?? 0),
         ];
     }
 

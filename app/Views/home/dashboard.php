@@ -32,6 +32,14 @@
   <?php endif; ?>
 </div></div>
 <?php endif; ?>
+
+<?php $visitors = $d['visitors_summary'] ?? []; $storyHighlight = $d['anonymous_story_highlight'] ?? []; $duelSummary = $d['compatibility_duel_summary'] ?? []; ?>
+<div class="row g-3 mb-3">
+  <div class="col-lg-4"><div class="rd-card"><div class="card-body"><h6><i class="fa-solid fa-eye me-1"></i>Radar de Visitantes</h6><p class="small mb-1">24h: <strong><?= (int) ($visitors['total_last_24h'] ?? 0) ?></strong> · únicos 7d: <strong><?= (int) ($visitors['unique_last_7d'] ?? 0) ?></strong></p><p class="small mb-2">Visitantes recorrentes: <strong><?= (int) ($visitors['repeat_visitors_last_7d'] ?? 0) ?></strong></p><a class="btn btn-sm btn-rd-primary" href="/visitors">Abrir radar</a></div></div></div>
+  <div class="col-lg-4"><div class="rd-card"><div class="card-body"><h6><i class="fa-solid fa-feather-pointed me-1"></i>Histórias Anónimas</h6><p class="small mb-1">Interações 7d: <strong><?= (int) (($storyHighlight['my_interactions_last_7d'] ?? 0)) ?></strong></p><p class="small mb-2"><?php $hs = $storyHighlight['story'] ?? []; ?><?= !empty($hs) ? e((string) (mb_substr((string) ($hs['content'] ?? ''),0,90) . '...')) : 'Sem histórias em destaque agora.' ?></p><a class="btn btn-sm btn-rd-primary" href="/stories/anonymous">Ler histórias</a></div></div></div>
+  <div class="col-lg-4"><div class="rd-card"><div class="card-body"><h6><i class="fa-solid fa-people-arrows me-1"></i>Duelo de Compatibilidade</h6><p class="small mb-1">Participações 7d: <strong><?= (int) (($duelSummary['participation_last_7d'] ?? 0)) ?></strong></p><p class="small mb-2">Novo duelo diário com dois perfis e pistas de intenção/ritmo.</p><a class="btn btn-sm btn-rd-primary" href="/compatibility-duel">Abrir duelo</a></div></div></div>
+</div>
+
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Estado da Conta</div><div class="value"><?= e((string) ($d['account_status'] ?? 'pending')) ?></div></div></div></div>
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Subscrição</div><div class="value"><?= !empty($d['subscription_active']) ? 'Activa' : 'Inactiva' ?></div><small><?= (int) ($d['days_remaining'] ?? 0) ?> dias restantes</small></div></div></div>

@@ -12,7 +12,10 @@ final class SuperAdminDashboardService extends Model
         private readonly DiaryService $diary = new DiaryService(),
         private readonly RiskCenterService $risk = new RiskCenterService(),
         private readonly SafeDateService $safeDates = new SafeDateService(),
-        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService(),
+        private readonly ProfileVisitService $visitors = new ProfileVisitService(),
+        private readonly AnonymousStoryService $stories = new AnonymousStoryService(),
+        private readonly CompatibilityDuelService $duels = new CompatibilityDuelService()
     ) {
         parent::__construct();
     }
@@ -22,6 +25,9 @@ final class SuperAdminDashboardService extends Model
         $diary = $this->diary->superAdminAnalytics();
         $safeDateMetrics = $this->safeDates->adminMetrics(30);
         $dailyRouteMetrics = $this->dailyRoutes->superAdminMetrics(30);
+        $visitorsMetrics = $this->visitors->superAdminMetrics(30);
+        $storiesMetrics = $this->stories->adminMetrics(30);
+        $duelMetrics = $this->duels->superAdminMetrics(30);
 
         $product = [
             'total_users' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users')['c'] ?? 0),
@@ -60,6 +66,16 @@ final class SuperAdminDashboardService extends Model
             'daily_routes_active_routes_without_progress_30_days' => (int) ($dailyRouteMetrics['active_routes_without_progress_30_days'] ?? 0),
             'daily_routes_tracked_events_30_days' => (int) ($dailyRouteMetrics['tracked_events_30_days'] ?? 0),
             'daily_routes_events_by_module_30_days' => $dailyRouteMetrics['events_by_module_30_days'] ?? [],
+
+            'visitors_total_30_days' => (int) ($visitorsMetrics['visits_total'] ?? 0),
+            'visitors_unique_viewers_30_days' => (int) ($visitorsMetrics['unique_viewers'] ?? 0),
+            'visitors_repeat_rate_percent_30_days' => (float) ($visitorsMetrics['repeat_rate_percent'] ?? 0),
+            'anonymous_stories_published_30_days' => (int) ($storiesMetrics['stories_published'] ?? 0),
+            'anonymous_stories_interactions_30_days' => (int) (($storiesMetrics['reactions_total'] ?? 0) + ($storiesMetrics['comments_total'] ?? 0)),
+            'anonymous_stories_reports_pending' => (int) ($storiesMetrics['reports_pending'] ?? 0),
+            'compatibility_duels_generated_30_days' => (int) ($duelMetrics['duels_generated'] ?? 0),
+            'compatibility_duels_participated_30_days' => (int) ($duelMetrics['duels_participated'] ?? 0),
+            'compatibility_duels_engagement_rate_percent_30_days' => (float) ($duelMetrics['engagement_rate_percent'] ?? 0),
         ];
 
         $operations = [
@@ -134,6 +150,12 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Nudges enviados (30d)', 'value' => $product['daily_routes_nudges_sent_30_days'] ?? 0],
                     ['label' => 'Eventos instrumentados (30d)', 'value' => $product['daily_routes_tracked_events_30_days'] ?? 0],
                     ['label' => 'Rotas activas sem progresso (30d)', 'value' => $product['daily_routes_active_routes_without_progress_30_days'] ?? 0],
+                    ['label' => 'Radar: visitas totais (30d)', 'value' => $product['visitors_total_30_days'] ?? 0],
+                    ['label' => 'Radar: repetição (30d)', 'value' => ($product['visitors_repeat_rate_percent_30_days'] ?? 0) . '%'],
+                    ['label' => 'Histórias: publicadas/interações (30d)', 'value' => ($product['anonymous_stories_published_30_days'] ?? 0) . ' / ' . ($product['anonymous_stories_interactions_30_days'] ?? 0)],
+                    ['label' => 'Histórias: denúncias pendentes', 'value' => $product['anonymous_stories_reports_pending'] ?? 0],
+                    ['label' => 'Duelos: gerados/participados (30d)', 'value' => ($product['compatibility_duels_generated_30_days'] ?? 0) . ' / ' . ($product['compatibility_duels_participated_30_days'] ?? 0)],
+                    ['label' => 'Duelos: engajamento (30d)', 'value' => ($product['compatibility_duels_engagement_rate_percent_30_days'] ?? 0) . '%'],
                 ],
             ],
             'safe_dates' => [

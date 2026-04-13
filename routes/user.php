@@ -2,6 +2,9 @@
 
 use App\Controllers\ActivationController;
 use App\Controllers\AuthController;
+use App\Controllers\VisitorsController;
+use App\Controllers\CompatibilityDuelController;
+use App\Controllers\AnonymousStoryController;
 use App\Controllers\BlockController;
 use App\Controllers\ConnectionController;
 use App\Controllers\ConnectionInviteController;
@@ -56,6 +59,21 @@ $router->add('POST', '/feed/post', [FeedController::class, 'post'], $coreAccess)
 $router->add('POST', '/feed/delete', [FeedController::class, 'delete'], $coreAccess);
 $router->add('POST', '/feed/like', [FeedController::class, 'like'], $coreAccess);
 $router->add('POST', '/feed/comment', [FeedController::class, 'comment'], $coreAccess);
+
+$router->add('GET', '/visitors', [VisitorsController::class, 'index'], $coreAccess);
+$router->add('GET', '/visitors/summary', [VisitorsController::class, 'summary'], $coreAccess);
+
+$router->add('GET', '/stories/anonymous', [AnonymousStoryController::class, 'index'], $coreAccess);
+$router->add('POST', '/stories/anonymous', [AnonymousStoryController::class, 'store'], $coreAccess);
+$router->add('POST', '/stories/anonymous/react', [AnonymousStoryController::class, 'react'], $coreAccess);
+$router->add('POST', '/stories/anonymous/comment', [AnonymousStoryController::class, 'comment'], $coreAccess);
+$router->add('POST', '/stories/anonymous/report', [AnonymousStoryController::class, 'report'], $coreAccess);
+
+$router->add('GET', '/compatibility-duel', [CompatibilityDuelController::class, 'index'], $coreAccess);
+$router->add('POST', '/compatibility-duel/vote', [CompatibilityDuelController::class, 'vote'], $coreAccess);
+$router->add('POST', '/compatibility-duel/action', [CompatibilityDuelController::class, 'action'], $coreAccess);
+$router->add('GET', '/discover/profile/{id}', [DiscoverController::class, 'show'], $coreAccess);
+
 $router->add('GET', '/notifications', [NotificationController::class, 'index'], $coreAccess);
 $router->add('GET', '/daily-route', [DailyRouteController::class, 'index'], $coreAccess);
 $router->add('POST', '/daily-route/claim-reward', [DailyRouteController::class, 'claimReward'], $coreAccess);
