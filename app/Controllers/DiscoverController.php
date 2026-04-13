@@ -32,7 +32,7 @@ final class DiscoverController extends Controller
             'only_online' => Request::input('only_online'),
         ];
         $profiles = $this->service->searchProfiles($filters);
-        $this->dailyRoutes->track(Auth::id() ?? 0, 'discover_view', min(3, count($profiles)));
+        $this->dailyRoutes->trackFromModule(Auth::id() ?? 0, DailyRouteEventBridge::EVENT_DISCOVER_VIEW, 'discover', min(3, count($profiles)));
         $this->view('discover/index', ['title' => 'Descobrir', 'profiles' => $profiles, 'filters' => $filters]);
     }
 }

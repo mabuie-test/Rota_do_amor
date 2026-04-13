@@ -97,7 +97,7 @@ final class MessageController extends Controller
 
             if ($messageId > 0) {
                 $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId, ['message_type' => $messageType]);
-                $this->dailyRoutes->track($senderId, 'message_sent', 1);
+                $this->dailyRoutes->trackFromModule($senderId, DailyRouteEventBridge::EVENT_MESSAGE_SENT, 'messages', 1);
                 if (Request::expectsJson()) {
                     Response::json(['ok' => true, 'message_id' => $messageId, 'message' => $this->service->getMessageById($messageId, $senderId)], 200);
                 }

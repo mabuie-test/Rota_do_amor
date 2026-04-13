@@ -621,6 +621,21 @@ CREATE TABLE daily_route_nudge_logs (
   INDEX idx_daily_route_nudges_user_created (user_id, created_at)
 );
 
+CREATE TABLE daily_route_event_logs (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  daily_route_id BIGINT NOT NULL,
+  event_type VARCHAR(80) NOT NULL,
+  source_module VARCHAR(60) NOT NULL DEFAULT 'unknown',
+  increment_value INT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL,
+  CONSTRAINT fk_daily_route_events_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_daily_route_events_route FOREIGN KEY (daily_route_id) REFERENCES daily_routes(id) ON DELETE CASCADE,
+  INDEX idx_daily_route_events_route_created (daily_route_id, created_at),
+  INDEX idx_daily_route_events_type_created (event_type, created_at),
+  INDEX idx_daily_route_events_module_created (source_module, created_at)
+);
+
 CREATE TABLE notifications (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
