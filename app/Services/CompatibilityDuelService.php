@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use Throwable;
 
 final class CompatibilityDuelService extends Model
 {
@@ -100,13 +101,21 @@ final class CompatibilityDuelService extends Model
 
     public function dashboardSummary(int $userId): array
     {
-        $today = $this->getOrCreateDailyDuel($userId);
-        $participation7d = (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duels WHERE user_id = :user_id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND status IN ('voted','engaged')", [':user_id' => $userId])['c'] ?? 0);
+        try {
+            $today = $this->getOrCreateDailyDuel($userId);
+            $participation7d = (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duels WHERE user_id = :user_id AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND status IN ('voted','engaged')", [':user_id' => $userId])['c'] ?? 0);
 
-        return [
-            'today' => $today,
-            'participation_last_7d' => $participation7d,
-        ];
+            return [
+                'today' => $today,
+                'participation_last_7d' => $participation7d,
+            ];
+        } catch (Throwable $exception) {
+            error_log('[compatibility_duel.dashboard_fallback] ' . $exception->getMessage());
+            return [
+                'today' => [],
+                'participation_last_7d' => 0,
+            ];
+        }
     }
 
     public function superAdminMetrics(int $days = 30): array
