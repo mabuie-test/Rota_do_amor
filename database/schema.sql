@@ -2,13 +2,13 @@
 -- Se o usuário não tiver permissão CREATE DATABASE, selecione a base existente no phpMyAdmin
 -- e importe este arquivo normalmente. Não é necessário executar CREATE DATABASE/USE.
 
-CREATE TABLE provinces (
+CREATE TABLE IF NOT EXISTS provinces (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE cities (
+CREATE TABLE IF NOT EXISTS cities (
   id INT AUTO_INCREMENT PRIMARY KEY,
   province_id INT NOT NULL,
   name VARCHAR(120) NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE cities (
   UNIQUE KEY uq_city_province (province_id, name)
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   first_name VARCHAR(120) NOT NULL,
   last_name VARCHAR(120) NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE users (
   INDEX idx_users_last_activity (last_activity_at)
 );
 
-CREATE TABLE user_photos (
+CREATE TABLE IF NOT EXISTS user_photos (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   image_path VARCHAR(255) NOT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE user_photos (
   INDEX idx_user_photos_user (user_id)
 );
 
-CREATE TABLE user_interests (
+CREATE TABLE IF NOT EXISTS user_interests (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   interest_name VARCHAR(120) NOT NULL,
@@ -76,7 +76,7 @@ CREATE TABLE user_interests (
   UNIQUE KEY uq_user_interest (user_id, interest_name)
 );
 
-CREATE TABLE user_preferences (
+CREATE TABLE IF NOT EXISTS user_preferences (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL UNIQUE,
   interested_in ENUM('male','female','all') DEFAULT 'all',
@@ -93,7 +93,7 @@ CREATE TABLE user_preferences (
   CONSTRAINT fk_preferences_city FOREIGN KEY (preferred_city_id) REFERENCES cities(id)
 );
 
-CREATE TABLE subscriptions (
+CREATE TABLE IF NOT EXISTS subscriptions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   status ENUM('active','expired','cancelled') NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE subscriptions (
   INDEX idx_subscriptions_ends_at (ends_at)
 );
 
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   payment_type ENUM('activation','subscription','boost','premium_feature','identity_verification') NOT NULL,
@@ -129,7 +129,7 @@ CREATE TABLE payments (
   UNIQUE KEY uq_debito_reference (debito_reference)
 );
 
-CREATE TABLE premium_features (
+CREATE TABLE IF NOT EXISTS premium_features (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   feature_type VARCHAR(100) NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE premium_features (
   INDEX idx_premium_features_user (user_id, status)
 );
 
-CREATE TABLE user_boosts (
+CREATE TABLE IF NOT EXISTS user_boosts (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   payment_id BIGINT NULL,
@@ -154,7 +154,7 @@ CREATE TABLE user_boosts (
   INDEX idx_boost_user_status (user_id, status)
 );
 
-CREATE TABLE admins (
+CREATE TABLE IF NOT EXISTS admins (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
@@ -165,7 +165,7 @@ CREATE TABLE admins (
   updated_at DATETIME NOT NULL
 );
 
-CREATE TABLE identity_verifications (
+CREATE TABLE IF NOT EXISTS identity_verifications (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   document_image_path VARCHAR(255) NOT NULL,
@@ -181,7 +181,7 @@ CREATE TABLE identity_verifications (
   INDEX idx_identity_user_status (user_id, status)
 );
 
-CREATE TABLE email_verifications (
+CREATE TABLE IF NOT EXISTS email_verifications (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   token VARCHAR(191) NOT NULL UNIQUE,
@@ -192,7 +192,7 @@ CREATE TABLE email_verifications (
   INDEX idx_email_verifications_user (user_id)
 );
 
-CREATE TABLE password_resets (
+CREATE TABLE IF NOT EXISTS password_resets (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   email VARCHAR(190) NOT NULL,
@@ -204,7 +204,7 @@ CREATE TABLE password_resets (
   INDEX idx_password_resets_user (user_id)
 );
 
-CREATE TABLE user_badges (
+CREATE TABLE IF NOT EXISTS user_badges (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   badge_type VARCHAR(60) NOT NULL,
@@ -217,7 +217,7 @@ CREATE TABLE user_badges (
   INDEX idx_user_badges_user_active (user_id, is_active)
 );
 
-CREATE TABLE swipe_actions (
+CREATE TABLE IF NOT EXISTS swipe_actions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   actor_user_id BIGINT NOT NULL,
   target_user_id BIGINT NOT NULL,
@@ -229,7 +229,7 @@ CREATE TABLE swipe_actions (
   INDEX idx_swipe_target (target_user_id, action_type)
 );
 
-CREATE TABLE matches (
+CREATE TABLE IF NOT EXISTS matches (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_one_id BIGINT NOT NULL,
   user_two_id BIGINT NOT NULL,
@@ -243,7 +243,7 @@ CREATE TABLE matches (
   INDEX idx_matches_status (status)
 );
 
-CREATE TABLE compatibility_scores (
+CREATE TABLE IF NOT EXISTS compatibility_scores (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   target_user_id BIGINT NOT NULL,
@@ -258,7 +258,7 @@ CREATE TABLE compatibility_scores (
 );
 
 
-CREATE TABLE user_connection_modes (
+CREATE TABLE IF NOT EXISTS user_connection_modes (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   current_intention VARCHAR(60) NOT NULL,
@@ -272,7 +272,7 @@ CREATE TABLE user_connection_modes (
   INDEX idx_connection_modes_pace (relational_pace)
 );
 
-CREATE TABLE connections (
+CREATE TABLE IF NOT EXISTS connections (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   requester_id BIGINT NOT NULL,
   receiver_id BIGINT NOT NULL,
@@ -286,7 +286,7 @@ CREATE TABLE connections (
 
 
 
-CREATE TABLE connection_invites (
+CREATE TABLE IF NOT EXISTS connection_invites (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   sender_user_id BIGINT NOT NULL,
   receiver_user_id BIGINT NOT NULL,
@@ -312,7 +312,7 @@ CREATE TABLE connection_invites (
   UNIQUE KEY uq_connection_invites_pending_once (sender_user_id, receiver_user_id, pending_guard)
 );
 
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_one_id BIGINT NOT NULL,
   user_two_id BIGINT NOT NULL,
@@ -323,7 +323,7 @@ CREATE TABLE conversations (
   UNIQUE KEY uq_conversation_pair (user_one_id, user_two_id)
 );
 
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   conversation_id BIGINT NOT NULL,
   sender_id BIGINT NOT NULL,
@@ -344,7 +344,7 @@ CREATE TABLE messages (
   INDEX idx_messages_delivery (conversation_id, receiver_id, delivered_at, read_at)
 );
 
-CREATE TABLE message_typing_states (
+CREATE TABLE IF NOT EXISTS message_typing_states (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   conversation_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -357,7 +357,7 @@ CREATE TABLE message_typing_states (
   INDEX idx_typing_expires (conversation_id, expires_at)
 );
 
-CREATE TABLE posts (
+CREATE TABLE IF NOT EXISTS posts (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   content TEXT NOT NULL,
@@ -369,7 +369,7 @@ CREATE TABLE posts (
   INDEX idx_posts_user_status_created (user_id, status, created_at)
 );
 
-CREATE TABLE post_images (
+CREATE TABLE IF NOT EXISTS post_images (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   post_id BIGINT NOT NULL,
   image_path VARCHAR(255) NOT NULL,
@@ -384,7 +384,7 @@ CREATE TABLE post_images (
   INDEX idx_post_images_post_sort (post_id, sort_order, id)
 );
 
-CREATE TABLE message_attachments (
+CREATE TABLE IF NOT EXISTS message_attachments (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   message_id BIGINT NOT NULL,
   file_path VARCHAR(255) NOT NULL,
@@ -395,7 +395,7 @@ CREATE TABLE message_attachments (
   INDEX idx_message_attachments_message (message_id, id)
 );
 
-CREATE TABLE safe_dates (
+CREATE TABLE IF NOT EXISTS safe_dates (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   initiator_user_id BIGINT NOT NULL,
   invitee_user_id BIGINT NOT NULL,
@@ -447,7 +447,7 @@ CREATE TABLE safe_dates (
   INDEX idx_safe_dates_admin_participants (initiator_user_id, invitee_user_id, created_at)
 );
 
-CREATE TABLE safe_date_status_history (
+CREATE TABLE IF NOT EXISTS safe_date_status_history (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   safe_date_id BIGINT NOT NULL,
   actor_user_id BIGINT NULL,
@@ -464,7 +464,7 @@ CREATE TABLE safe_date_status_history (
 
 
 
-CREATE TABLE safe_date_private_feedback (
+CREATE TABLE IF NOT EXISTS safe_date_private_feedback (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   safe_date_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -480,7 +480,7 @@ CREATE TABLE safe_date_private_feedback (
   INDEX idx_safe_date_private_feedback_signal (safety_signal, created_at)
 );
 
-CREATE TABLE post_likes (
+CREATE TABLE IF NOT EXISTS post_likes (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   post_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -490,7 +490,7 @@ CREATE TABLE post_likes (
   UNIQUE KEY uq_post_like (post_id, user_id)
 );
 
-CREATE TABLE post_comments (
+CREATE TABLE IF NOT EXISTS post_comments (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   post_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -501,7 +501,7 @@ CREATE TABLE post_comments (
   INDEX idx_post_comments_post_created (post_id, created_at)
 );
 
-CREATE TABLE favorites (
+CREATE TABLE IF NOT EXISTS favorites (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   favorite_user_id BIGINT NOT NULL,
@@ -511,7 +511,7 @@ CREATE TABLE favorites (
   UNIQUE KEY uq_favorite_pair (user_id, favorite_user_id)
 );
 
-CREATE TABLE blocks (
+CREATE TABLE IF NOT EXISTS blocks (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   actor_user_id BIGINT NOT NULL,
   target_user_id BIGINT NOT NULL,
@@ -522,7 +522,7 @@ CREATE TABLE blocks (
   UNIQUE KEY uq_block_pair (actor_user_id, target_user_id)
 );
 
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   reporter_user_id BIGINT NOT NULL,
   target_user_id BIGINT NULL,
@@ -544,7 +544,7 @@ CREATE TABLE reports (
 );
 
 
-CREATE TABLE daily_routes (
+CREATE TABLE IF NOT EXISTS daily_routes (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   route_date DATE NOT NULL,
@@ -560,7 +560,7 @@ CREATE TABLE daily_routes (
   INDEX idx_daily_routes_reward_status (reward_status, route_date)
 );
 
-CREATE TABLE daily_route_tasks (
+CREATE TABLE IF NOT EXISTS daily_route_tasks (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   daily_route_id BIGINT NOT NULL,
   task_type VARCHAR(80) NOT NULL,
@@ -579,7 +579,7 @@ CREATE TABLE daily_route_tasks (
   INDEX idx_daily_route_tasks_type_status (task_type, status)
 );
 
-CREATE TABLE daily_route_rewards (
+CREATE TABLE IF NOT EXISTS daily_route_rewards (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   daily_route_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -595,7 +595,7 @@ CREATE TABLE daily_route_rewards (
   INDEX idx_daily_route_rewards_type_created (reward_type, created_at)
 );
 
-CREATE TABLE daily_route_streaks (
+CREATE TABLE IF NOT EXISTS daily_route_streaks (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   current_streak INT NOT NULL DEFAULT 0,
@@ -608,7 +608,7 @@ CREATE TABLE daily_route_streaks (
   INDEX idx_daily_route_streaks_current (current_streak, best_streak)
 );
 
-CREATE TABLE daily_route_nudge_logs (
+CREATE TABLE IF NOT EXISTS daily_route_nudge_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   route_id BIGINT NOT NULL,
@@ -621,7 +621,7 @@ CREATE TABLE daily_route_nudge_logs (
   INDEX idx_daily_route_nudges_user_created (user_id, created_at)
 );
 
-CREATE TABLE daily_route_event_logs (
+CREATE TABLE IF NOT EXISTS daily_route_event_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   daily_route_id BIGINT NOT NULL,
@@ -636,7 +636,7 @@ CREATE TABLE daily_route_event_logs (
   INDEX idx_daily_route_events_module_created (source_module, created_at)
 );
 
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   type VARCHAR(100) NOT NULL,
@@ -653,7 +653,7 @@ CREATE TABLE notifications (
   INDEX idx_notifications_user_delivery (user_id, delivered_at, read_at, sent_at)
 );
 
-CREATE TABLE activity_logs (
+CREATE TABLE IF NOT EXISTS activity_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   actor_type ENUM('user','admin','system') NOT NULL,
   actor_id BIGINT NULL,
@@ -674,7 +674,7 @@ CREATE TABLE activity_logs (
   INDEX idx_activity_actor_type_id_created (actor_type, actor_id, created_at)
 );
 
-CREATE TABLE moderation_actions (
+CREATE TABLE IF NOT EXISTS moderation_actions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   admin_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -686,7 +686,7 @@ CREATE TABLE moderation_actions (
   CONSTRAINT fk_moderation_user FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
-CREATE TABLE site_settings (
+CREATE TABLE IF NOT EXISTS site_settings (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   setting_key VARCHAR(120) NOT NULL UNIQUE,
   setting_value TEXT NOT NULL,
@@ -696,7 +696,7 @@ CREATE TABLE site_settings (
 
 
 
-CREATE TABLE diary_entries (
+CREATE TABLE IF NOT EXISTS diary_entries (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   title VARCHAR(190) NULL,
@@ -720,7 +720,7 @@ CREATE TABLE diary_entries (
   INDEX idx_diary_deleted_created (deleted_at, created_at)
 );
 
-CREATE TABLE banners (
+CREATE TABLE IF NOT EXISTS banners (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(150) NOT NULL,
   image_path VARCHAR(255) NOT NULL,
@@ -733,7 +733,7 @@ CREATE TABLE banners (
   updated_at DATETIME NOT NULL
 );
 
-CREATE TABLE financial_logs (
+CREATE TABLE IF NOT EXISTS financial_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   payment_id BIGINT NOT NULL,
   entry_type ENUM('revenue','refund','chargeback','adjustment') NOT NULL,
@@ -744,7 +744,7 @@ CREATE TABLE financial_logs (
   CONSTRAINT fk_financial_payment FOREIGN KEY (payment_id) REFERENCES payments(id)
 );
 
-CREATE TABLE profile_visits (
+CREATE TABLE IF NOT EXISTS profile_visits (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   visitor_user_id BIGINT NOT NULL,
   visited_user_id BIGINT NOT NULL,
@@ -757,7 +757,7 @@ CREATE TABLE profile_visits (
   INDEX idx_profile_visits_pair_created (visitor_user_id, visited_user_id, created_at)
 );
 
-CREATE TABLE anonymous_stories (
+CREATE TABLE IF NOT EXISTS anonymous_stories (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   author_user_id BIGINT NOT NULL,
   category VARCHAR(40) NOT NULL,
@@ -778,7 +778,7 @@ CREATE TABLE anonymous_stories (
   INDEX idx_anonymous_stories_category_created (category, created_at)
 );
 
-CREATE TABLE anonymous_story_reactions (
+CREATE TABLE IF NOT EXISTS anonymous_story_reactions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   story_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -790,7 +790,7 @@ CREATE TABLE anonymous_story_reactions (
   INDEX idx_story_reactions_type_created (reaction_type, created_at)
 );
 
-CREATE TABLE anonymous_story_comments (
+CREATE TABLE IF NOT EXISTS anonymous_story_comments (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   story_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -803,7 +803,7 @@ CREATE TABLE anonymous_story_comments (
   INDEX idx_story_comments_status_created (status, created_at)
 );
 
-CREATE TABLE anonymous_story_reports (
+CREATE TABLE IF NOT EXISTS anonymous_story_reports (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   story_id BIGINT NOT NULL,
   reporter_user_id BIGINT NOT NULL,
@@ -820,7 +820,7 @@ CREATE TABLE anonymous_story_reports (
   INDEX idx_story_reports_story_status (story_id, status)
 );
 
-CREATE TABLE compatibility_duels (
+CREATE TABLE IF NOT EXISTS compatibility_duels (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   duel_date DATE NOT NULL,
@@ -833,7 +833,7 @@ CREATE TABLE compatibility_duels (
   INDEX idx_compatibility_duels_status_date (status, duel_date)
 );
 
-CREATE TABLE compatibility_duel_options (
+CREATE TABLE IF NOT EXISTS compatibility_duel_options (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   duel_id BIGINT NOT NULL,
   candidate_user_id BIGINT NOT NULL,
@@ -847,7 +847,7 @@ CREATE TABLE compatibility_duel_options (
   INDEX idx_duel_options_candidate_created (candidate_user_id, created_at)
 );
 
-CREATE TABLE compatibility_duel_choices (
+CREATE TABLE IF NOT EXISTS compatibility_duel_choices (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   duel_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
@@ -860,7 +860,7 @@ CREATE TABLE compatibility_duel_choices (
   INDEX idx_duel_choices_selected_created (selected_option_id, created_at)
 );
 
-CREATE TABLE compatibility_duel_actions (
+CREATE TABLE IF NOT EXISTS compatibility_duel_actions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   duel_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
