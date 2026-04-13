@@ -5,6 +5,7 @@ use App\Controllers\AuthController;
 use App\Controllers\BlockController;
 use App\Controllers\ConnectionController;
 use App\Controllers\ConnectionInviteController;
+use App\Controllers\DailyRouteController;
 use App\Controllers\DiaryController;
 use App\Controllers\DiscoverController;
 use App\Controllers\FavoriteController;
@@ -56,6 +57,8 @@ $router->add('POST', '/feed/delete', [FeedController::class, 'delete'], $coreAcc
 $router->add('POST', '/feed/like', [FeedController::class, 'like'], $coreAccess);
 $router->add('POST', '/feed/comment', [FeedController::class, 'comment'], $coreAccess);
 $router->add('GET', '/notifications', [NotificationController::class, 'index'], $coreAccess);
+$router->add('GET', '/daily-route', [DailyRouteController::class, 'index'], $coreAccess);
+$router->add('POST', '/daily-route/claim-reward', [DailyRouteController::class, 'claimReward'], $coreAccess);
 $router->add('GET', '/dates', [SafeDateController::class, 'index'], $coreAccess);
 $router->add('GET', '/dates/{id}', [SafeDateController::class, 'show'], $coreAccess);
 $router->add('POST', '/dates/propose', [SafeDateController::class, 'propose'], $coreAccess);

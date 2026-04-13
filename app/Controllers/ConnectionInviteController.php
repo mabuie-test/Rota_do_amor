@@ -10,10 +10,14 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\ConnectionInviteService;
+use App\Services\DailyRouteService;
 
 final class ConnectionInviteController extends Controller
 {
-    public function __construct(private readonly ConnectionInviteService $service = new ConnectionInviteService())
+    public function __construct(
+        private readonly ConnectionInviteService $service = new ConnectionInviteService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+    )
     {
     }
 
@@ -56,12 +60,17 @@ final class ConnectionInviteController extends Controller
 
     public function send(): void
     {
+        $senderId = Auth::id() ?? 0;
         $result = $this->service->sendInvite(
-            Auth::id() ?? 0,
+            $senderId,
             (int) Request::input('receiver_user_id', 0),
             (string) Request::input('invitation_type', 'standard'),
             Request::input('opening_message') !== null ? (string) Request::input('opening_message') : null
         );
+
+        if (!empty($result['ok'])) {
+            $this->dailyRoutes->trackAction($senderId, 'invite_sent', 1);
+        }
 
         if (Request::expectsJson()) {
             Response::json($result, !empty($result['ok']) ? 200 : 422);

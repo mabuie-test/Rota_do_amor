@@ -9,11 +9,15 @@ use App\Core\Controller;
 use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\DailyRouteService;
 use App\Services\DiaryService;
 
 final class DiaryController extends Controller
 {
-    public function __construct(private readonly DiaryService $service = new DiaryService())
+    public function __construct(
+        private readonly DiaryService $service = new DiaryService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+    )
     {
     }
 
@@ -49,6 +53,7 @@ final class DiaryController extends Controller
         }
 
         $this->service->createEntry($userId, $this->payloadFromRequest($content));
+        $this->dailyRoutes->trackAction($userId, 'diary_written', 1);
         Flash::set('success', 'Entrada registada com sucesso.');
         Response::redirect('/diary');
     }

@@ -7,11 +7,15 @@ namespace App\Controllers;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Request;
+use App\Services\DailyRouteService;
 use App\Services\DiscoveryService;
 
 final class DiscoverController extends Controller
 {
-    public function __construct(private readonly DiscoveryService $service = new DiscoveryService())
+    public function __construct(
+        private readonly DiscoveryService $service = new DiscoveryService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+    )
     {
     }
 
@@ -28,6 +32,7 @@ final class DiscoverController extends Controller
             'only_online' => Request::input('only_online'),
         ];
         $profiles = $this->service->searchProfiles($filters);
+        $this->dailyRoutes->trackAction(Auth::id() ?? 0, 'discover_view', min(3, count($profiles)));
         $this->view('discover/index', ['title' => 'Descobrir', 'profiles' => $profiles, 'filters' => $filters]);
     }
 }

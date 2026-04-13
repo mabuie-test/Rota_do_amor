@@ -9,11 +9,15 @@ use App\Core\Controller;
 use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\DailyRouteService;
 use App\Services\SafeDateService;
 
 final class SafeDateController extends Controller
 {
-    public function __construct(private readonly SafeDateService $service = new SafeDateService())
+    public function __construct(
+        private readonly SafeDateService $service = new SafeDateService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+    )
     {
     }
 
@@ -50,7 +54,11 @@ final class SafeDateController extends Controller
 
     public function propose(): void
     {
-        $result = $this->service->propose(Auth::id() ?? 0, Request::all());
+        $userId = Auth::id() ?? 0;
+        $result = $this->service->propose($userId, Request::all());
+        if (!empty($result['ok'])) {
+            $this->dailyRoutes->trackAction($userId, 'safe_date_proposed', 1);
+        }
 
         if (Request::expectsJson()) {
             Response::json($result, !empty($result['ok']) ? 200 : 422);
@@ -99,6 +107,10 @@ final class SafeDateController extends Controller
         $accept = (bool) Request::input('accept', false);
         $result = $this->service->respondReschedule($safeDateId, Auth::id() ?? 0, $accept, (string) Request::input('reason', ''));
 
+        if (!empty($result['ok']) && $accept) {
+            $this->dailyRoutes->trackAction(Auth::id() ?? 0, 'safe_date_accepted', 1);
+        }
+
         $this->respondTransition($safeDateId, $result, $accept ? 'Remarcação confirmada.' : 'Remarcação recusada.');
     }
 
@@ -144,6 +156,13 @@ final class SafeDateController extends Controller
             'cancel' => 'Encontro cancelado.',
             'complete' => 'Encontro marcado como concluído.',
         ];
+
+        if (!empty($result['ok']) && $action === 'accept') {
+            $this->dailyRoutes->trackAction(Auth::id() ?? 0, 'safe_date_accepted', 1);
+        }
+        if (!empty($result['ok']) && $action === 'complete') {
+            $this->dailyRoutes->trackAction(Auth::id() ?? 0, 'safe_date_completed', 1);
+        }
 
         $this->respondTransition($safeDateId, $result, $success[$action] ?? 'Operação concluída.');
     }

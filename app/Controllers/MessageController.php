@@ -9,6 +9,7 @@ use App\Core\Controller;
 use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
+use App\Services\DailyRouteService;
 use App\Services\MessageService;
 use App\Services\RateLimiterService;
 use App\Services\UploadService;
@@ -19,7 +20,8 @@ final class MessageController extends Controller
     public function __construct(
         private readonly MessageService $service = new MessageService(),
         private readonly RateLimiterService $rateLimiter = new RateLimiterService(),
-        private readonly UploadService $uploads = new UploadService()
+        private readonly UploadService $uploads = new UploadService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
     )
     {
     }
@@ -95,6 +97,7 @@ final class MessageController extends Controller
 
             if ($messageId > 0) {
                 $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId, ['message_type' => $messageType]);
+                $this->dailyRoutes->trackAction($senderId, 'message_sent', 1);
                 if (Request::expectsJson()) {
                     Response::json(['ok' => true, 'message_id' => $messageId, 'message' => $this->service->getMessageById($messageId, $senderId)], 200);
                 }

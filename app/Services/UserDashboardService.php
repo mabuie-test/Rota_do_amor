@@ -20,7 +20,8 @@ final class UserDashboardService extends Model
         private readonly ConnectionInviteService $invites = new ConnectionInviteService(),
         private readonly DiaryService $diary = new DiaryService(),
         private readonly SafeDateService $safeDates = new SafeDateService(),
-        private readonly PremiumService $premium = new PremiumService()
+        private readonly PremiumService $premium = new PremiumService(),
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
     ) {
         parent::__construct();
     }
@@ -47,6 +48,7 @@ final class UserDashboardService extends Model
         $inviteSignals = $this->inviteSignals($userId);
         $diarySummary = $this->diary->dashboardSummary($userId);
         $nextSafeDate = $this->safeDates->summaryForUserDashboard($userId);
+        $dailyRoute = $this->dailyRoutes->getDashboardSummary($userId);
 
         return [
             'account_status' => $accountStatus,
@@ -75,6 +77,7 @@ final class UserDashboardService extends Model
             'likes_me_preview' => $inviteSignals['likes_me_preview'],
             'diary_summary' => $diarySummary,
             'next_safe_date' => $nextSafeDate,
+            'daily_route' => $dailyRoute,
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),

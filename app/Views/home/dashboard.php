@@ -13,6 +13,20 @@
   <strong><i class="fa-solid fa-stars me-1"></i>Foco de hoje:</strong> <?= e((string) $d['primary_focus']) ?>
 </div>
 <?php endif; ?>
+
+<?php $dailyRoute = $d['daily_route'] ?? []; ?>
+<?php if (!empty($dailyRoute)): ?>
+<div class="rd-card mb-3"><div class="card-body">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <h6 class="mb-0"><i class="fa-solid fa-route me-1"></i>Rota Diária de hoje</h6>
+    <a class="btn btn-sm btn-rd-primary" href="/daily-route">Abrir rota</a>
+  </div>
+  <p class="small mb-1 mt-2"><?= (int) ($dailyRoute['progress_completed'] ?? 0) ?> de <?= (int) ($dailyRoute['progress_total'] ?? 0) ?> passos concluídos · Sequência: <strong><?= (int) ($dailyRoute['streak_current'] ?? 0) ?> dias</strong></p>
+  <div class="progress mb-2"><div class="progress-bar" role="progressbar" style="width: <?= (int) ($dailyRoute['progress_percent'] ?? 0) ?>%"></div></div>
+  <p class="small text-muted mb-1">Recompensa ao concluir: <strong><?= e((string) ($dailyRoute['reward_label'] ?? 'Mini boost')) ?></strong></p>
+  <?php if (($dailyRoute['can_claim_reward'] ?? false) === true): ?><span class="badge text-bg-success">Recompensa pronta para resgate</span><?php endif; ?>
+</div></div>
+<?php endif; ?>
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Estado da Conta</div><div class="value"><?= e((string) ($d['account_status'] ?? 'pending')) ?></div></div></div></div>
   <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Subscrição</div><div class="value"><?= !empty($d['subscription_active']) ? 'Activa' : 'Inactiva' ?></div><small><?= (int) ($d['days_remaining'] ?? 0) ?> dias restantes</small></div></div></div>
