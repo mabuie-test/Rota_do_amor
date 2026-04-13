@@ -25,6 +25,9 @@ final class AdminDashboardService extends Model
             'total_matches' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM matches')['c'] ?? 0),
             'total_messages' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM messages')['c'] ?? 0),
             'pending_reports' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM reports WHERE status='pending'")['c'] ?? 0),
+            'visitors_24h' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM profile_visits WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)")['c'] ?? 0),
+            'anonymous_story_reports_pending' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM anonymous_story_reports WHERE status='pending'")['c'] ?? 0),
+            'compatibility_duels_today' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM compatibility_duels WHERE duel_date = CURDATE()")['c'] ?? 0),
         ];
     }
 }

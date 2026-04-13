@@ -108,6 +108,23 @@ final class DiscoveryService extends Model
         return $this->rankProfilesByCompatibilityAndPriority($userId, $profiles);
     }
 
+
+    public function getProfileForViewer(int $viewerId, int $targetId): array
+    {
+        if ($viewerId <= 0 || $targetId <= 0 || $viewerId === $targetId) {
+            return [];
+        }
+
+        $rows = $this->searchProfiles(['exclude_user_id' => $viewerId]);
+        foreach ($rows as $row) {
+            if ((int) ($row['id'] ?? 0) === $targetId) {
+                return $row;
+            }
+        }
+
+        return [];
+    }
+
     public function rankProfilesByCompatibilityAndPriority(int $userId, array $profiles): array
     {
         if ($profiles === []) {

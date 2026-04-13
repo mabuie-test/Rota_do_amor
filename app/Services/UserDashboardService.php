@@ -21,7 +21,10 @@ final class UserDashboardService extends Model
         private readonly DiaryService $diary = new DiaryService(),
         private readonly SafeDateService $safeDates = new SafeDateService(),
         private readonly PremiumService $premium = new PremiumService(),
-        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+        private readonly DailyRouteService $dailyRoutes = new DailyRouteService(),
+        private readonly ProfileVisitService $visitors = new ProfileVisitService(),
+        private readonly AnonymousStoryService $stories = new AnonymousStoryService(),
+        private readonly CompatibilityDuelService $duels = new CompatibilityDuelService()
     ) {
         parent::__construct();
     }
@@ -49,6 +52,10 @@ final class UserDashboardService extends Model
         $diarySummary = $this->diary->dashboardSummary($userId);
         $nextSafeDate = $this->safeDates->summaryForUserDashboard($userId);
         $dailyRoute = $this->dailyRoutes->getDashboardSummary($userId);
+        $isPremium = (bool) $this->premium->userHasPremium($userId);
+        $visitorsSummary = $this->visitors->getSummaryForUser($userId, $isPremium);
+        $storyHighlight = $this->stories->dashboardHighlight($userId);
+        $duelSummary = $this->duels->dashboardSummary($userId);
 
         return [
             'account_status' => $accountStatus,
@@ -78,10 +85,13 @@ final class UserDashboardService extends Model
             'diary_summary' => $diarySummary,
             'next_safe_date' => $nextSafeDate,
             'daily_route' => $dailyRoute,
+            'visitors_summary' => $visitorsSummary,
+            'anonymous_story_highlight' => $storyHighlight,
+            'compatibility_duel_summary' => $duelSummary,
             'alerts' => $this->buildAlerts($accountStatus, $daysRemaining, $completion['percent'], $profileSignals),
             'actions' => $this->buildActions($accountStatus, $daysRemaining, $completion['missing'], $isBoosted, $profileSignals),
             'retention_context' => $this->retentionContext($daysRemaining, $unread, count($matches), $isBoosted),
-            'premium_context' => $this->premiumContext($daysRemaining, $isBoosted, $boostImpact, $completion['attractiveness_percent'], (bool) $this->premium->userHasPremium($userId)),
+            'premium_context' => $this->premiumContext($daysRemaining, $isBoosted, $boostImpact, $completion['attractiveness_percent'], $isPremium),
             'last_activity_at' => $user['last_activity_at'] ?? null,
             'primary_focus' => $this->buildPrimaryFocus($accountStatus, $daysRemaining, $completion['percent'], $profileSignals, $isBoosted),
         ];

@@ -302,3 +302,28 @@ A segunda migração adiciona:
 3. Monitorar auditoria: mudanças de status, ações sensíveis e alterações em `site_settings`.
 4. Revisar risco: utilizadores com reincidência de denúncias/bloqueios e anomalias de mensagens.
 5. Confirmar retenção: métricas agregadas do Diário do Coração no super dashboard.
+
+## Novos módulos de retenção (Radar + Histórias + Duelo)
+Implementado estado funcional real integrado com ecossistema atual:
+- **Radar de Visitantes** (`/visitors`, `/visitors/summary`): registo de visitas de perfil com deduplicação temporal, separação free/premium, sinais de recorrência e CTA para reengajar discovery/convites.
+- **Histórias Anónimas** (`/stories/anonymous` + publicar/reagir/comentar/denunciar): micro-conteúdo emocional com moderação, auditoria e telemetria de interação.
+- **Duelo de Compatibilidade** (`/compatibility-duel` + voto/ação): confronto diário de dois perfis com score snapshot e pistas de intenção/ritmo.
+
+### Integração com Rota Diária
+- Eventos operacionais ativos:
+  - `visitor_profile_viewed`, `visitor_profile_engaged`
+  - `anonymous_story_published`, `anonymous_story_interacted`
+  - `compatibility_duel_joined`, `compatibility_duel_voted`, `compatibility_duel_action_taken`
+- Flags de tarefas já ligadas por migration incremental:
+  - `daily_route_enable_visitors_hub_task=1`
+  - `daily_route_enable_anonymous_stories_task=1`
+  - `daily_route_enable_compatibility_duel_task=1`
+
+### Governança institucional
+- Super dashboard inclui métricas agregadas dos três módulos (adoção, interação, repetição, participação).
+- Centro de risco inclui pendências de denúncias de histórias anónimas.
+- Auditoria sistémica para publicação/denúncia de histórias, visitas de perfil e geração/voto do duelo.
+
+### Migração incremental nova
+- `database/migrations/20260413_retention_modules_visitors_stories_duels.sql`
+  - cria: `profile_visits`, `anonymous_stories`, `anonymous_story_reactions`, `anonymous_story_comments`, `anonymous_story_reports`, `compatibility_duels`, `compatibility_duel_options`, `compatibility_duel_choices`.
