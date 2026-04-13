@@ -1,8 +1,9 @@
-<?php $s = $summary ?? []; ?>
+<?php $s = $summary ?? []; $policy = $premium_policy ?? []; ?>
 <h3 class="mb-3">Radar de Visitantes</h3>
 <div class="rd-card mb-3"><div class="card-body">
   <p class="small mb-1">Visitas nas últimas 24h: <strong><?= (int) ($s['total_last_24h'] ?? 0) ?></strong> · Visitantes únicos 7d: <strong><?= (int) ($s['unique_last_7d'] ?? 0) ?></strong> · Repetições 7d: <strong><?= (int) ($s['repeat_visitors_last_7d'] ?? 0) ?></strong></p>
-  <?php if (!empty($s['premium_locked'])): ?><div class="alert alert-info py-2 small mb-0">Conta free: vê pistas limitadas. <a href="/premium">Tornar premium</a> para lista completa e timestamps detalhados.</div><?php endif; ?>
+  <p class="small text-muted mb-1">Free vê <?= (int) ($policy['free_visible_visitors'] ?? 2) ?> visitantes com detalhe e histórico reduzido. Premium desbloqueia histórico de <?= (int) ($policy['premium_history_days'] ?? 30) ?> dias.</p>
+  <?php if (!empty($s['premium_locked'])): ?><div class="alert alert-info py-2 small mb-0">Conta free: pistas limitadas conforme política operacional. <a href="/premium">Tornar premium</a> para lista completa, recorrência e contexto temporal expandido.</div><?php endif; ?>
 </div></div>
 
 <div class="row g-3">

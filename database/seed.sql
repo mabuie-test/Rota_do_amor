@@ -36,4 +36,12 @@ INSERT INTO site_settings (setting_key,setting_value,value_type,updated_at) VALU
 ('daily_route_nudge_new_user_window_days','14','int',NOW()),
 ('daily_route_enable_visitors_hub_task','0','bool',NOW()),
 ('daily_route_enable_anonymous_stories_task','0','bool',NOW()),
-('daily_route_enable_compatibility_duel_task','0','bool',NOW());
+('daily_route_enable_compatibility_duel_task','0','bool',NOW()),
+('visitors_free_visible_visitors','2','int',NOW()),
+('visitors_free_history_hours','24','int',NOW()),
+('visitors_premium_history_days','30','int',NOW()),
+('visitors_track_limit_per_hour','120','int',NOW()),
+('compatibility_duel_free_daily_limit','1','int',NOW()),
+('compatibility_duel_premium_daily_limit','1','int',NOW()),
+('compatibility_duel_extra_enabled','0','bool',NOW()),
+('compatibility_duel_premium_insights_enabled','1','bool',NOW());

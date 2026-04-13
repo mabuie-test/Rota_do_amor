@@ -70,12 +70,17 @@ final class SuperAdminDashboardService extends Model
             'visitors_total_30_days' => (int) ($visitorsMetrics['visits_total'] ?? 0),
             'visitors_unique_viewers_30_days' => (int) ($visitorsMetrics['unique_viewers'] ?? 0),
             'visitors_repeat_rate_percent_30_days' => (float) ($visitorsMetrics['repeat_rate_percent'] ?? 0),
+            'visitors_premium_generated_30_days' => (int) ($visitorsMetrics['premium_generated_visits'] ?? 0),
+            'visitors_suspicious_30_days' => (int) ($visitorsMetrics['suspicious_visitors'] ?? 0),
             'anonymous_stories_published_30_days' => (int) ($storiesMetrics['stories_published'] ?? 0),
             'anonymous_stories_interactions_30_days' => (int) (($storiesMetrics['reactions_total'] ?? 0) + ($storiesMetrics['comments_total'] ?? 0)),
             'anonymous_stories_reports_pending' => (int) ($storiesMetrics['reports_pending'] ?? 0),
+            'anonymous_stories_story_of_day_30_days' => (int) ($storiesMetrics['story_of_day_total'] ?? 0),
             'compatibility_duels_generated_30_days' => (int) ($duelMetrics['duels_generated'] ?? 0),
             'compatibility_duels_participated_30_days' => (int) ($duelMetrics['duels_participated'] ?? 0),
             'compatibility_duels_engagement_rate_percent_30_days' => (float) ($duelMetrics['engagement_rate_percent'] ?? 0),
+            'compatibility_duels_actions_30_days' => (int) ($duelMetrics['actions_total'] ?? 0),
+            'compatibility_duels_action_rate_percent_30_days' => (float) ($duelMetrics['action_rate_percent'] ?? 0),
         ];
 
         $operations = [
@@ -250,6 +255,9 @@ final class SuperAdminDashboardService extends Model
 
         if ((int) ($risk['users_flagged'] ?? 0) > 0) {
             $queue[] = ['label' => 'Analisar utilizadores de risco', 'url' => '/admin/risk', 'count' => (int) $risk['users_flagged']];
+        }
+        if ((int) ($risk['anonymous_story_reports_pending'] ?? 0) > 0) {
+            $queue[] = ['label' => 'Revisar Histórias Anónimas', 'url' => '/admin/anonymous-stories?only_reported=1', 'count' => (int) ($risk['anonymous_story_reports_pending'] ?? 0)];
         }
 
         if ((int) ($risk['safe_dates_safety_signals_30d'] ?? 0) > 0) {
