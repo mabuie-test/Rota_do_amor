@@ -52,6 +52,9 @@ final class SuperAdminDashboardService extends Model
             'daily_routes_avg_current_streak' => (float) ($dailyRouteMetrics['avg_current_streak'] ?? 0),
             'daily_routes_rewards_claimed_30_days' => (int) ($dailyRouteMetrics['rewards_claimed_30_days'] ?? 0),
             'daily_routes_reward_claim_rate_percent' => (float) ($dailyRouteMetrics['reward_claim_rate_percent'] ?? 0),
+            'daily_routes_nudges_sent_30_days' => (int) ($dailyRouteMetrics['nudges_sent_30_days'] ?? 0),
+            'daily_routes_nudge_users_30_days' => (int) ($dailyRouteMetrics['nudge_users_30_days'] ?? 0),
+            'daily_routes_active_routes_without_progress_30_days' => (int) ($dailyRouteMetrics['active_routes_without_progress_30_days'] ?? 0),
         ];
 
         $operations = [
@@ -119,6 +122,11 @@ final class SuperAdminDashboardService extends Model
                     ['label' => 'Rotas geradas/concluídas (30d)', 'value' => ($product['daily_routes_generated_30_days'] ?? 0) . ' / ' . ($product['daily_routes_completed_30_days'] ?? 0)],
                     ['label' => 'Conclusão Rota Diária', 'value' => ($product['daily_routes_completion_rate_percent'] ?? 0) . '%'],
                     ['label' => 'Utilizadores com streak ativa', 'value' => $product['daily_routes_users_with_active_streak'] ?? 0],
+                    ['label' => 'Streak média ativa', 'value' => $product['daily_routes_avg_current_streak'] ?? 0],
+                    ['label' => 'Recompensas resgatadas (30d)', 'value' => $product['daily_routes_rewards_claimed_30_days'] ?? 0],
+                    ['label' => 'Taxa de claim da recompensa', 'value' => ($product['daily_routes_reward_claim_rate_percent'] ?? 0) . '%'],
+                    ['label' => 'Nudges enviados (30d)', 'value' => $product['daily_routes_nudges_sent_30_days'] ?? 0],
+                    ['label' => 'Rotas activas sem progresso (30d)', 'value' => $product['daily_routes_active_routes_without_progress_30_days'] ?? 0],
                 ],
             ],
             'safe_dates' => [

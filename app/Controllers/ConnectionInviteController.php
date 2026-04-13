@@ -10,13 +10,13 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\ConnectionInviteService;
-use App\Services\DailyRouteService;
+use App\Services\DailyRouteEventBridge;
 
 final class ConnectionInviteController extends Controller
 {
     public function __construct(
         private readonly ConnectionInviteService $service = new ConnectionInviteService(),
-        private readonly DailyRouteService $dailyRoutes = new DailyRouteService()
+        private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge()
     )
     {
     }
@@ -69,7 +69,7 @@ final class ConnectionInviteController extends Controller
         );
 
         if (!empty($result['ok'])) {
-            $this->dailyRoutes->trackAction($senderId, 'invite_sent', 1);
+            $this->dailyRoutes->track($senderId, 'invite_sent', 1);
         }
 
         if (Request::expectsJson()) {

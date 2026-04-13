@@ -108,6 +108,7 @@ php scripts/expire_subscriptions.php
 php scripts/expire_boosts.php
 php scripts/send_subscription_reminders.php
 php scripts/cleanup_temp_uploads.php
+php scripts/send_daily_route_nudges.php
 ```
 
 ## Segurança aplicada
@@ -239,6 +240,19 @@ A segunda migração adiciona:
 - Recompensa V1 configurável por `site_settings`:
   - `daily_route_reward_boost_hours`
   - `daily_route_reward_badge_type`
+- Camada premium e retenção configurável por `site_settings`:
+  - `daily_route_reward_boost_hours_premium`
+  - `daily_route_streak_bonus_threshold`
+  - `daily_route_streak_bonus_boost_hours`
+  - `daily_route_target_discover_active`
+  - `daily_route_target_discover_default`
+  - `daily_route_target_feed_interactions`
+  - `daily_route_target_premium_momentum`
+- Nudges e lembretes com anti-spam (`daily_route_nudge_logs`) por segmentos: novo, inativo, premium, sem diário, matches sem conversa e perfil incompleto.
+- Hub preparado para próximos módulos via taxonomia de eventos no domínio da rota:
+  - Radar de Visitantes (`visitor_profile_viewed`, `visitor_profile_engaged`)
+  - Histórias Anónimas (`anonymous_story_published`, `anonymous_story_interacted`)
+  - Duelo de Compatibilidade (`compatibility_duel_joined`, `compatibility_duel_voted`, `compatibility_duel_action_taken`)
 - Dashboard pessoal: bloco com progresso do dia, sequência atual, recompensa e CTA para continuar.
 - Super dashboard: adoção da Rota Diária, taxa de conclusão, utilizadores com streak ativa e taxa de claim de recompensa.
 
