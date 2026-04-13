@@ -13,6 +13,7 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
 - Verificação de identidade e badges de confiança.
 - Painel admin consolidado com transição central de status, dashboards, pagamentos, subscrições, boosts, verificações, denúncias, moderação e configurações.
 - Camada Super Admin com gestão de admins/papéis, centro de auditoria, dashboard executivo, centro de risco & abuso e analytics agregados do Diário do Coração.
+- Área administrativa dedicada de Encontro Seguro (`/admin/safe-dates`) com listagem investigativa, filtros institucionais, paginação robusta e detalhe por encontro.
 - Diário do Coração (privado/premium): criação, edição, listagem, detalhe, remoção, filtros por humor/período e resumo no dashboard pessoal.
 - Scripts CLI para reconciliação de pagamentos, expiração de subscrições/boosts e envio de lembretes.
 
@@ -48,6 +49,8 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    mysql -u root -p < database/migrations/20260411_connection_invites_pending_uniqueness.sql
    mysql -u root -p < database/migrations/20260411_chat_realtime_receipts.sql
    mysql -u root -p < database/migrations/20260412_safe_dates_module.sql
+   mysql -u root -p < database/migrations/20260412_safe_dates_consolidation.sql
+   mysql -u root -p < database/migrations/20260412_safe_dates_admin_hardening.sql
    ```
 7. Suba servidor local:
    ```bash
@@ -184,6 +187,8 @@ Fluxo premium para transição segura do online ao encontro real:
 - Camada de confiança: `safety_level` (`standard`, `verified_only`, `premium_guard`), badges/verificação no detalhe do encontro e checklist de segurança institucional.
 - Integração nativa com chat: CTA para propor encontro direto na conversa e acesso rápido ao encontro ativo por `conversation_id`.
 - Integração institucional: notificações (`safe_date_*`), eventos em auditoria (`safe_date_created|accepted|declined|cancelled|reschedule_requested|rescheduled|completed|expired|reminder_sent|arrived|finished_well|feedback_submitted`) e sinais no centro de risco/super dashboard.
+- Super/Admin: área dedicada para governança e investigação (`GET /admin/safe-dates`, `GET /admin/safe-dates/{id}`) com ponte direta para users/audit/risk/moderação.
+- Camada premium explícita e operacional por `site_settings` (`safe_dates_free_daily_limit`, `safe_dates_premium_daily_limit`, `safe_dates_max_open_free`, `safe_dates_max_open_premium`, `safe_dates_premium_guard_enabled`, `safe_dates_verified_only_requires_identity`).
 - Lembretes automáticos por script operacional (`scripts/send_safe_date_reminders.php`) em janelas de 24h, 2h e mesmo dia (com proteção anti-duplicado por colunas de envio).
 
 ## Índices e migração
@@ -198,6 +203,7 @@ As migrações incrementais atuais (uso exclusivo em bases antigas) são:
 - `database/migrations/20260411_chat_realtime_receipts.sql`.
 - `database/migrations/20260412_safe_dates_module.sql`;
 - `database/migrations/20260412_safe_dates_consolidation.sql`.
+- `database/migrations/20260412_safe_dates_admin_hardening.sql`.
 
 A segunda migração adiciona:
 - índice de suporte à compatibilidade em `user_interests`;
@@ -240,6 +246,7 @@ A segunda migração adiciona:
 - `GET /admin/admins`: gestão de admins, papéis e ativação/inativação.
 - `GET /admin/audit`: centro de auditoria global com filtros por actor, acção, alvo e período.
 - `GET /admin/risk`: centro de risco/abuso com contas suspeitas por sinais agregados.
+- `GET /admin/safe-dates`: centro administrativo do Encontro Seguro (filtros por status/período/safety level/par de utilizadores).
 
 ## Operação rápida (checklist)
 1. Verificar saúde: login admin, dashboard executivo, denúncias pendentes e pagamentos falhados.

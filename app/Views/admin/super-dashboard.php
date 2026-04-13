@@ -1,4 +1,4 @@
-<?php $metrics = $metrics ?? []; $product = $metrics['product'] ?? []; $operations = $metrics['operations'] ?? []; $finance = $metrics['finance'] ?? []; $diary = $metrics['diary'] ?? []; $risk = $metrics['risk'] ?? []; $trend = $metrics['trend'] ?? []; $blocks = $metrics['executive_blocks'] ?? []; ?>
+<?php $metrics = $metrics ?? []; $product = $metrics['product'] ?? []; $operations = $metrics['operations'] ?? []; $finance = $metrics['finance'] ?? []; $diary = $metrics['diary'] ?? []; $risk = $metrics['risk'] ?? []; $trend = $metrics['trend'] ?? []; $blocks = $metrics['executive_blocks'] ?? []; $safeDateTrend = $trend['safe_dates_daily_trend_30_days'] ?? []; ?>
 <h3 class="mb-3">Dashboard Executivo · Super Admin</h3>
 
 <div class="row g-3 mb-3">
@@ -26,3 +26,14 @@
 </div>
 
 <div class="row g-3 mt-1"><div class="col-lg-6"><div class="rd-card"><div class="card-body"><h6>Alertas críticos</h6><?php if (empty($metrics['critical_alerts'])): ?><p class="small text-muted mb-0">Sem alertas críticos no momento.</p><?php else: ?><ul class="small mb-0"><?php foreach (($metrics['critical_alerts'] ?? []) as $alert): ?><li><strong><?= e((string) (($alert['severity'] ?? 'info'))) ?>:</strong> <?= e((string) ($alert['message'] ?? '')) ?></li><?php endforeach; ?></ul><?php endif; ?></div></div></div><div class="col-lg-6"><div class="rd-card"><div class="card-body"><h6>Exige acção</h6><?php if (empty($metrics['action_required'])): ?><p class="small text-muted mb-0">Sem filas críticas abertas.</p><?php else: ?><?php foreach (($metrics['action_required'] ?? []) as $task): ?><a class="btn btn-sm btn-outline-primary me-2 mb-2" href="<?= e((string) $task['url']) ?>"><?= e((string) $task['label']) ?> (<?= (int) $task['count'] ?>)</a><?php endforeach; ?><?php endif; ?></div></div></div></div>
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-12"><div class="rd-card"><div class="card-body">
+    <h6>Encontro Seguro · Saúde, risco e adoção</h6>
+    <p class="small mb-1">Propostos 30d: <strong><?= (int) ($product['safe_dates_proposed_30_days'] ?? 0) ?></strong> · Utilizadores no módulo: <strong><?= (int) ($product['safe_dates_users_using_module_30_days'] ?? 0) ?></strong></p>
+    <p class="small mb-1">Sinais de segurança 30d: <strong><?= (int) ($product['safe_dates_safety_signals_30_days'] ?? 0) ?></strong> · Premium/Free: <strong><?= (int) ($product['safe_dates_proposed_by_premium_30_days'] ?? 0) ?>/<?= (int) ($product['safe_dates_proposed_by_free_30_days'] ?? 0) ?></strong></p>
+    <p class="small mb-2">Tendência diária disponível: <strong><?= count($safeDateTrend) ?></strong> dias com eventos.</p>
+    <a class="btn btn-sm btn-rd-soft me-2" href="/admin/safe-dates">Abrir área administrativa do módulo</a>
+    <a class="btn btn-sm btn-outline-secondary" href="/admin/risk">Cruzar com centro de risco</a>
+  </div></div></div>
+</div>

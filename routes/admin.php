@@ -2,6 +2,7 @@
 
 use App\Controllers\AdminAuditController;
 use App\Controllers\AdminManagementController;
+use App\Controllers\AdminSafeDateController;
 use App\Controllers\AdminRiskController;
 use App\Controllers\SuperAdminController;
 use App\Controllers\AdminAuthController;
@@ -62,3 +63,5 @@ $router->add('GET', '/admin/admins', [AdminManagementController::class, 'index']
 $router->add('POST', '/admin/admins/create', [AdminManagementController::class, 'create'], $superGuard);
 $router->add('POST', '/admin/admins/{id}/update', [AdminManagementController::class, 'update'], $superGuard);
 $router->add('GET', '/admin/risk', [AdminRiskController::class, 'index'], $opsGuard);
+$router->add('GET', '/admin/safe-dates', [AdminSafeDateController::class, 'index'], $opsGuard);
+$router->add('GET', '/admin/safe-dates/{id}', [AdminSafeDateController::class, 'show'], $opsGuard);
