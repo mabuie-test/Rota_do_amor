@@ -151,13 +151,14 @@ final class DailyRouteService extends Model
             $this->execute(
                 'UPDATE daily_route_tasks
                  SET current_value = :current_value,
-                     status = CASE WHEN :completed = 1 THEN :completed_status ELSE status END,
-                     completed_at = CASE WHEN :completed = 1 THEN COALESCE(completed_at, NOW()) ELSE completed_at END,
+                     status = CASE WHEN :completed_for_status = 1 THEN :completed_status ELSE status END,
+                     completed_at = CASE WHEN :completed_for_time = 1 THEN COALESCE(completed_at, NOW()) ELSE completed_at END,
                      updated_at = NOW()
                  WHERE id = :id',
                 [
                     ':current_value' => $newValue,
-                    ':completed' => $completed ? 1 : 0,
+                    ':completed_for_status' => $completed ? 1 : 0,
+                    ':completed_for_time' => $completed ? 1 : 0,
                     ':completed_status' => self::TASK_STATUS_COMPLETED,
                     ':id' => $taskId,
                 ]

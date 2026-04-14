@@ -31,7 +31,7 @@ final class SafeDateService extends Model
         $allowedScopes = ['upcoming', 'history', 'all'];
         $scope = in_array($scope, $allowedScopes, true) ? $scope : 'upcoming';
 
-        $where = 'WHERE (sd.initiator_user_id = :uid OR sd.invitee_user_id = :uid)';
+        $where = 'WHERE (sd.initiator_user_id = :uid_initiator OR sd.invitee_user_id = :uid_invitee)';
         if ($scope === 'upcoming') {
             $where .= " AND sd.status IN ('proposed','accepted','reschedule_requested','rescheduled')";
         } elseif ($scope === 'history') {
@@ -57,7 +57,8 @@ final class SafeDateService extends Model
                 LIMIT 100";
 
         $rows = $this->fetchAllRows($sql, [
-            ':uid' => $userId,
+            ':uid_initiator' => $userId,
+            ':uid_invitee' => $userId,
             ':uid_case_1' => $userId,
             ':uid_case_2' => $userId,
             ':uid_case_3' => $userId,
@@ -94,11 +95,12 @@ final class SafeDateService extends Model
              JOIN users iu ON iu.id = sd.initiator_user_id
              JOIN users iv ON iv.id = sd.invitee_user_id
              WHERE sd.id = :id
-               AND (sd.initiator_user_id = :uid_view OR sd.invitee_user_id = :uid_view)
+               AND (sd.initiator_user_id = :uid_view_initiator OR sd.invitee_user_id = :uid_view_invitee)
              LIMIT 1",
             [
                 ':id' => $safeDateId,
-                ':uid_view' => $userId,
+                ':uid_view_initiator' => $userId,
+                ':uid_view_invitee' => $userId,
                 ':uid_case_1' => $userId,
                 ':uid_case_2' => $userId,
                 ':uid_case_3' => $userId,
@@ -477,13 +479,16 @@ final class SafeDateService extends Model
     public function summaryForUserDashboard(int $userId): array
     {
         $row = $this->fetchOne(
-            "SELECT id, status, title, proposed_location, proposed_datetime, safety_level, conversation_id
+             "SELECT id, status, title, proposed_location, proposed_datetime, safety_level, conversation_id
              FROM safe_dates
-             WHERE (initiator_user_id = :uid OR invitee_user_id = :uid)
+             WHERE (initiator_user_id = :uid_initiator OR invitee_user_id = :uid_invitee)
                AND status IN ('proposed','accepted','reschedule_requested','rescheduled')
              ORDER BY proposed_datetime ASC
              LIMIT 1",
-            [':uid' => $userId]
+            [
+                ':uid_initiator' => $userId,
+                ':uid_invitee' => $userId,
+            ]
         ) ?: [];
 
         if ($row === []) {
@@ -707,12 +712,15 @@ final class SafeDateService extends Model
         $stmt = $this->db->prepare(
             "UPDATE safe_dates
              SET status='expired', updated_at=NOW(), last_transition_at=NOW()
-             WHERE (initiator_user_id = :uid OR invitee_user_id = :uid)
+             WHERE (initiator_user_id = :uid_initiator OR invitee_user_id = :uid_invitee)
                AND status IN ('proposed','reschedule_requested')
                AND expires_at IS NOT NULL
                AND expires_at <= NOW()"
         );
-        $stmt->execute([':uid' => $userId]);
+        $stmt->execute([
+            ':uid_initiator' => $userId,
+            ':uid_invitee' => $userId,
+        ]);
         $affected = $stmt->rowCount();
 
         if ($affected > 0) {
@@ -855,9 +863,14 @@ final class SafeDateService extends Model
         $acceptedInvite = $this->fetchOne(
             "SELECT id FROM connection_invites
              WHERE status = 'accepted'
-               AND ((sender_user_id = :u1 AND receiver_user_id = :u2) OR (sender_user_id = :u2 AND receiver_user_id = :u1))
+               AND ((sender_user_id = :sender_1 AND receiver_user_id = :receiver_1) OR (sender_user_id = :sender_2 AND receiver_user_id = :receiver_2))
              LIMIT 1",
-            [':u1' => $userId, ':u2' => $otherUserId]
+            [
+                ':sender_1' => $userId,
+                ':receiver_1' => $otherUserId,
+                ':sender_2' => $otherUserId,
+                ':receiver_2' => $userId,
+            ]
         );
 
         $conversationId = $this->messages->getOrCreateConversation($userId, $otherUserId);
@@ -874,10 +887,15 @@ final class SafeDateService extends Model
         return (bool) $this->fetchOne(
             "SELECT id
              FROM safe_dates
-             WHERE ((initiator_user_id = :u1 AND invitee_user_id = :u2) OR (initiator_user_id = :u2 AND invitee_user_id = :u1))
+             WHERE ((initiator_user_id = :initiator_1 AND invitee_user_id = :invitee_1) OR (initiator_user_id = :initiator_2 AND invitee_user_id = :invitee_2))
                AND status IN ('proposed','accepted','reschedule_requested','rescheduled')
              LIMIT 1",
-            [':u1' => $userId, ':u2' => $otherUserId]
+            [
+                ':initiator_1' => $userId,
+                ':invitee_1' => $otherUserId,
+                ':initiator_2' => $otherUserId,
+                ':invitee_2' => $userId,
+            ]
         );
     }
 
@@ -1015,9 +1033,12 @@ final class SafeDateService extends Model
     {
         return (int) ($this->fetchOne(
             "SELECT COUNT(*) c FROM safe_dates
-             WHERE (initiator_user_id = :id OR invitee_user_id = :id)
+             WHERE (initiator_user_id = :initiator_id OR invitee_user_id = :invitee_id)
                AND status IN ('proposed','accepted','reschedule_requested','rescheduled')",
-            [':id' => $userId]
+            [
+                ':initiator_id' => $userId,
+                ':invitee_id' => $userId,
+            ]
         )['c'] ?? 0);
     }
 
