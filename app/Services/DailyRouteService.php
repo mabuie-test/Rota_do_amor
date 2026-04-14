@@ -263,25 +263,33 @@ final class DailyRouteService extends Model
             return ['ok' => false, 'message' => 'Não foi possível concluir o resgate da recompensa.', 'error_code' => 'claim_transaction_failed'];
         }
 
-        $this->notifications->create(
-            $userId,
-            'daily_route_reward_claimed',
-            'Concluíste a rota e ganhaste recompensa',
-            'Mini boost aplicado e badge de constância ativo.',
-            ['daily_route_id' => $routeId, 'boost_hours' => $boostHours, 'premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours]
-            + ['premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours]
-        );
+        try {
+            $this->notifications->create(
+                $userId,
+                'daily_route_reward_claimed',
+                'Concluíste a rota e ganhaste recompensa',
+                'Mini boost aplicado e badge de constância ativo.',
+                ['daily_route_id' => $routeId, 'boost_hours' => $boostHours, 'premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours]
+                + ['premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours]
+            );
+        } catch (Throwable $exception) {
+            error_log('[daily_route.claim_reward_notification_failed] route_id=' . $routeId . ' user_id=' . $userId . ' error=' . $exception->getMessage());
+        }
 
-        $this->audit->logSystemEvent('daily_route_reward_claimed', 'daily_route', $routeId, [
-            'user_id' => $userId,
-            'boost_hours' => $boostHours,
-            'badge_type' => $badgeType,
-            'badge_days' => $badgeDays,
-            'is_premium' => $isPremium,
-            'streak_bonus_hours' => $streakBonusHours,
-            'premium_streak_bonus_hours' => $premiumStreakBonusHours,
-            'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours,
-        ]);
+        try {
+            $this->audit->logSystemEvent('daily_route_reward_claimed', 'daily_route', $routeId, [
+                'user_id' => $userId,
+                'boost_hours' => $boostHours,
+                'badge_type' => $badgeType,
+                'badge_days' => $badgeDays,
+                'is_premium' => $isPremium,
+                'streak_bonus_hours' => $streakBonusHours,
+                'premium_streak_bonus_hours' => $premiumStreakBonusHours,
+                'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours,
+            ]);
+        } catch (Throwable $exception) {
+            error_log('[daily_route.claim_reward_audit_failed] route_id=' . $routeId . ' user_id=' . $userId . ' error=' . $exception->getMessage());
+        }
 
         return ['ok' => true, 'message' => 'Recompensa aplicada com sucesso.', 'action' => 'daily_route_reward_claimed', 'target_id' => $routeId];
     }

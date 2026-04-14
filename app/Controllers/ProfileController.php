@@ -129,10 +129,15 @@ final class ProfileController extends Controller
         $stored = null;
         try {
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'profiles');
-            $id = $this->profileService->savePhoto($userId, $stored['path'], true);
+            $path = trim((string) ($stored['path'] ?? ''));
+            if ($path === '') {
+                throw new RuntimeException('Falha no upload da foto principal.');
+            }
+
+            $id = $this->profileService->savePhoto($userId, $path, true, (string) ($stored['thumbnail_path'] ?? ''));
             $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_PROFILE_PHOTO_UPLOADED, 'profile', 1);
             if (Request::expectsJson()) {
-                $this->jsonOutcome(true, 'Foto principal atualizada.', 'profile_photo_uploaded', ['path' => $stored['path']], $id, $userId);
+                $this->jsonOutcome(true, 'Foto principal atualizada.', 'profile_photo_uploaded', ['path' => $path], $id, $userId);
             }
             Flash::set('success', 'Foto principal atualizada.');
             Response::redirect('/profile');
@@ -154,10 +159,15 @@ final class ProfileController extends Controller
         $stored = null;
         try {
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'gallery');
-            $id = $this->profileService->savePhoto($userId, $stored['path'], false);
+            $path = trim((string) ($stored['path'] ?? ''));
+            if ($path === '') {
+                throw new RuntimeException('Falha no upload da foto da galeria.');
+            }
+
+            $id = $this->profileService->savePhoto($userId, $path, false, (string) ($stored['thumbnail_path'] ?? ''));
             $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_PROFILE_PHOTO_UPLOADED, 'profile', 1);
             if (Request::expectsJson()) {
-                $this->jsonOutcome(true, 'Foto adicionada à galeria.', 'profile_gallery_photo_uploaded', ['path' => $stored['path']], $id, $userId);
+                $this->jsonOutcome(true, 'Foto adicionada à galeria.', 'profile_gallery_photo_uploaded', ['path' => $path], $id, $userId);
             }
             Flash::set('success', 'Foto adicionada à galeria.');
             Response::redirect('/profile');
