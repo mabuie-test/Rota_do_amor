@@ -88,4 +88,118 @@ document.addEventListener('DOMContentLoaded', () => {
     passwordInput.addEventListener('input', renderStrength);
     renderStrength();
   }
+
+  document.querySelectorAll('[data-reply-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const postId = btn.getAttribute('data-post-id');
+      const parentId = btn.getAttribute('data-parent-id');
+      const form = document.getElementById(`reply-form-${postId}-${parentId}`);
+      if (!form) return;
+      form.classList.toggle('d-none');
+      if (!form.classList.contains('d-none')) {
+        form.querySelector('input[name="comment"]')?.focus();
+      }
+    });
+  });
+
+  const selectedPost = document.querySelector('.rd-post-highlight');
+  if (selectedPost) {
+    selectedPost.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  const lightboxLinks = Array.from(document.querySelectorAll('[data-lightbox-group]'));
+  if (lightboxLinks.length > 0) {
+    const overlay = document.createElement('div');
+    overlay.className = 'rd-lightbox';
+    overlay.innerHTML = `
+      <button class="rd-lightbox__close" type="button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      <button class="rd-lightbox__nav rd-lightbox__nav--prev" type="button" aria-label="Anterior"><i class="fa-solid fa-chevron-left"></i></button>
+      <img class="rd-lightbox__img" alt="imagem ampliada">
+      <button class="rd-lightbox__nav rd-lightbox__nav--next" type="button" aria-label="Seguinte"><i class="fa-solid fa-chevron-right"></i></button>
+    `;
+    document.body.appendChild(overlay);
+
+    const img = overlay.querySelector('.rd-lightbox__img');
+    const closeBtn = overlay.querySelector('.rd-lightbox__close');
+    const prevBtn = overlay.querySelector('.rd-lightbox__nav--prev');
+    const nextBtn = overlay.querySelector('.rd-lightbox__nav--next');
+    let currentGroup = [];
+    let currentIndex = 0;
+
+    const render = () => {
+      const link = currentGroup[currentIndex];
+      if (!link || !img) return;
+      img.src = link.getAttribute('href') || '';
+    };
+
+    const open = (link) => {
+      const groupName = link.getAttribute('data-lightbox-group');
+      currentGroup = lightboxLinks.filter((item) => item.getAttribute('data-lightbox-group') === groupName);
+      currentIndex = Math.max(0, currentGroup.indexOf(link));
+      render();
+      overlay.classList.add('is-open');
+    };
+
+    const close = () => overlay.classList.remove('is-open');
+    const next = () => {
+      if (!currentGroup.length) return;
+      currentIndex = (currentIndex + 1) % currentGroup.length;
+      render();
+    };
+    const prev = () => {
+      if (!currentGroup.length) return;
+      currentIndex = (currentIndex - 1 + currentGroup.length) % currentGroup.length;
+      render();
+    };
+
+    lightboxLinks.forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        open(link);
+      });
+    });
+
+    closeBtn?.addEventListener('click', close);
+    nextBtn?.addEventListener('click', next);
+    prevBtn?.addEventListener('click', prev);
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (!overlay.classList.contains('is-open')) return;
+      if (event.key === 'Escape') close();
+      if (event.key === 'ArrowRight') next();
+      if (event.key === 'ArrowLeft') prev();
+    });
+  }
+
+  document.querySelectorAll('.rd-profile-actions').forEach((wrapper) => {
+    const targetUser = wrapper.getAttribute('data-target-user');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    wrapper.querySelector('[data-action="favorite"]')?.addEventListener('click', async () => {
+      const res = await fetch('/favorite/toggle', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+        body: new URLSearchParams({target_user_id: String(targetUser)})
+      });
+      if (res.ok) window.location.reload();
+    });
+    wrapper.querySelector('[data-action="block"]')?.addEventListener('click', async () => {
+      if (!confirm('Deseja bloquear este membro?')) return;
+      await fetch('/block', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+        body: new URLSearchParams({target_user_id: String(targetUser), reason: 'Ação do perfil vivo'})
+      });
+      window.location.href = '/discover';
+    });
+    wrapper.querySelector('[data-action="report"]')?.addEventListener('click', async () => {
+      await fetch('/report', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+        body: new URLSearchParams({report_type: 'profile', target_user_id: String(targetUser), reason: 'abuse', details: 'Denúncia enviada via perfil público'})
+      });
+      alert('Denúncia enviada para revisão.');
+    });
+  });
 });

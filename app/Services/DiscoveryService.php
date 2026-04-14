@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Core\Model;
 use DateTimeImmutable;
 
+
 final class DiscoveryService extends Model
 {
     public function __construct(
@@ -115,14 +116,78 @@ final class DiscoveryService extends Model
             return [];
         }
 
-        $rows = $this->searchProfiles(['exclude_user_id' => $viewerId]);
-        foreach ($rows as $row) {
-            if ((int) ($row['id'] ?? 0) === $targetId) {
-                return $row;
-            }
+        $sql = "SELECT u.*, c.name AS city_name, p.name AS province_name,
+                       ucm.current_intention, ucm.relational_pace,
+                       IFNULL(iv.is_verified, 0) AS is_verified,
+                       IFNULL(ub.boost_active, 0) AS boost_active,
+                       IFNULL(pf.has_premium, 0) AS has_premium,
+                       EXISTS(SELECT 1 FROM favorites f WHERE f.user_id = :viewer_id_fav AND f.favorite_user_id = u.id) AS is_favorited,
+                       (SELECT COUNT(*) FROM user_badges b WHERE b.user_id = u.id AND b.is_active = 1) AS badges_count
+                FROM users u
+                JOIN cities c ON c.id = u.city_id
+                JOIN provinces p ON p.id = u.province_id
+                LEFT JOIN user_connection_modes ucm ON ucm.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, MAX(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS is_verified
+                    FROM identity_verifications
+                    GROUP BY user_id
+                ) iv ON iv.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, MAX(CASE WHEN status='active' AND ends_at > NOW() THEN 1 ELSE 0 END) AS boost_active
+                    FROM user_boosts
+                    GROUP BY user_id
+                ) ub ON ub.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_premium
+                    FROM premium_features
+                    GROUP BY user_id
+                ) pf ON pf.user_id = u.id
+                WHERE u.id = :target_id
+                  AND u.status = 'active'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM blocks b
+                    WHERE (b.actor_user_id = :viewer_block_1 AND b.target_user_id = u.id)
+                       OR (b.actor_user_id = u.id AND b.target_user_id = :viewer_block_2)
+                  )
+                LIMIT 1";
+
+        $profile = $this->fetchOne($sql, [
+            ':target_id' => $targetId,
+            ':viewer_id_fav' => $viewerId,
+            ':viewer_block_1' => $viewerId,
+            ':viewer_block_2' => $viewerId,
+        ]) ?: [];
+
+        if ($profile === []) {
+            return [];
         }
 
-        return [];
+        $scoreMeta = $this->compatibility->calculateCompatibility($viewerId, $targetId, $profile);
+        $score = (float) ($scoreMeta['score'] ?? 0);
+        $breakdown = is_array($scoreMeta['breakdown'] ?? null) ? $scoreMeta['breakdown'] : [];
+        $profile['_compatibility'] = $score;
+        $profile['_intention_alignment_percent'] = min(100, (int) round(((float) ($breakdown['current_intention'] ?? 0)) / 0.20));
+        $profile['_pace_alignment_percent'] = min(100, (int) round(((float) ($breakdown['relational_pace'] ?? 0)) / 0.15));
+        $profile['_intention_alignment_label'] = $this->connectionModes->alignmentLabel((float) $profile['_intention_alignment_percent']);
+        $profile['_pace_alignment_label'] = $this->connectionModes->alignmentLabel((float) $profile['_pace_alignment_percent']);
+        $profile['_intention_label'] = $this->connectionModes->labelForIntention((string) ($profile['current_intention'] ?? ''));
+        $profile['_pace_label'] = $this->connectionModes->labelForPace((string) ($profile['relational_pace'] ?? ''));
+        $profile['_intention_icon'] = $this->connectionModes->iconForIntention((string) ($profile['current_intention'] ?? ''));
+        $profile['_pace_icon'] = $this->connectionModes->iconForPace((string) ($profile['relational_pace'] ?? ''));
+
+        $profile['photos'] = $this->fetchAllRows(
+            'SELECT id, image_path, is_primary, sort_order FROM user_photos WHERE user_id=:user_id ORDER BY is_primary DESC, sort_order ASC, id ASC LIMIT 12',
+            [':user_id' => $targetId]
+        );
+
+        $profile['badges'] = $this->fetchAllRows(
+            'SELECT badge_type, source, starts_at, ends_at FROM user_badges WHERE user_id=:user_id AND is_active=1 ORDER BY created_at DESC LIMIT 8',
+            [':user_id' => $targetId]
+        );
+
+        $profile['recent_posts'] = (new FeedService())->getUserPosts($targetId, 6);
+
+        return $profile;
     }
 
     public function rankProfilesByCompatibilityAndPriority(int $userId, array $profiles): array

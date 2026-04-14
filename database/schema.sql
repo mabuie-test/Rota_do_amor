@@ -494,11 +494,14 @@ CREATE TABLE IF NOT EXISTS post_comments (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   post_id BIGINT NOT NULL,
   user_id BIGINT NOT NULL,
+  parent_comment_id BIGINT NULL,
   comment_text TEXT NOT NULL,
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_post_comments_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
   CONSTRAINT fk_post_comments_user FOREIGN KEY (user_id) REFERENCES users(id),
-  INDEX idx_post_comments_post_created (post_id, created_at)
+  CONSTRAINT fk_post_comments_parent FOREIGN KEY (parent_comment_id) REFERENCES post_comments(id) ON DELETE CASCADE,
+  INDEX idx_post_comments_post_created (post_id, created_at),
+  INDEX idx_post_comments_parent_created (parent_comment_id, created_at)
 );
 
 CREATE TABLE IF NOT EXISTS favorites (

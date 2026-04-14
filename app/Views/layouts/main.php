@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($title ?? 'Rota do Amor') ?></title>
     <meta name="description" content="Rota do Amor: plataforma premium para conexões reais em Moçambique.">
+    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -18,6 +19,7 @@ use App\Core\Flash;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $navItems = [
+    '/dashboard' => ['label' => 'Dashboard', 'icon' => 'fa-house'],
     '/discover' => ['label' => 'Descobrir', 'icon' => 'fa-compass'],
     '/swipe' => ['label' => 'Swipe', 'icon' => 'fa-bolt'],
     '/matches' => ['label' => 'Matches', 'icon' => 'fa-stars'],
