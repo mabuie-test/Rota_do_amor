@@ -91,7 +91,7 @@ final class FeedService extends Model
     public function toggleLikePost(int $postId, int $userId): array
     {
         if ($postId <= 0 || $userId <= 0) {
-            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error', 'error_code' => 'invalid_post'];
         }
 
         $post = $this->fetchOne('SELECT p.id, p.user_id FROM posts p WHERE p.id=:post_id AND p.status=:status LIMIT 1', [
@@ -100,7 +100,7 @@ final class FeedService extends Model
         ]) ?: [];
 
         if ($post === []) {
-            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error', 'error_code' => 'invalid_post'];
         }
 
         $existing = $this->fetchOne('SELECT id FROM post_likes WHERE post_id=:post_id AND user_id=:user_id LIMIT 1', [
@@ -161,7 +161,7 @@ final class FeedService extends Model
     {
         $normalized = trim($comment);
         if ($postId <= 0 || $userId <= 0) {
-            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error', 'error_code' => 'invalid_post'];
         }
 
         $post = $this->fetchOne('SELECT p.id, p.user_id FROM posts p WHERE p.id=:id AND p.status=:status LIMIT 1', [
@@ -169,7 +169,7 @@ final class FeedService extends Model
             ':status' => 'active',
         ]) ?: [];
         if ($post === []) {
-            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error', 'error_code' => 'invalid_post'];
         }
 
         if ($normalized === '') {

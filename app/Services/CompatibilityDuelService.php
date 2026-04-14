@@ -108,15 +108,43 @@ final class CompatibilityDuelService extends Model
         return true;
     }
 
-    public function registerAction(int $duelId, int $userId, string $actionType): bool
+    public function registerAction(int $duelId, int $userId, string $actionType): array
     {
+        if ($duelId <= 0 || $userId <= 0) {
+            return [
+                'success' => false,
+                'message' => 'Duelo inválido.',
+                'action' => 'error',
+                'state' => null,
+                'created_id' => 0,
+                'target_id' => $duelId,
+                'error_code' => 'invalid_duel',
+            ];
+        }
+
         if (!in_array($actionType, ['view_profile', 'invite', 'favorite', 'discover'], true)) {
-            return false;
+            return [
+                'success' => false,
+                'message' => 'Ação de duelo inválida.',
+                'action' => 'error',
+                'state' => null,
+                'created_id' => 0,
+                'target_id' => $duelId,
+                'error_code' => 'invalid_action',
+            ];
         }
 
         $duel = $this->fetchOne('SELECT selected_option_id FROM compatibility_duels WHERE id = :id AND user_id = :user_id LIMIT 1', [':id' => $duelId, ':user_id' => $userId]);
         if (!$duel || (int) ($duel['selected_option_id'] ?? 0) <= 0) {
-            return false;
+            return [
+                'success' => false,
+                'message' => 'Este duelo não está pronto para ação.',
+                'action' => 'error',
+                'state' => null,
+                'created_id' => 0,
+                'target_id' => $duelId,
+                'error_code' => 'duel_not_voted',
+            ];
         }
 
         $this->execute('UPDATE compatibility_duels SET status = :status, updated_at = NOW() WHERE id = :id', [':status' => 'engaged', ':id' => $duelId]);
@@ -124,13 +152,34 @@ final class CompatibilityDuelService extends Model
             'INSERT INTO compatibility_duel_actions (duel_id, user_id, action_type, created_at) VALUES (:duel_id, :user_id, :action_type, NOW())',
             [':duel_id' => $duelId, ':user_id' => $userId, ':action_type' => $actionType]
         );
+        $createdId = (int) $this->db->lastInsertId();
+
+        if ($createdId <= 0) {
+            return [
+                'success' => false,
+                'message' => 'Não foi possível registar a ação do duelo.',
+                'action' => 'error',
+                'state' => null,
+                'created_id' => 0,
+                'target_id' => $duelId,
+                'error_code' => 'action_not_persisted',
+            ];
+        }
 
         $this->notifications->create($userId, 'compatibility_duel_action_taken', 'Boa decisão no Duelo de Compatibilidade', 'A tua ação reforça teu sinal de intenção na descoberta.', [
             'duel_id' => $duelId,
             'action' => $actionType,
         ]);
 
-        return true;
+        return [
+            'success' => true,
+            'message' => 'Ação registada com sucesso.',
+            'action' => $actionType,
+            'state' => ['status' => 'engaged'],
+            'created_id' => $createdId,
+            'target_id' => $duelId,
+            'error_code' => null,
+        ];
     }
 
     public function dashboardSummary(int $userId): array

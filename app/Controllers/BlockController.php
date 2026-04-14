@@ -18,11 +18,19 @@ final class BlockController extends Controller
 
     public function store(): void
     {
-        $id = $this->service->block(Auth::id() ?? 0, (int) Request::input('target_user_id', 0), (string) Request::input('reason', ''));
+        $targetId = (int) Request::input('target_user_id', 0);
+        $id = $this->service->block(Auth::id() ?? 0, $targetId, (string) Request::input('reason', ''));
+        $ok = $id > 0;
+
         Response::json([
-            'ok' => $id > 0,
+            'ok' => $ok,
+            'message' => $ok ? 'Bloqueio registado.' : 'Não foi possível bloquear este membro.',
+            'action' => $ok ? 'created' : 'error',
+            'state' => ['blocked' => $ok],
             'block_id' => $id,
-            'message' => $id > 0 ? 'Bloqueio registado.' : 'Não foi possível bloquear este membro.'
-        ], $id > 0 ? 200 : 422);
+            'created_id' => $id,
+            'target_id' => $targetId,
+            'error_code' => $ok ? null : 'block_create_failed',
+        ], $ok ? 200 : 422);
     }
 }

@@ -74,11 +74,20 @@ final class CompatibilityDuelController extends Controller
     public function action(): void
     {
         $userId = Auth::id() ?? 0;
-        $ok = $this->service->registerAction((int) Request::input('duel_id', 0), $userId, (string) Request::input('action_type', 'view_profile'));
+        $result = $this->service->registerAction((int) Request::input('duel_id', 0), $userId, (string) Request::input('action_type', 'view_profile'));
+        $ok = (bool) ($result['success'] ?? false);
         if ($ok) {
             $this->dailyRoutes->trackFromModule($userId, 'compatibility_duel_action_taken', 'compatibility_duel', 1);
         }
 
-        Response::json(['ok' => $ok], $ok ? 200 : 422);
+        Response::json([
+            'ok' => $ok,
+            'message' => (string) ($result['message'] ?? ($ok ? 'Ação registada.' : 'Falha ao registar ação.')),
+            'action' => (string) ($result['action'] ?? ($ok ? 'updated' : 'error')),
+            'state' => $result['state'] ?? null,
+            'created_id' => (int) ($result['created_id'] ?? 0),
+            'target_id' => (int) ($result['target_id'] ?? 0),
+            'error_code' => $result['error_code'] ?? null,
+        ], $ok ? 200 : 422);
     }
 }
