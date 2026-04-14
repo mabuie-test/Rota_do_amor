@@ -191,11 +191,11 @@ final class DailyRouteService extends Model
     {
         $route = $this->getOrCreateTodayRoute($userId);
         if ($route === []) {
-            return ['ok' => false, 'message' => 'Rota diária indisponível.'];
+            return ['ok' => false, 'message' => 'Rota diária indisponível.', 'error_code' => 'route_unavailable'];
         }
 
         if ((string) ($route['reward_status'] ?? '') !== 'claimable') {
-            return ['ok' => false, 'message' => 'Recompensa não está disponível para resgate.'];
+            return ['ok' => false, 'message' => 'Recompensa não está disponível para resgate.', 'error_code' => 'reward_not_claimable'];
         }
 
         $routeId = (int) ($route['id'] ?? 0);
@@ -211,35 +211,57 @@ final class DailyRouteService extends Model
         $boostHours += $premiumStreakBonusHours;
         $badgeType = (string) $this->settingString('daily_route_reward_badge_type', 'constancia_diaria');
         $premiumDiscoveryPriorityHours = $isPremium ? max(0, $this->settingInt('daily_route_premium_discovery_priority_hours', 2)) : 0;
-
-        $this->execute('INSERT INTO user_boosts (user_id, payment_id, starts_at, ends_at, status, created_at) VALUES (:user_id, NULL, NOW(), DATE_ADD(NOW(), INTERVAL :hours HOUR), :status, NOW())', [
-            ':user_id' => $userId,
-            ':hours' => $boostHours,
-            ':status' => 'active',
-        ]);
-
         $badgeDays = max(7, $isPremium
             ? $this->settingInt('daily_route_reward_badge_days_premium', 45)
             : $this->settingInt('daily_route_reward_badge_days', 30));
-        $this->execute('INSERT INTO user_badges (user_id, badge_type, source, is_active, starts_at, ends_at, created_at) VALUES (:user_id, :badge_type, :source, 1, NOW(), DATE_ADD(NOW(), INTERVAL :badge_days DAY), NOW())', [
-            ':user_id' => $userId,
-            ':badge_type' => $badgeType,
-            ':source' => 'daily_route',
-            ':badge_days' => $badgeDays,
-        ]);
 
-        $this->execute('UPDATE daily_routes SET reward_status = :reward_status, updated_at = NOW() WHERE id = :id', [
-            ':reward_status' => 'claimed',
-            ':id' => $routeId,
-        ]);
+        $this->db->beginTransaction();
+        try {
+            $locked = $this->fetchOne('SELECT id, reward_status FROM daily_routes WHERE id = :id AND user_id = :user_id FOR UPDATE', [
+                ':id' => $routeId,
+                ':user_id' => $userId,
+            ]) ?: [];
 
-        $this->execute('INSERT INTO daily_route_rewards (daily_route_id, user_id, reward_type, reward_payload_json, status, claimed_at, created_at, updated_at) VALUES (:daily_route_id, :user_id, :reward_type, :payload, :status, NOW(), NOW(), NOW())', [
-            ':daily_route_id' => $routeId,
-            ':user_id' => $userId,
-            ':reward_type' => 'mini_boost_badge',
-            ':payload' => json_encode(['boost_hours' => $boostHours, 'badge_type' => $badgeType, 'badge_days' => $badgeDays, 'is_premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours, 'premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            ':status' => 'claimed',
-        ]);
+            if ($locked === [] || (string) ($locked['reward_status'] ?? '') !== 'claimable') {
+                $this->db->rollBack();
+                return ['ok' => false, 'message' => 'Recompensa já foi processada anteriormente.', 'error_code' => 'reward_already_processed'];
+            }
+
+            $this->execute('INSERT INTO user_boosts (user_id, payment_id, starts_at, ends_at, status, created_at) VALUES (:user_id, NULL, NOW(), DATE_ADD(NOW(), INTERVAL :hours HOUR), :status, NOW())', [
+                ':user_id' => $userId,
+                ':hours' => $boostHours,
+                ':status' => 'active',
+            ]);
+
+            $this->execute('INSERT INTO user_badges (user_id, badge_type, source, is_active, starts_at, ends_at, created_at) VALUES (:user_id, :badge_type, :source, 1, NOW(), DATE_ADD(NOW(), INTERVAL :badge_days DAY), NOW())', [
+                ':user_id' => $userId,
+                ':badge_type' => $badgeType,
+                ':source' => 'daily_route',
+                ':badge_days' => $badgeDays,
+            ]);
+
+            $this->execute('UPDATE daily_routes SET reward_status = :reward_status, updated_at = NOW() WHERE id = :id', [
+                ':reward_status' => 'claimed',
+                ':id' => $routeId,
+            ]);
+
+            $this->execute('INSERT INTO daily_route_rewards (daily_route_id, user_id, reward_type, reward_payload_json, status, claimed_at, created_at, updated_at) VALUES (:daily_route_id, :user_id, :reward_type, :payload, :status, NOW(), NOW(), NOW())', [
+                ':daily_route_id' => $routeId,
+                ':user_id' => $userId,
+                ':reward_type' => 'mini_boost_badge',
+                ':payload' => json_encode(['boost_hours' => $boostHours, 'badge_type' => $badgeType, 'badge_days' => $badgeDays, 'is_premium' => $isPremium, 'streak_bonus_hours' => $streakBonusHours, 'premium_streak_bonus_hours' => $premiumStreakBonusHours, 'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ':status' => 'claimed',
+            ]);
+
+            $this->db->commit();
+        } catch (Throwable $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            error_log('[daily_route.claim_reward_failed] ' . $exception->getMessage());
+            return ['ok' => false, 'message' => 'Não foi possível concluir o resgate da recompensa.', 'error_code' => 'claim_transaction_failed'];
+        }
 
         $this->notifications->create(
             $userId,
@@ -261,7 +283,7 @@ final class DailyRouteService extends Model
             'premium_discovery_priority_hours' => $premiumDiscoveryPriorityHours,
         ]);
 
-        return ['ok' => true, 'message' => 'Recompensa aplicada com sucesso.'];
+        return ['ok' => true, 'message' => 'Recompensa aplicada com sucesso.', 'action' => 'daily_route_reward_claimed', 'target_id' => $routeId];
     }
 
     public function superAdminMetrics(int $days = 30): array

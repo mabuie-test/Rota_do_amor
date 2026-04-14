@@ -31,4 +31,35 @@ abstract class Controller
         header('Content-Type: application/json');
         echo json_encode($payload, JSON_THROW_ON_ERROR);
     }
+
+    /**
+     * Envelope JSON padronizado para endpoints AJAX.
+     */
+    protected function jsonOutcome(
+        bool $ok,
+        string $message,
+        string $action,
+        mixed $state = null,
+        int $createdId = 0,
+        int $targetId = 0,
+        ?string $errorCode = null,
+        array $extra = [],
+        ?int $status = null
+    ): never {
+        $payload = [
+            'ok' => $ok,
+            'message' => $message,
+            'action' => $action,
+            'state' => $state,
+            'created_id' => $createdId,
+            'target_id' => $targetId,
+            'error_code' => $errorCode,
+        ] + $extra;
+
+        if ($status === null) {
+            $status = $ok ? 200 : 422;
+        }
+
+        Response::json($payload, $status);
+    }
 }

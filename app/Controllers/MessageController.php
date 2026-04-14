@@ -69,11 +69,7 @@ final class MessageController extends Controller
             || $this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 18, 1, 'success')
             || $this->rateLimiter->tooManyAttempts('chat_send', $rateLimitKey, 10, 1, 'failed')
         ) {
-            if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => 'Muitas mensagens em pouco tempo.'], 429);
-            }
-            Flash::set('error', 'Muitas mensagens em pouco tempo.');
-            Response::redirect('/messages');
+            $this->respondMessageFailure('Muitas mensagens em pouco tempo.', '/messages', 'rate_limited', 429);
         }
         $this->rateLimiter->hit('chat_send', $rateLimitKey, $senderId);
 
@@ -99,7 +95,7 @@ final class MessageController extends Controller
                 $this->rateLimiter->hitSuccess('chat_send', $rateLimitKey, $senderId, ['message_type' => $messageType]);
                 $this->dailyRoutes->trackFromModule($senderId, DailyRouteEventBridge::EVENT_MESSAGE_SENT, 'messages', 1);
                 if (Request::expectsJson()) {
-                    Response::json(['ok' => true, 'message_id' => $messageId, 'message' => $this->service->getMessageById($messageId, $senderId)], 200);
+                    $this->jsonOutcome(true, 'Mensagem enviada.', 'message_sent', $this->service->getMessageById($messageId, $senderId), $messageId, $receiverId);
                 }
 
                 $redirectConversation = $this->service->getOrCreateConversation($senderId, $receiverId);
@@ -110,21 +106,13 @@ final class MessageController extends Controller
                 $this->uploads->deleteImageBundle($file);
             }
             $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId, ['reason' => 'send_rejected']);
-            if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message_id' => 0], 422);
-            }
-            Flash::set('error', 'Não foi possível enviar a mensagem.');
-            Response::redirect('/messages');
+            $this->respondMessageFailure('Não foi possível enviar a mensagem.', '/messages', 'message_rejected');
         } catch (RuntimeException $exception) {
             foreach ($attachments as $file) {
                 $this->uploads->deleteImageBundle($file);
             }
             $this->rateLimiter->hitFailure('chat_send', $rateLimitKey, $senderId, ['reason' => 'upload_rejected']);
-            if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
-            }
-            Flash::set('error', $exception->getMessage());
-            Response::redirect('/messages');
+            $this->respondMessageFailure($exception->getMessage(), '/messages', 'upload_failed');
         }
     }
 
@@ -177,11 +165,21 @@ final class MessageController extends Controller
         $typing = (bool) Request::input('typing', false);
 
         if (!$this->service->isConversationParticipant($conversationId, $userId)) {
-            Response::json(['ok' => false], 403);
+            $this->jsonOutcome(false, 'Acesso negado à conversa.', 'typing_state_updated', null, 0, $conversationId, 'forbidden', [], 403);
         }
 
         $this->service->setTypingState($conversationId, $userId, $typing);
         $this->service->touchPresence($userId);
-        Response::json(['ok' => true]);
+        $this->jsonOutcome(true, 'Estado de escrita atualizado.', 'typing_state_updated', ['typing' => $typing], 0, $conversationId);
+    }
+
+    private function respondMessageFailure(string $message, string $redirectPath, string $errorCode, int $status = 422): never
+    {
+        if (Request::expectsJson()) {
+            $this->jsonOutcome(false, $message, 'message_send_failed', null, 0, (int) Request::input('receiver_id', 0), $errorCode, [], $status);
+        }
+
+        Flash::set('error', $message);
+        Response::redirect($redirectPath);
     }
 }

@@ -5,10 +5,17 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use RuntimeException;
+use Throwable;
 
 final class ProfileService extends Model
 {
     private const MAX_GALLERY_PHOTOS = 8;
+
+    public function __construct(private readonly UploadService $uploads = new UploadService())
+    {
+        parent::__construct();
+    }
 
     public function completionSignals(int $userId): array
     {
@@ -31,8 +38,6 @@ final class ProfileService extends Model
         return $this->fetchOne($sql, [':id' => $userId]);
     }
 
-
-
     public function getInterests(int $userId): array
     {
         return $this->fetchAllRows('SELECT interest_name FROM user_interests WHERE user_id = :id ORDER BY interest_name ASC', [':id' => $userId]);
@@ -52,7 +57,7 @@ final class ProfileService extends Model
             $this->db->commit();
 
             return true;
-        } catch (\Throwable) {
+        } catch (Throwable) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
@@ -107,7 +112,7 @@ final class ProfileService extends Model
         if (!$isPrimary) {
             $count = (int) ($this->fetchOne('SELECT COUNT(*) AS total FROM user_photos WHERE user_id = :id AND is_primary = 0', [':id' => $userId])['total'] ?? 0);
             if ($count >= self::MAX_GALLERY_PHOTOS) {
-                throw new \RuntimeException('Limite de fotos da galeria atingido.');
+                throw new RuntimeException('Limite de fotos da galeria atingido.');
             }
         }
 
@@ -130,7 +135,7 @@ final class ProfileService extends Model
             $this->db->commit();
 
             return $photoId;
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
@@ -146,41 +151,104 @@ final class ProfileService extends Model
             return false;
         }
 
-        $this->execute('UPDATE user_photos SET is_primary = 0 WHERE user_id = :user_id', [':user_id' => $userId]);
-        $this->execute('UPDATE user_photos SET is_primary = 1 WHERE id = :id AND user_id = :user_id', [':id' => $photoId, ':user_id' => $userId]);
-        $this->execute('UPDATE users SET profile_photo_path = :path WHERE id = :id', [':path' => $photo['image_path'], ':id' => $userId]);
-        return true;
+        $this->db->beginTransaction();
+        try {
+            $this->execute('UPDATE user_photos SET is_primary = 0 WHERE user_id = :user_id', [':user_id' => $userId]);
+            $this->execute('UPDATE user_photos SET is_primary = 1 WHERE id = :id AND user_id = :user_id', [':id' => $photoId, ':user_id' => $userId]);
+            $this->execute('UPDATE users SET profile_photo_path = :path WHERE id = :id', [':path' => $photo['image_path'], ':id' => $userId]);
+            $this->db->commit();
+            return true;
+        } catch (Throwable) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            return false;
+        }
     }
 
-    public function reorderGallery(int $userId, array $photoIds): void
+    public function reorderGallery(int $userId, array $photoIds): bool
     {
-        $order = 1;
-        foreach ($photoIds as $photoId) {
-            $this->execute('UPDATE user_photos SET sort_order = :sort_order WHERE id = :id AND user_id = :user_id', [
-                ':sort_order' => $order++,
-                ':id' => (int) $photoId,
-                ':user_id' => $userId,
-            ]);
+        $ids = array_values(array_unique(array_map(static fn(mixed $id): int => (int) $id, $photoIds)));
+        $ids = array_values(array_filter($ids, static fn(int $id): bool => $id > 0));
+        if ($ids === []) {
+            return false;
+        }
+
+        $bind = [':user_id' => $userId];
+        $in = [];
+        foreach ($ids as $idx => $id) {
+            $key = ':photo_' . $idx;
+            $in[] = $key;
+            $bind[$key] = $id;
+        }
+
+        $rows = $this->fetchAllRows('SELECT id FROM user_photos WHERE user_id = :user_id AND is_primary = 0 AND id IN (' . implode(',', $in) . ')', $bind);
+        if (count($rows) !== count($ids)) {
+            return false;
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $order = 1;
+            foreach ($ids as $photoId) {
+                $this->execute('UPDATE user_photos SET sort_order = :sort_order WHERE id = :id AND user_id = :user_id AND is_primary = 0', [
+                    ':sort_order' => $order++,
+                    ':id' => $photoId,
+                    ':user_id' => $userId,
+                ]);
+            }
+            $this->db->commit();
+            return true;
+        } catch (Throwable) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            return false;
         }
     }
 
     public function deletePhoto(int $userId, int $photoId): bool
     {
-        $photo = $this->fetchOne('SELECT id,image_path,is_primary FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
-        if (!$photo) {
+        $bundle = $this->deletePhotoWithBundle($userId, $photoId);
+        if ($bundle === null) {
             return false;
         }
 
-        $this->execute('DELETE FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
-        if ((int) ($photo['is_primary'] ?? 0) === 1) {
-            $next = $this->fetchOne('SELECT id,image_path FROM user_photos WHERE user_id=:id ORDER BY sort_order ASC, created_at DESC LIMIT 1', [':id' => $userId]);
-            if ($next) {
-                $this->setPrimaryPhoto($userId, (int) $next['id']);
-            } else {
-                $this->execute('UPDATE users SET profile_photo_path=NULL WHERE id=:id', [':id' => $userId]);
-            }
+        $this->uploads->deleteImageBundle($bundle);
+        return true;
+    }
+
+    public function deletePhotoWithBundle(int $userId, int $photoId): ?array
+    {
+        $photo = $this->fetchOne('SELECT id,image_path,is_primary FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
+        if (!$photo) {
+            return null;
         }
 
-        return true;
+        $this->db->beginTransaction();
+        try {
+            $this->execute('DELETE FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
+            if ((int) ($photo['is_primary'] ?? 0) === 1) {
+                $next = $this->fetchOne('SELECT id,image_path FROM user_photos WHERE user_id=:id ORDER BY sort_order ASC, created_at DESC LIMIT 1', [':id' => $userId]);
+                if ($next) {
+                    $this->execute('UPDATE user_photos SET is_primary = 1 WHERE id = :id AND user_id = :user_id', [':id' => (int) $next['id'], ':user_id' => $userId]);
+                    $this->execute('UPDATE users SET profile_photo_path = :path WHERE id = :id', [':path' => $next['image_path'], ':id' => $userId]);
+                } else {
+                    $this->execute('UPDATE users SET profile_photo_path=NULL WHERE id=:id', [':id' => $userId]);
+                }
+            }
+
+            $this->db->commit();
+
+            return ['path' => (string) ($photo['image_path'] ?? ''), 'thumbnail_path' => null];
+        } catch (Throwable) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            return null;
+        }
     }
 }

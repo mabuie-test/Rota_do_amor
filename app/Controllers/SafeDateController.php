@@ -61,7 +61,17 @@ final class SafeDateController extends Controller
         }
 
         if (Request::expectsJson()) {
-            Response::json($result, !empty($result['ok']) ? 200 : 422);
+            $this->jsonOutcome(
+                !empty($result['ok']),
+                (string) ($result['message'] ?? (!empty($result['ok']) ? 'Operação concluída.' : 'Operação inválida.')),
+                (string) ($result['action'] ?? 'safe_date_transition'),
+                $result['state'] ?? null,
+                (int) ($result['created_id'] ?? ($result['safe_date_id'] ?? 0)),
+                (int) ($result['target_id'] ?? 0),
+                $result['error_code'] ?? null,
+                $result,
+                !empty($result['ok']) ? 200 : 422
+            );
         }
 
         if (!empty($result['ok'])) {
@@ -170,7 +180,17 @@ final class SafeDateController extends Controller
     private function respondTransition(int $safeDateId, array $result, string $successMessage): void
     {
         if (Request::expectsJson()) {
-            Response::json($result, !empty($result['ok']) ? 200 : 422);
+            $this->jsonOutcome(
+                !empty($result['ok']),
+                (string) ($result['message'] ?? (!empty($result['ok']) ? 'Operação concluída.' : 'Operação inválida.')),
+                (string) ($result['action'] ?? 'safe_date_transition'),
+                $result['state'] ?? null,
+                (int) ($result['created_id'] ?? ($result['safe_date_id'] ?? 0)),
+                (int) ($result['target_id'] ?? 0),
+                $result['error_code'] ?? null,
+                $result,
+                !empty($result['ok']) ? 200 : 422
+            );
         }
 
         Flash::set(!empty($result['ok']) ? 'success' : 'error', !empty($result['ok']) ? $successMessage : (string) ($result['message'] ?? 'Operação inválida.'));

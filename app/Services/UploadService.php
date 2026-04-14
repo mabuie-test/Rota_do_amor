@@ -28,32 +28,39 @@ final class UploadService extends Model
     {
         $this->validateUpload($file);
 
-        $maxSize = (int) Config::env('UPLOAD_MAX_IMAGE_SIZE', (string) self::DEFAULT_MAX_SIZE);
-        if (($file['size'] ?? 0) > $maxSize) {
-            throw new RuntimeException('Imagem acima do tamanho permitido.');
+        $maxSize = $this->effectiveMaxSize();
+        if ((int) ($file['size'] ?? 0) > $maxSize) {
+            throw new RuntimeException('Ficheiro acima do limite permitido para upload.');
         }
 
         $tmpPath = (string) ($file['tmp_name'] ?? '');
-        $mime = (string) mime_content_type($tmpPath);
+        if (!is_readable($tmpPath)) {
+            throw new RuntimeException('Upload corrompido ou indisponível no diretório temporário.');
+        }
+
+        $mime = (string) @mime_content_type($tmpPath);
         $extension = self::ALLOWED_MIME_MAP[$mime] ?? null;
         if ($extension === null) {
-            throw new RuntimeException('Formato de imagem não suportado.');
+            throw new RuntimeException('Formato inválido. Apenas JPEG, PNG e WEBP são permitidos.');
         }
 
         $safeDomain = $this->normalizeDomain($domain);
         $filePrefix = str_replace(['/', '\\'], '_', $safeDomain);
         $baseDirectory = dirname(__DIR__, 2) . '/public/storage/uploads/' . $safeDomain;
-        if (!is_dir($baseDirectory) && !mkdir($baseDirectory, 0755, true) && !is_dir($baseDirectory)) {
-            throw new RuntimeException('Falha ao preparar diretório de uploads.');
-        }
+        $this->ensureWritableDirectory($baseDirectory);
 
         $fileName = $filePrefix . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
         $absolutePath = $baseDirectory . '/' . $fileName;
-        if (!move_uploaded_file($tmpPath, $absolutePath)) {
-            throw new RuntimeException('Falha ao salvar o upload.');
+        if (!$this->moveUploadedFile($tmpPath, $absolutePath)) {
+            throw new RuntimeException('Falha ao mover ficheiro para o diretório final de uploads.');
         }
 
-        $thumbPath = $this->createThumbnailIfPossible($absolutePath, $safeDomain, $extension);
+        try {
+            $thumbPath = $this->createThumbnailIfPossible($absolutePath, $safeDomain, $extension);
+        } catch (RuntimeException $exception) {
+            @unlink($absolutePath);
+            throw $exception;
+        }
 
         return [
             'path' => 'storage/uploads/' . $safeDomain . '/' . $fileName,
@@ -71,13 +78,17 @@ final class UploadService extends Model
         }
 
         if (count($normalized) > $maxFiles) {
-            throw new RuntimeException('Quantidade de imagens acima do permitido por publicação.');
+            throw new RuntimeException('Quantidade de imagens acima do permitido por operação.');
         }
 
         $stored = [];
         try {
-            foreach ($normalized as $file) {
-                $stored[] = $this->storeImage($file, $domain);
+            foreach ($normalized as $index => $file) {
+                try {
+                    $stored[] = $this->storeImage($file, $domain);
+                } catch (RuntimeException $exception) {
+                    throw new RuntimeException(sprintf('Falha no upload do ficheiro #%d: %s', $index + 1, $exception->getMessage()));
+                }
             }
         } catch (RuntimeException $exception) {
             foreach ($stored as $item) {
@@ -113,9 +124,60 @@ final class UploadService extends Model
         }
     }
 
+    private function effectiveMaxSize(): int
+    {
+        $configuredMax = (int) Config::env('UPLOAD_MAX_IMAGE_SIZE', (string) self::DEFAULT_MAX_SIZE);
+        $iniUploadMax = $this->iniSizeToBytes((string) ini_get('upload_max_filesize'));
+        $iniPostMax = $this->iniSizeToBytes((string) ini_get('post_max_size'));
+
+        $candidates = array_filter([$configuredMax, $iniUploadMax, $iniPostMax], static fn(int $value): bool => $value > 0);
+        if ($candidates === []) {
+            return self::DEFAULT_MAX_SIZE;
+        }
+
+        return (int) min($candidates);
+    }
+
+    private function iniSizeToBytes(string $value): int
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return 0;
+        }
+
+        $last = strtolower(substr($trimmed, -1));
+        $number = (float) $trimmed;
+        return match ($last) {
+            'g' => (int) round($number * 1024 * 1024 * 1024),
+            'm' => (int) round($number * 1024 * 1024),
+            'k' => (int) round($number * 1024),
+            default => (int) round($number),
+        };
+    }
+
     private function normalizeDomain(string $domain): string
     {
         return preg_replace('/[^a-z0-9_\/-]/i', '', str_replace('..', '', $domain)) ?: 'temp';
+    }
+
+    private function ensureWritableDirectory(string $directory): void
+    {
+        if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) {
+            throw new RuntimeException('Falha ao preparar diretório de uploads.');
+        }
+
+        if (!is_writable($directory)) {
+            throw new RuntimeException('Diretório de uploads sem permissão de escrita.');
+        }
+    }
+
+    private function moveUploadedFile(string $tmpPath, string $destination): bool
+    {
+        if (is_uploaded_file($tmpPath)) {
+            return @move_uploaded_file($tmpPath, $destination);
+        }
+
+        return false;
     }
 
     private function validateUpload(array $file): void
@@ -124,19 +186,48 @@ final class UploadService extends Model
             throw new RuntimeException('Nenhum ficheiro enviado.');
         }
 
-        if ((int) $file['error'] !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('Erro no upload.');
+        $errorCode = (int) $file['error'];
+        if ($errorCode === UPLOAD_ERR_NO_FILE) {
+            throw new RuntimeException('Nenhum ficheiro enviado.');
+        }
+
+        if ($errorCode === UPLOAD_ERR_INI_SIZE || $errorCode === UPLOAD_ERR_FORM_SIZE) {
+            throw new RuntimeException('Ficheiro acima do limite permitido para upload.');
+        }
+
+        if ($errorCode === UPLOAD_ERR_PARTIAL) {
+            throw new RuntimeException('Upload corrompido: envio parcial do ficheiro.');
+        }
+
+        if ($errorCode === UPLOAD_ERR_NO_TMP_DIR) {
+            throw new RuntimeException('Falha no upload: diretório temporário ausente no servidor.');
+        }
+
+        if ($errorCode === UPLOAD_ERR_CANT_WRITE) {
+            throw new RuntimeException('Falha no upload: sem permissão para escrever em disco.');
+        }
+
+        if ($errorCode === UPLOAD_ERR_EXTENSION) {
+            throw new RuntimeException('Upload interrompido por extensão de segurança do servidor.');
+        }
+
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            throw new RuntimeException('Falha inesperada no upload.');
         }
 
         if (!is_uploaded_file((string) $file['tmp_name'])) {
-            throw new RuntimeException('Upload inválido.');
+            throw new RuntimeException('Upload inválido ou não confiável (tmp_name inválido).');
         }
     }
 
     private function normalizeFilesArray(array $files): array
     {
         if (!isset($files['name'])) {
-            return $files === [] ? [] : [$files];
+            if ($files === []) {
+                return [];
+            }
+
+            return [(array) $files];
         }
 
         if (!is_array($files['name'])) {
@@ -146,16 +237,22 @@ final class UploadService extends Model
         $normalized = [];
         $count = count($files['name']);
         for ($i = 0; $i < $count; $i++) {
-            $normalized[] = [
+            $entry = [
                 'name' => $files['name'][$i] ?? null,
                 'type' => $files['type'][$i] ?? null,
                 'tmp_name' => $files['tmp_name'][$i] ?? null,
                 'error' => $files['error'][$i] ?? UPLOAD_ERR_NO_FILE,
-                'size' => $files['size'][$i] ?? 0,
+                'size' => (int) ($files['size'][$i] ?? 0),
             ];
+
+            if ((int) $entry['error'] === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+
+            $normalized[] = $entry;
         }
 
-        return array_values(array_filter($normalized, static fn(array $f): bool => (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE));
+        return $normalized;
     }
 
     private function createThumbnailIfPossible(string $absolutePath, string $domain, string $extension): ?string
@@ -166,11 +263,12 @@ final class UploadService extends Model
 
         $imageRaw = @file_get_contents($absolutePath);
         if ($imageRaw === false) {
-            return null;
+            throw new RuntimeException('Falha ao gerar thumbnail: ficheiro temporário ilegível.');
         }
+
         $source = @imagecreatefromstring($imageRaw);
         if ($source === false) {
-            return null;
+            throw new RuntimeException('Falha ao gerar thumbnail: imagem inválida ou corrompida.');
         }
 
         $width = imagesx($source);
@@ -183,24 +281,24 @@ final class UploadService extends Model
         imagecopyresampled($thumb, $source, 0, 0, 0, 0, $tw, $th, $width, $height);
 
         $thumbDir = dirname(__DIR__, 2) . '/public/storage/uploads/' . $domain . '/thumbs';
-        if (!is_dir($thumbDir) && !mkdir($thumbDir, 0755, true) && !is_dir($thumbDir)) {
-            imagedestroy($source);
-            imagedestroy($thumb);
-            return null;
-        }
+        $this->ensureWritableDirectory($thumbDir);
 
         $thumbName = bin2hex(random_bytes(16)) . '.' . $extension;
         $thumbAbsolute = $thumbDir . '/' . $thumbName;
-        match ($extension) {
+        $ok = match ($extension) {
             'jpg' => imagejpeg($thumb, $thumbAbsolute, 82),
             'png' => imagepng($thumb, $thumbAbsolute, 7),
             'webp' => imagewebp($thumb, $thumbAbsolute, 82),
-            default => null,
+            default => false,
         };
 
         imagedestroy($source);
         imagedestroy($thumb);
 
-        return is_file($thumbAbsolute) ? 'storage/uploads/' . $domain . '/thumbs/' . $thumbName : null;
+        if (!$ok || !is_file($thumbAbsolute)) {
+            throw new RuntimeException('Falha ao gerar thumbnail.');
+        }
+
+        return 'storage/uploads/' . $domain . '/thumbs/' . $thumbName;
     }
 }

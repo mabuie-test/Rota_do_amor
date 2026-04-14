@@ -38,47 +38,15 @@ final class MessageService extends Model
         $messageText = trim($messageText);
         $sanitizedType = in_array($messageType, ['text', 'image', 'system'], true) ? $messageType : 'text';
 
-        if ($senderId <= 0 || $receiverId <= 0 || $senderId === $receiverId) {
-            return 0;
-        }
-
-        if ($sanitizedType === 'text' && $messageText === '') {
-            return 0;
-        }
-
-        if ($messageText !== '' && mb_strlen($messageText) > 2000) {
-            return 0;
-        }
-
-        if ($sanitizedType === 'image' && $attachments === []) {
-            return 0;
-        }
-
-        if (!$this->userCanMessage($senderId, $receiverId)) {
+        if (!$this->canPersistMessage($senderId, $receiverId, $messageText, $sanitizedType, $attachments)) {
             return 0;
         }
 
         $conversationId = $this->getOrCreateConversation($senderId, $receiverId);
         $this->db->beginTransaction();
         try {
-            $this->db->prepare('INSERT INTO messages (conversation_id,sender_id,receiver_id,message_text,message_type,is_read,sent_at,created_at) VALUES (:conversation_id,:sender_id,:receiver_id,:message_text,:message_type,0,NOW(),NOW())')->execute([
-                ':conversation_id' => $conversationId,
-                ':sender_id' => $senderId,
-                ':receiver_id' => $receiverId,
-                ':message_text' => $messageText !== '' ? $messageText : '[imagem]',
-                ':message_type' => $sanitizedType,
-            ]);
-            $messageId = (int) $this->db->lastInsertId();
-
-            foreach ($attachments as $attachment) {
-                $this->db->prepare('INSERT INTO message_attachments (message_id,file_path,mime_type,file_size,created_at) VALUES (:message_id,:file_path,:mime_type,:file_size,NOW())')->execute([
-                    ':message_id' => $messageId,
-                    ':file_path' => $attachment['path'] ?? '',
-                    ':mime_type' => $attachment['mime'] ?? null,
-                    ':file_size' => (int) ($attachment['size'] ?? 0),
-                ]);
-            }
-
+            $messageId = $this->persistMessageRow($conversationId, $senderId, $receiverId, $messageText, $sanitizedType);
+            $this->persistAttachments($messageId, $attachments);
             $this->db->prepare('UPDATE conversations SET updated_at = NOW() WHERE id = :id')->execute([':id' => $conversationId]);
             $this->db->commit();
 
@@ -253,7 +221,7 @@ final class MessageService extends Model
 
     public function touchPresence(int $userId): void
     {
-        $this->execute('UPDATE users SET online_status = 1, last_activity_at = NOW() WHERE id = :id', [':id' => $userId]);
+        $this->execute('UPDATE users SET online_status = 1, last_activity_at = NOW() WHERE id = :id AND (last_activity_at IS NULL OR TIMESTAMPDIFF(SECOND, last_activity_at, NOW()) >= 20)', [':id' => $userId]);
     }
 
     public function getConversationUpdates(int $conversationId, int $viewerId, int $afterMessageId): array
@@ -369,6 +337,53 @@ final class MessageService extends Model
         }
 
         return $this->matchService->hasActiveMatch($senderId, $receiverId);
+    }
+
+
+    private function canPersistMessage(int $senderId, int $receiverId, string $messageText, string $messageType, array $attachments): bool
+    {
+        if ($senderId <= 0 || $receiverId <= 0 || $senderId === $receiverId) {
+            return false;
+        }
+
+        if ($messageType === 'text' && $messageText === '') {
+            return false;
+        }
+
+        if ($messageText !== '' && mb_strlen($messageText) > 2000) {
+            return false;
+        }
+
+        if ($messageType === 'image' && $attachments === []) {
+            return false;
+        }
+
+        return $this->userCanMessage($senderId, $receiverId);
+    }
+
+    private function persistMessageRow(int $conversationId, int $senderId, int $receiverId, string $messageText, string $messageType): int
+    {
+        $this->db->prepare('INSERT INTO messages (conversation_id,sender_id,receiver_id,message_text,message_type,is_read,sent_at,created_at) VALUES (:conversation_id,:sender_id,:receiver_id,:message_text,:message_type,0,NOW(),NOW())')->execute([
+            ':conversation_id' => $conversationId,
+            ':sender_id' => $senderId,
+            ':receiver_id' => $receiverId,
+            ':message_text' => $messageText !== '' ? $messageText : '[imagem]',
+            ':message_type' => $messageType,
+        ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    private function persistAttachments(int $messageId, array $attachments): void
+    {
+        foreach ($attachments as $attachment) {
+            $this->db->prepare('INSERT INTO message_attachments (message_id,file_path,mime_type,file_size,created_at) VALUES (:message_id,:file_path,:mime_type,:file_size,NOW())')->execute([
+                ':message_id' => $messageId,
+                ':file_path' => $attachment['path'] ?? '',
+                ':mime_type' => $attachment['mime'] ?? null,
+                ':file_size' => (int) ($attachment['size'] ?? 0),
+            ]);
+        }
     }
 
     private function attachmentsByMessageIds(array $messageIds): array

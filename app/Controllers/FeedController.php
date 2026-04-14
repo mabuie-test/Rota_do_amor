@@ -51,7 +51,7 @@ final class FeedController extends Controller
         $key = 'feed_post:' . $userId . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('feed_post', $key, 10, 5)) {
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => 'Limite de publicações temporariamente atingido.'], 429);
+                $this->jsonOutcome(false, 'Limite de publicações temporariamente atingido.', 'feed_post_create', null, 0, 0, 'rate_limited', [], 429);
             }
 
             Flash::set('error', 'Limite de publicações temporariamente atingido.');
@@ -69,7 +69,7 @@ final class FeedController extends Controller
                 $this->rateLimiter->hitSuccess('feed_post', $key, $userId, ['images_count' => count($storedImages)]);
                 $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_POST, 'feed', 1);
                 if (Request::expectsJson()) {
-                    Response::json(['ok' => true, 'post_id' => $id, 'images_count' => count($storedImages)]);
+                    $this->jsonOutcome(true, 'Publicação criada com sucesso.', 'feed_post_created', ['images_count' => count($storedImages)], $id, $id, null, ['post_id' => $id]);
                 }
 
                 Flash::set('success', 'Publicação criada com sucesso.');
@@ -81,7 +81,7 @@ final class FeedController extends Controller
             }
             $this->rateLimiter->hitFailure('feed_post', $key, $userId, ['reason' => 'invalid_post_payload']);
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'post_id' => 0], 422);
+                $this->jsonOutcome(false, 'Não foi possível publicar este conteúdo.', 'feed_post_create', null, 0, 0, 'invalid_post_payload', ['post_id' => 0], 422);
             }
 
             Flash::set('error', 'Não foi possível publicar este conteúdo.');
@@ -92,7 +92,7 @@ final class FeedController extends Controller
             }
             $this->rateLimiter->hitFailure('feed_post', $key, $userId, ['reason' => 'upload_rejected']);
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+                $this->jsonOutcome(false, $exception->getMessage(), 'feed_post_create', null, 0, 0, 'upload_failed', [], 422);
             }
 
             Flash::set('error', $exception->getMessage());
@@ -188,7 +188,7 @@ final class FeedController extends Controller
         $postId = (int) Request::input('post_id', 0);
         if ($postId <= 0) {
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => 'Post inválido.'], 422);
+                $this->jsonOutcome(false, 'Post inválido.', 'feed_post_delete', null, 0, $postId, 'invalid_post', [], 422);
             }
 
             Flash::set('error', 'Post inválido.');
@@ -197,7 +197,7 @@ final class FeedController extends Controller
 
         $this->service->deletePost($postId, $userId);
         if (Request::expectsJson()) {
-            Response::json(['ok' => true]);
+            $this->jsonOutcome(true, 'Publicação removida.', 'feed_post_deleted', null, 0, $postId);
         }
 
         Flash::set('success', 'Publicação removida.');
