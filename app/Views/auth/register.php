@@ -34,10 +34,24 @@
             <small class="text-muted">As cidades disponíveis dependem da província escolhida.</small>
           </div>
 
-          <div class="col-md-6 input-icon-wrap"><i class="fa-solid fa-lock"></i><input class="form-control" type="password" name="password" placeholder="Senha forte" required></div>
+          <div class="col-md-6">
+            <div class="input-icon-wrap">
+              <i class="fa-solid fa-lock"></i>
+              <input class="form-control" id="registerPassword" type="password" name="password" placeholder="Senha forte" autocomplete="new-password" required>
+            </div>
+            <div class="rd-password-meter mt-2" data-password-meter aria-live="polite">
+              <div class="rd-password-meter__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span class="rd-password-meter__fill"></span>
+              </div>
+              <small class="rd-password-meter__text text-muted">Força da senha: —</small>
+            </div>
+          </div>
           <div class="col-md-6 input-icon-wrap"><i class="fa-solid fa-lock"></i><input class="form-control" type="password" name="password_confirmation" placeholder="Confirmar senha" required></div>
           <div class="col-12 form-check"><input class="form-check-input" type="checkbox" required><label class="form-check-label">Aceito os termos e a política de privacidade</label></div>
           <div class="col-12 d-grid"><button class="btn btn-rd-primary btn-lg">Registar</button></div>
+          <div class="col-12 text-center">
+            <p class="small text-muted mb-0">Já tens uma conta? <a href="/login" class="fw-semibold text-decoration-none">Entrar agora</a></p>
+          </div>
         </form>
       </div>
     </div>

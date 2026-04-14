@@ -297,3 +297,41 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
   background: #fff;
   border: 1px solid #eadbe1;
 }
+
+.rd-password-meter__bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #efe4e8;
+  overflow: hidden;
+}
+
+.rd-password-meter__fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: #c67a8f;
+  transition: width .2s ease, background-color .2s ease;
+}
+
+.rd-password-meter__text {
+  display: inline-block;
+  margin-top: .4rem;
+  font-weight: 600;
+}
+
+.rd-password-meter.is-weak .rd-password-meter__fill {
+  width: 33%;
+  background: var(--rd-danger);
+}
+
+.rd-password-meter.is-medium .rd-password-meter__fill {
+  width: 66%;
+  background: var(--rd-warning);
+}
+
+.rd-password-meter.is-strong .rd-password-meter__fill {
+  width: 100%;
+  background: var(--rd-success);
+}

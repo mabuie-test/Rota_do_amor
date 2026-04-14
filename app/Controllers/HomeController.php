@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Core\Auth;
 use App\Core\Controller;
+use App\Core\Response;
 
 final class HomeController extends Controller
 {
     public function index(): void
     {
+        if (Auth::check()) {
+            Response::redirect('/feed');
+        }
+
         $this->view('home/index', ['title' => 'Rota do Amor']);
     }
 
