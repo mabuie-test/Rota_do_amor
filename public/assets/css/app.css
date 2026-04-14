@@ -366,6 +366,24 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
 .rd-comment-thread {
   background: linear-gradient(180deg, #fff, #fff8fb) !important;
 }
+.rd-comment-item,
+.rd-comment-reply {
+  border-radius: 10px;
+  padding: .2rem .35rem;
+}
+.rd-comment-highlight {
+  background: #fff5da;
+  border: 1px solid rgba(212, 162, 76, .5);
+  box-shadow: 0 0 0 2px rgba(212,162,76,.14);
+}
+.rd-story-highlight,
+.rd-duel-highlight {
+  border-color: #d4a24c;
+  box-shadow: 0 0 0 3px rgba(212,162,76,.18), var(--rd-shadow);
+}
+.rd-profile-feedback {
+  min-height: 20px;
+}
 
 .rd-profile-hero-photo {
   width: 160px;

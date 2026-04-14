@@ -65,6 +65,36 @@ final class AnonymousStoryService extends Model
         }
     }
 
+    public function getStoryById(int $viewerId, int $storyId): array
+    {
+        if ($storyId <= 0) {
+            return [];
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT s.id, s.category, s.title, s.content, s.status, s.is_featured, s.created_at,
+                    (SELECT COUNT(*) FROM anonymous_story_reactions r WHERE r.story_id = s.id) AS reactions_count,
+                    (SELECT COUNT(*) FROM anonymous_story_comments c WHERE c.story_id = s.id AND c.status='active') AS comments_count,
+                    (SELECT COUNT(*) FROM anonymous_story_reactions r WHERE r.story_id = s.id AND r.user_id = :viewer) AS reacted_by_viewer
+             FROM anonymous_stories s
+             WHERE s.id = :story_id
+               AND s.status IN ('published','featured')
+             LIMIT 1"
+        );
+        $stmt->bindValue(':viewer', $viewerId, \PDO::PARAM_INT);
+        $stmt->bindValue(':story_id', $storyId, \PDO::PARAM_INT);
+        $stmt->execute();
+        $story = $stmt->fetch() ?: [];
+        if ($story === []) {
+            return [];
+        }
+
+        $comments = $this->loadComments([$storyId]);
+        $story['comments_preview'] = $comments[$storyId] ?? [];
+
+        return $story;
+    }
+
     public function publish(int $authorId, array $payload): int
     {
         $content = trim((string) ($payload['content'] ?? ''));

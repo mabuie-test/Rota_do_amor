@@ -10,6 +10,10 @@ final class FavoriteService extends Model
 {
     public function toggle(int $userId, int $targetId): bool
     {
+        if ($userId <= 0 || $targetId <= 0 || $userId === $targetId) {
+            return false;
+        }
+
         $existing = $this->fetchOne('SELECT id FROM favorites WHERE user_id=:u AND favorite_user_id=:t', [':u' => $userId, ':t' => $targetId]);
         if ($existing) {
             $this->execute('DELETE FROM favorites WHERE id=:id', [':id' => $existing['id']]);

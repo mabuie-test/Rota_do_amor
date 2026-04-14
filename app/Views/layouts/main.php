@@ -16,8 +16,12 @@
 <body>
 <?php
 use App\Core\Flash;
+use App\Core\Auth;
+use App\Services\NotificationService;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$viewerId = Auth::id() ?? 0;
+$unreadNotifications = $viewerId > 0 ? (new NotificationService())->unreadCountForUser($viewerId) : 0;
 $navItems = [
     '/dashboard' => ['label' => 'Dashboard', 'icon' => 'fa-house'],
     '/discover' => ['label' => 'Descobrir', 'icon' => 'fa-compass'],
@@ -50,7 +54,7 @@ $navItems = [
       <div class="navbar-nav ms-auto gap-1">
         <?php foreach ($navItems as $href => $item): ?>
           <?php $active = str_starts_with($path, $href) ? 'active' : ''; ?>
-          <a class="nav-link <?= e($active) ?>" href="<?= e(url($href)) ?>"><i class="fa-solid <?= e($item['icon']) ?> me-1"></i><?= e($item['label']) ?></a>
+          <a class="nav-link <?= e($active) ?>" href="<?= e(url($href)) ?>"><i class="fa-solid <?= e($item['icon']) ?> me-1"></i><?= e($item['label']) ?><?php if ($href === '/notifications' && $unreadNotifications > 0): ?><span class="badge text-bg-light ms-1"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span><?php endif; ?></a>
         <?php endforeach; ?>
       </div>
     </div>
@@ -63,6 +67,9 @@ $navItems = [
   <?php endif; ?>
   <?php if ($message = Flash::get('error')): ?>
     <?php $type = 'danger'; require dirname(__DIR__) . '/partials/alert.php'; ?>
+  <?php endif; ?>
+  <?php if ($message = Flash::get('warning')): ?>
+    <?php $type = 'warning'; require dirname(__DIR__) . '/partials/alert.php'; ?>
   <?php endif; ?>
   <?php if (str_starts_with($path, '/admin') && $path !== '/admin/login'): ?>
     <div class="admin-layout">
