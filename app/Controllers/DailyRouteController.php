@@ -34,7 +34,17 @@ final class DailyRouteController extends Controller
         $result = $this->service->claimReward($userId);
 
         if (Request::expectsJson()) {
-            Response::json($result, !empty($result['ok']) ? 200 : 422);
+            $this->jsonOutcome(
+                !empty($result['ok']),
+                (string) ($result['message'] ?? 'Não foi possível resgatar a recompensa.'),
+                (string) ($result['action'] ?? 'daily_route_reward_claim'),
+                $result['state'] ?? null,
+                (int) ($result['created_id'] ?? 0),
+                (int) ($result['target_id'] ?? 0),
+                $result['error_code'] ?? null,
+                $result,
+                !empty($result['ok']) ? 200 : 422
+            );
         }
 
         Flash::set(!empty($result['ok']) ? 'success' : 'error', (string) ($result['message'] ?? 'Não foi possível resgatar a recompensa.'));

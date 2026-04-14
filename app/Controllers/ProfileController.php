@@ -72,7 +72,7 @@ final class ProfileController extends Controller
         }
 
         if (Request::expectsJson()) {
-            Response::json(['ok' => $ok], $ok ? 200 : 422);
+            $this->jsonOutcome($ok, $ok ? 'Perfil atualizado.' : 'Não foi possível atualizar o perfil.', 'profile_updated', null, 0, $userId, $ok ? null : 'profile_update_failed', [], $ok ? 200 : 422);
         }
 
         Flash::set($ok ? 'success' : 'error', $ok ? 'Perfil atualizado.' : 'Não foi possível atualizar o perfil.');
@@ -125,19 +125,23 @@ final class ProfileController extends Controller
 
     public function photo(): void
     {
+        $userId = Auth::id() ?? 0;
+        $stored = null;
         try {
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'profiles');
-            $userId = Auth::id() ?? 0;
             $id = $this->profileService->savePhoto($userId, $stored['path'], true);
             $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_PROFILE_PHOTO_UPLOADED, 'profile', 1);
             if (Request::expectsJson()) {
-                Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
+                $this->jsonOutcome(true, 'Foto principal atualizada.', 'profile_photo_uploaded', ['path' => $stored['path']], $id, $userId);
             }
             Flash::set('success', 'Foto principal atualizada.');
             Response::redirect('/profile');
         } catch (RuntimeException $exception) {
+            if ($stored !== null) {
+                $this->uploads->deleteImageBundle($stored);
+            }
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+                $this->jsonOutcome(false, $exception->getMessage(), 'profile_photo_upload_failed', null, 0, $userId, 'upload_failed');
             }
             Flash::set('error', $exception->getMessage());
             Response::redirect('/profile');
@@ -146,19 +150,23 @@ final class ProfileController extends Controller
 
     public function gallery(): void
     {
+        $userId = Auth::id() ?? 0;
+        $stored = null;
         try {
             $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'gallery');
-            $userId = Auth::id() ?? 0;
             $id = $this->profileService->savePhoto($userId, $stored['path'], false);
             $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_PROFILE_PHOTO_UPLOADED, 'profile', 1);
             if (Request::expectsJson()) {
-                Response::json(['ok' => true, 'photo_id' => $id, 'path' => $stored['path']]);
+                $this->jsonOutcome(true, 'Foto adicionada à galeria.', 'profile_gallery_photo_uploaded', ['path' => $stored['path']], $id, $userId);
             }
             Flash::set('success', 'Foto adicionada à galeria.');
             Response::redirect('/profile');
         } catch (RuntimeException $exception) {
+            if ($stored !== null) {
+                $this->uploads->deleteImageBundle($stored);
+            }
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => $exception->getMessage()], 422);
+                $this->jsonOutcome(false, $exception->getMessage(), 'profile_gallery_upload_failed', null, 0, $userId, 'upload_failed');
             }
             Flash::set('error', $exception->getMessage());
             Response::redirect('/profile');
@@ -167,9 +175,10 @@ final class ProfileController extends Controller
 
     public function setPrimaryPhoto(): void
     {
-        $ok = $this->profileService->setPrimaryPhoto(Auth::id() ?? 0, (int) Request::input('photo_id', 0));
+        $photoId = (int) Request::input('photo_id', 0);
+        $ok = $this->profileService->setPrimaryPhoto(Auth::id() ?? 0, $photoId);
         if (Request::expectsJson()) {
-            Response::json(['ok' => $ok], $ok ? 200 : 422);
+            $this->jsonOutcome($ok, $ok ? 'Foto principal definida.' : 'Foto inválida.', 'profile_primary_photo_set', null, 0, $photoId, $ok ? null : 'invalid_photo', [], $ok ? 200 : 422);
         }
         Flash::set($ok ? 'success' : 'error', $ok ? 'Foto principal definida.' : 'Foto inválida.');
         Response::redirect('/profile');
@@ -177,9 +186,10 @@ final class ProfileController extends Controller
 
     public function deletePhoto(): void
     {
-        $ok = $this->profileService->deletePhoto(Auth::id() ?? 0, (int) Request::input('photo_id', 0));
+        $photoId = (int) Request::input('photo_id', 0);
+        $ok = $this->profileService->deletePhoto(Auth::id() ?? 0, $photoId);
         if (Request::expectsJson()) {
-            Response::json(['ok' => $ok], $ok ? 200 : 422);
+            $this->jsonOutcome($ok, $ok ? 'Foto removida.' : 'Foto inválida.', 'profile_photo_deleted', null, 0, $photoId, $ok ? null : 'invalid_photo', [], $ok ? 200 : 422);
         }
         Flash::set($ok ? 'success' : 'error', $ok ? 'Foto removida.' : 'Foto inválida.');
         Response::redirect('/profile');
@@ -189,9 +199,10 @@ final class ProfileController extends Controller
     {
         $photoIds = Request::input('photo_ids', []);
         if (!is_array($photoIds)) {
-            Response::json(['ok' => false, 'message' => 'photo_ids inválido'], 422);
+            $this->jsonOutcome(false, 'photo_ids inválido', 'profile_gallery_reordered', null, 0, 0, 'invalid_payload', [], 422);
         }
-        $this->profileService->reorderGallery(Auth::id() ?? 0, $photoIds);
-        Response::json(['ok' => true]);
+
+        $ok = $this->profileService->reorderGallery(Auth::id() ?? 0, $photoIds);
+        $this->jsonOutcome($ok, $ok ? 'Galeria reordenada.' : 'Lista de fotos inválida para reordenação.', 'profile_gallery_reordered', null, 0, 0, $ok ? null : 'invalid_gallery_order', [], $ok ? 200 : 422);
     }
 }
