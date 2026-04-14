@@ -1,4 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const qs = new URLSearchParams(window.location.search);
+
+  const showInlineFeedback = (container, message, kind = 'info') => {
+    if (!container) return;
+    container.classList.remove('d-none', 'text-success', 'text-danger', 'text-muted');
+    container.classList.add(kind === 'error' ? 'text-danger' : kind === 'success' ? 'text-success' : 'text-muted');
+    container.textContent = message;
+  };
+
+  const scrollToElement = (selector) => {
+    const element = document.querySelector(selector);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   document.querySelectorAll('[data-dismiss-alert]').forEach((btn) => {
     btn.addEventListener('click', () => btn.closest('.alert')?.remove());
   });
@@ -102,9 +117,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  const selectedPost = document.querySelector('.rd-post-highlight');
-  if (selectedPost) {
-    selectedPost.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (qs.get('comment')) {
+    scrollToElement(`#comment-${CSS.escape(qs.get('comment'))}`);
+  } else if (qs.get('story')) {
+    scrollToElement(`#story-${CSS.escape(qs.get('story'))}`);
+  } else if (qs.get('duel')) {
+    scrollToElement(`#duel-${CSS.escape(qs.get('duel'))}`);
+  } else {
+    const selectedPost = document.querySelector('.rd-post-highlight');
+    if (selectedPost) {
+      selectedPost.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }
 
   const lightboxLinks = Array.from(document.querySelectorAll('[data-lightbox-group]'));
@@ -176,30 +199,75 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.rd-profile-actions').forEach((wrapper) => {
     const targetUser = wrapper.getAttribute('data-target-user');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    wrapper.querySelector('[data-action="favorite"]')?.addEventListener('click', async () => {
-      const res = await fetch('/favorite/toggle', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
-        body: new URLSearchParams({target_user_id: String(targetUser)})
-      });
-      if (res.ok) window.location.reload();
+    const feedback = wrapper.parentElement?.querySelector('.rd-profile-feedback');
+    const favoriteBtn = wrapper.querySelector('[data-action="favorite"]');
+    const favoriteLabel = wrapper.querySelector('[data-favorite-label]');
+    let isFavorited = wrapper.getAttribute('data-is-favorited') === '1';
+
+    const renderFavoriteState = () => {
+      if (!favoriteBtn || !favoriteLabel) return;
+      favoriteBtn.classList.toggle('btn-rd-soft', !isFavorited);
+      favoriteBtn.classList.toggle('btn-warning', isFavorited);
+      favoriteLabel.textContent = isFavorited ? 'Favoritado' : 'Favoritar';
+    };
+    renderFavoriteState();
+
+    favoriteBtn?.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/favorite/toggle', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+          body: new URLSearchParams({target_user_id: String(targetUser)})
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.message || 'Falha ao atualizar favorito.');
+        }
+
+        isFavorited = data.active === true;
+        renderFavoriteState();
+        showInlineFeedback(feedback, isFavorited ? 'Perfil adicionado aos favoritos.' : 'Favorito removido.', 'success');
+      } catch (error) {
+        showInlineFeedback(feedback, error.message || 'Não foi possível atualizar favorito.', 'error');
+      }
     });
+
     wrapper.querySelector('[data-action="block"]')?.addEventListener('click', async () => {
-      if (!confirm('Deseja bloquear este membro?')) return;
-      await fetch('/block', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
-        body: new URLSearchParams({target_user_id: String(targetUser), reason: 'Ação do perfil vivo'})
-      });
-      window.location.href = '/discover';
+      if (!window.confirm('Deseja bloquear este membro?')) return;
+      try {
+        const res = await fetch('/block', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+          body: new URLSearchParams({target_user_id: String(targetUser), reason: 'Ação do perfil vivo'})
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok || Number(data.block_id || 0) <= 0) {
+          throw new Error(data.message || 'Não foi possível bloquear o membro.');
+        }
+
+        showInlineFeedback(feedback, 'Membro bloqueado com sucesso. A redirecionar...', 'success');
+        setTimeout(() => { window.location.href = '/discover'; }, 450);
+      } catch (error) {
+        showInlineFeedback(feedback, error.message || 'Falha ao bloquear membro.', 'error');
+      }
     });
+
     wrapper.querySelector('[data-action="report"]')?.addEventListener('click', async () => {
-      await fetch('/report', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
-        body: new URLSearchParams({report_type: 'profile', target_user_id: String(targetUser), reason: 'abuse', details: 'Denúncia enviada via perfil público'})
-      });
-      alert('Denúncia enviada para revisão.');
+      try {
+        const res = await fetch('/report', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+          body: new URLSearchParams({report_type: 'profile', target_user_id: String(targetUser), reason: 'abuse', details: 'Denúncia enviada via perfil público'})
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.message || 'Não foi possível enviar denúncia.');
+        }
+
+        showInlineFeedback(feedback, 'Denúncia enviada para revisão.', 'success');
+      } catch (error) {
+        showInlineFeedback(feedback, error.message || 'Falha ao enviar denúncia.', 'error');
+      }
     });
   });
 });

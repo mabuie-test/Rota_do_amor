@@ -27,14 +27,38 @@ final class AnonymousStoryController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $page = max(1, (int) Request::input('page', 1));
+        $selectedStoryId = max(0, (int) Request::input('story', 0));
         try {
             $stories = $this->service->listStories($userId, $page, 15);
+            if ($selectedStoryId > 0) {
+                $exists = false;
+                foreach (($stories['items'] ?? []) as $item) {
+                    if ((int) ($item['id'] ?? 0) === $selectedStoryId) {
+                        $exists = true;
+                        break;
+                    }
+                }
+
+                if (!$exists) {
+                    $selectedStory = $this->service->getStoryById($userId, $selectedStoryId);
+                    if ($selectedStory !== []) {
+                        array_unshift($stories['items'], $selectedStory);
+                    } else {
+                        Flash::set('warning', 'A história desta notificação já não está disponível.');
+                    }
+                }
+            }
         } catch (Throwable $exception) {
             error_log('[anonymous_stories.index_fallback] ' . $exception->getMessage());
             $stories = ['items' => [], 'pagination' => ['page' => 1, 'per_page' => 15, 'total' => 0, 'total_pages' => 1]];
             Flash::set('warning', 'As histórias estão temporariamente indisponíveis.');
         }
-        $this->view('stories/anonymous/index', ['title' => 'Histórias Anónimas', 'stories' => $stories['items'], 'pagination' => $stories['pagination']]);
+        $this->view('stories/anonymous/index', [
+            'title' => 'Histórias Anónimas',
+            'stories' => $stories['items'],
+            'pagination' => $stories['pagination'],
+            'selected_story_id' => $selectedStoryId,
+        ]);
     }
 
     public function store(): void

@@ -43,14 +43,15 @@ $targetId = (int) ($profile['id'] ?? 0);
 
       <p class="mb-3"><?= nl2br(e((string) ($profile['bio'] ?? 'Sem bio.'))) ?></p>
 
-      <div class="d-flex flex-wrap gap-2 rd-profile-actions" data-target-user="<?= $targetId ?>">
+      <div class="d-flex flex-wrap gap-2 rd-profile-actions" data-target-user="<?= $targetId ?>" data-is-favorited="<?= (int) ($profile['is_favorited'] ?? 0) ?>">
         <form method="post" action="/invites/send"><?= csrf_field() ?><input type="hidden" name="receiver_user_id" value="<?= $targetId ?>"><button class="btn btn-sm btn-rd-primary"><i class="fa-solid fa-envelope-open-heart me-1"></i>Convidar</button></form>
-        <button class="btn btn-sm btn-rd-soft" data-action="favorite"><i class="fa-solid fa-star me-1"></i>Favoritar</button>
+        <button class="btn btn-sm btn-rd-soft" data-action="favorite"><i class="fa-solid fa-star me-1"></i><span data-favorite-label><?= ((int) ($profile['is_favorited'] ?? 0) === 1) ? 'Favoritado' : 'Favoritar' ?></span></button>
         <button class="btn btn-sm btn-outline-danger" data-action="block"><i class="fa-solid fa-ban me-1"></i>Bloquear</button>
         <button class="btn btn-sm btn-outline-warning" data-action="report"><i class="fa-solid fa-flag me-1"></i>Denunciar</button>
         <a class="btn btn-sm btn-outline-secondary" href="#member-posts"><i class="fa-solid fa-newspaper me-1"></i>Ver publicações</a>
         <a class="btn btn-sm btn-outline-secondary" href="/discover"><i class="fa-solid fa-compass me-1"></i>Voltar</a>
       </div>
+      <div class="small mt-2 rd-profile-feedback d-none" role="status" aria-live="polite"></div>
     </div>
   </div>
 </div></div>

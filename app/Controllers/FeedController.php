@@ -30,14 +30,18 @@ final class FeedController extends Controller
     {
         $viewerId = Auth::id() ?? 0;
         $page = max(1, (int) Request::input('page', 1));
-        $feed = $this->service->getFeedForUser($viewerId, $page, 15);
         $selectedPostId = max(0, (int) Request::input('post', 0));
+        $selectedCommentId = max(0, (int) Request::input('comment', 0));
+        $expandSelected = (string) Request::input('show_comments', '') === 'all' || $selectedCommentId > 0;
+
+        $feed = $this->service->getFeedForUser($viewerId, $page, 15, $selectedPostId, $selectedCommentId, $expandSelected);
         $this->view('feed/index', [
             'title' => 'Feed',
             'feed' => $feed['items'],
             'pagination' => $feed['pagination'],
             'viewer_id' => $viewerId,
             'selected_post_id' => $selectedPostId,
+            'selected_comment_id' => $selectedCommentId,
         ]);
     }
 
@@ -107,15 +111,31 @@ final class FeedController extends Controller
             Flash::set('error', 'Muitos likes em curto período.');
             Response::redirect('/feed');
         }
+
         $userId = Auth::id() ?? 0;
         $postId = (int) Request::input('post_id', 0);
-        $this->service->likePost($postId, $userId);
-        $this->rateLimiter->hitSuccess('feed_like', $key, $userId);
-        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_LIKE, 'feed', 1);
-        if (Request::expectsJson()) {
-            Response::json(['ok' => true]);
+        $result = $this->service->toggleLikePost($postId, $userId);
+
+        if (!($result['success'] ?? false)) {
+            $this->rateLimiter->hitFailure('feed_like', $key, $userId, ['reason' => 'invalid_like_request']);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => $result['message'] ?? 'Não foi possível atualizar like.'], 422);
+            }
+
+            Flash::set('error', $result['message'] ?? 'Não foi possível atualizar like.');
+            Response::redirect('/feed');
         }
 
+        $this->rateLimiter->hitSuccess('feed_like', $key, $userId, ['action' => $result['action'] ?? 'liked']);
+        if (($result['action'] ?? '') === 'liked') {
+            $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_LIKE, 'feed', 1);
+        }
+
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true] + $result);
+        }
+
+        Flash::set('success', (string) ($result['message'] ?? 'Like atualizado.'));
         Response::redirect('/feed?post=' . $postId . '#post-' . $postId);
     }
 
@@ -130,17 +150,36 @@ final class FeedController extends Controller
             Flash::set('error', 'Muitos comentários em curto período.');
             Response::redirect('/feed');
         }
+
         $userId = Auth::id() ?? 0;
         $postId = (int) Request::input('post_id', 0);
         $parentCommentId = (int) Request::input('parent_comment_id', 0);
-        $this->service->commentPost($postId, $userId, (string) Request::input('comment', ''), $parentCommentId);
-        $this->rateLimiter->hitSuccess('feed_comment', $key, $userId);
-        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_COMMENT, 'feed', 1);
-        if (Request::expectsJson()) {
-            Response::json(['ok' => true]);
+        $result = $this->service->commentPost($postId, $userId, (string) Request::input('comment', ''), $parentCommentId);
+
+        if (!($result['success'] ?? false)) {
+            $this->rateLimiter->hitFailure('feed_comment', $key, $userId, ['reason' => $result['error_code'] ?? 'comment_failed']);
+            if (Request::expectsJson()) {
+                Response::json(['ok' => false, 'message' => $result['message'] ?? 'Não foi possível enviar comentário.'], 422);
+            }
+
+            Flash::set('error', $result['message'] ?? 'Não foi possível enviar comentário.');
+            Response::redirect('/feed?post=' . $postId . '#post-' . $postId);
         }
 
-        Response::redirect('/feed?post=' . $postId . '#post-' . $postId);
+        $this->rateLimiter->hitSuccess('feed_comment', $key, $userId, ['action' => $result['action'] ?? 'commented']);
+        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_COMMENT, 'feed', 1);
+        if (Request::expectsJson()) {
+            Response::json(['ok' => true] + $result);
+        }
+
+        Flash::set('success', (string) ($result['message'] ?? 'Comentário enviado.'));
+        $commentTarget = (int) ($result['created_id'] ?? 0);
+        $query = '/feed?post=' . $postId;
+        if ($commentTarget > 0) {
+            $query .= '&comment=' . $commentTarget;
+        }
+
+        Response::redirect($query . '#post-' . $postId);
     }
 
     public function delete(): void

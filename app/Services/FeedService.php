@@ -88,33 +88,61 @@ final class FeedService extends Model
         }
     }
 
-    public function likePost(int $postId, int $userId): void
+    public function toggleLikePost(int $postId, int $userId): array
     {
         if ($postId <= 0 || $userId <= 0) {
-            return;
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
         }
 
-        $stmt = $this->db->prepare('INSERT IGNORE INTO post_likes (post_id,user_id,created_at) VALUES (:post_id,:user_id,NOW())');
-        $stmt->execute([':post_id' => $postId, ':user_id' => $userId]);
-        if ($stmt->rowCount() < 1) {
-            return;
-        }
-
-        $post = $this->fetchOne('SELECT p.id, p.user_id, CONCAT(u.first_name, " ", u.last_name) AS actor_name FROM posts p JOIN users u ON u.id = :actor_id WHERE p.id=:post_id LIMIT 1', [
+        $post = $this->fetchOne('SELECT p.id, p.user_id FROM posts p WHERE p.id=:post_id AND p.status=:status LIMIT 1', [
             ':post_id' => $postId,
-            ':actor_id' => $userId,
+            ':status' => 'active',
         ]) ?: [];
+
+        if ($post === []) {
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
+        }
+
+        $existing = $this->fetchOne('SELECT id FROM post_likes WHERE post_id=:post_id AND user_id=:user_id LIMIT 1', [
+            ':post_id' => $postId,
+            ':user_id' => $userId,
+        ]) ?: [];
+
+        if ($existing !== []) {
+            $this->execute('DELETE FROM post_likes WHERE id=:id', [':id' => (int) $existing['id']]);
+
+            return [
+                'success' => true,
+                'message' => 'Like removido.',
+                'action' => 'unliked',
+                'post_id' => $postId,
+                'liked_by_viewer' => 0,
+                'likes_count' => $this->countLikes($postId),
+            ];
+        }
+
+        $this->execute('INSERT INTO post_likes (post_id,user_id,created_at) VALUES (:post_id,:user_id,NOW())', [':post_id' => $postId, ':user_id' => $userId]);
 
         $ownerId = (int) ($post['user_id'] ?? 0);
         if ($ownerId > 0 && $ownerId !== $userId) {
+            $actor = $this->fetchOne('SELECT CONCAT(first_name, " ", last_name) AS actor_name FROM users WHERE id=:id LIMIT 1', [':id' => $userId]) ?: [];
             $this->notifications->create(
                 $ownerId,
                 'feed_like_received',
                 'Novo like na tua publicação',
-                sprintf('%s gostou da tua publicação.', (string) ($post['actor_name'] ?? 'Alguém')),
+                sprintf('%s gostou da tua publicação.', (string) ($actor['actor_name'] ?? 'Alguém')),
                 ['post_id' => $postId, 'actor_user_id' => $userId]
             );
         }
+
+        return [
+            'success' => true,
+            'message' => 'Like registado.',
+            'action' => 'liked',
+            'post_id' => $postId,
+            'liked_by_viewer' => 1,
+            'likes_count' => $this->countLikes($postId),
+        ];
     }
 
     public function purgePostMedia(int $postId): int
@@ -129,46 +157,73 @@ final class FeedService extends Model
         return count($images);
     }
 
-    public function commentPost(int $postId, int $userId, string $comment, int $parentCommentId = 0): void
+    public function commentPost(int $postId, int $userId, string $comment, int $parentCommentId = 0): array
     {
         $normalized = trim($comment);
-        if ($normalized === '' || mb_strlen($normalized) < 2 || mb_strlen($normalized) > 600 || $postId <= 0 || $userId <= 0) {
-            return;
+        if ($postId <= 0 || $userId <= 0) {
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
+        }
+
+        $post = $this->fetchOne('SELECT p.id, p.user_id FROM posts p WHERE p.id=:id AND p.status=:status LIMIT 1', [
+            ':id' => $postId,
+            ':status' => 'active',
+        ]) ?: [];
+        if ($post === []) {
+            return ['success' => false, 'message' => 'Post inválido.', 'action' => 'error'];
+        }
+
+        if ($normalized === '') {
+            return ['success' => false, 'message' => 'Comentário vazio.', 'action' => 'validation_error', 'error_code' => 'empty_comment'];
+        }
+
+        if (mb_strlen($normalized) < 2) {
+            return ['success' => false, 'message' => 'Comentário demasiado curto.', 'action' => 'validation_error', 'error_code' => 'short_comment'];
+        }
+
+        if (mb_strlen($normalized) > 600) {
+            return ['success' => false, 'message' => 'Comentário demasiado longo.', 'action' => 'validation_error', 'error_code' => 'long_comment'];
         }
 
         $parentId = null;
         if ($parentCommentId > 0) {
-            $parent = $this->fetchOne('SELECT id,parent_comment_id FROM post_comments WHERE id=:id AND post_id=:post_id LIMIT 1', [
+            $parent = $this->fetchOne('SELECT id,parent_comment_id,user_id FROM post_comments WHERE id=:id AND post_id=:post_id LIMIT 1', [
                 ':id' => $parentCommentId,
                 ':post_id' => $postId,
             ]) ?: [];
 
-            if ($parent === [] || (int) ($parent['parent_comment_id'] ?? 0) > 0) {
-                return;
+            if ($parent === []) {
+                return ['success' => false, 'message' => 'Comentário pai inválido.', 'action' => 'validation_error', 'error_code' => 'invalid_parent'];
+            }
+
+            if ((int) ($parent['parent_comment_id'] ?? 0) > 0) {
+                return ['success' => false, 'message' => 'Não é permitido responder além de 1 nível.', 'action' => 'validation_error', 'error_code' => 'reply_depth_exceeded'];
             }
 
             $parentId = (int) $parent['id'];
         }
 
-        $this->db->prepare('INSERT INTO post_comments (post_id,user_id,parent_comment_id,comment_text,created_at) VALUES (:post_id,:user_id,:parent_comment_id,:comment,NOW())')->execute([
+        $stmt = $this->db->prepare('INSERT INTO post_comments (post_id,user_id,parent_comment_id,comment_text,created_at) VALUES (:post_id,:user_id,:parent_comment_id,:comment,NOW())');
+        $ok = $stmt->execute([
             ':post_id' => $postId,
             ':user_id' => $userId,
             ':parent_comment_id' => $parentId,
             ':comment' => $normalized,
         ]);
+
+        if (!$ok || $stmt->rowCount() < 1) {
+            return ['success' => false, 'message' => 'Não foi possível gravar comentário.', 'action' => 'error'];
+        }
+
         $createdCommentId = (int) $this->db->lastInsertId();
 
-        $post = $this->fetchOne('SELECT p.user_id, CONCAT(u.first_name, " ", u.last_name) AS actor_name FROM posts p JOIN users u ON u.id=:actor_id WHERE p.id=:post_id LIMIT 1', [
-            ':post_id' => $postId,
-            ':actor_id' => $userId,
-        ]) ?: [];
+        $actor = $this->fetchOne('SELECT CONCAT(first_name, " ", last_name) AS actor_name FROM users WHERE id=:id LIMIT 1', [':id' => $userId]) ?: [];
         $ownerId = (int) ($post['user_id'] ?? 0);
         if ($ownerId > 0 && $ownerId !== $userId) {
             $this->notifications->create(
                 $ownerId,
                 'feed_comment_received',
                 'Novo comentário na tua publicação',
-                sprintf('%s comentou a tua publicação.', (string) ($post['actor_name'] ?? 'Alguém')),
+                sprintf('%s comentou a tua publicação.', (string) ($actor['actor_name'] ?? 'Alguém')),
                 ['post_id' => $postId, 'comment_id' => $createdCommentId, 'actor_user_id' => $userId]
             );
         }
@@ -181,14 +236,23 @@ final class FeedService extends Model
                     $parentAuthorId,
                     'feed_comment_received',
                     'Nova resposta ao teu comentário',
-                    sprintf('%s respondeu ao teu comentário.', (string) ($post['actor_name'] ?? 'Alguém')),
+                    sprintf('%s respondeu ao teu comentário.', (string) ($actor['actor_name'] ?? 'Alguém')),
                     ['post_id' => $postId, 'comment_id' => $createdCommentId, 'parent_comment_id' => $parentId, 'actor_user_id' => $userId]
                 );
             }
         }
+
+        return [
+            'success' => true,
+            'message' => $parentId === null ? 'Comentário enviado.' : 'Resposta enviada.',
+            'action' => $parentId === null ? 'commented' : 'replied',
+            'created_id' => $createdCommentId,
+            'target_id' => $parentId,
+            'post_id' => $postId,
+        ];
     }
 
-    public function getFeedForUser(int $userId, int $page = 1, int $perPage = 20): array
+    public function getFeedForUser(int $userId, int $page = 1, int $perPage = 20, int $selectedPostId = 0, int $selectedCommentId = 0, bool $expandSelected = false): array
     {
         $page = max(1, $page);
         $perPage = min(50, max(5, $perPage));
@@ -248,13 +312,43 @@ final class FeedService extends Model
 
         $items = $stmt->fetchAll();
         $postIds = array_map(static fn(array $row): int => (int) $row['id'], $items);
+
+        if ($selectedPostId > 0 && !in_array($selectedPostId, $postIds, true)) {
+            $selectedPost = $this->loadPostById($selectedPostId, $userId);
+            if ($selectedPost !== []) {
+                array_unshift($items, $selectedPost);
+                array_unshift($postIds, $selectedPostId);
+            }
+        }
+
+        $commentContext = $this->resolveCommentContext($selectedCommentId, $selectedPostId);
+        if ($commentContext !== null && !in_array((int) $commentContext['post_id'], $postIds, true)) {
+            $commentPost = $this->loadPostById((int) $commentContext['post_id'], $userId);
+            if ($commentPost !== []) {
+                array_unshift($items, $commentPost);
+                array_unshift($postIds, (int) $commentContext['post_id']);
+            }
+        }
+
         $images = $this->loadImagesForPosts($postIds);
-        $comments = $this->loadTopCommentsForPosts($postIds);
+        $expandedPostIds = [];
+        if ($expandSelected && $selectedPostId > 0) {
+            $expandedPostIds[] = $selectedPostId;
+        }
+        if ($commentContext !== null) {
+            $expandedPostIds[] = (int) $commentContext['post_id'];
+        }
+        $expandedPostIds = array_values(array_unique(array_filter($expandedPostIds)));
+
+        $comments = $this->loadTopCommentsForPosts($postIds, $expandedPostIds, $commentContext);
 
         foreach ($items as &$item) {
             $postId = (int) $item['id'];
             $item['images'] = $images[$postId] ?? [];
-            $item['comments'] = $comments[$postId] ?? [];
+            $item['comments'] = $comments[$postId]['items'] ?? [];
+            $item['comments_has_more'] = (bool) ($comments[$postId]['has_more'] ?? false);
+            $item['comments_loaded_total'] = (int) ($comments[$postId]['loaded_total'] ?? count($item['comments']));
+            $item['comments_expanded'] = in_array($postId, $expandedPostIds, true);
         }
         unset($item);
 
@@ -301,6 +395,71 @@ final class FeedService extends Model
         return $stmt->fetchAll();
     }
 
+    private function loadPostById(int $postId, int $viewerId): array
+    {
+        if ($postId <= 0) {
+            return [];
+        }
+
+        return $this->fetchOne(
+            "SELECT p.id,
+                    p.user_id,
+                    p.content,
+                    p.status,
+                    p.created_at,
+                    p.updated_at,
+                    CONCAT(u.first_name, ' ', u.last_name) AS author_name,
+                    u.online_status AS author_online,
+                    u.profile_photo_path AS author_photo,
+                    IFNULL(iv.is_verified, 0) AS author_verified,
+                    COALESCE(pl.likes_count, 0) AS likes_count,
+                    COALESCE(pc.comments_count, 0) AS comments_count,
+                    COALESCE(pi.images_count, 0) AS images_count,
+                    pi.first_image_path,
+                    pi.first_thumbnail_path,
+                    CASE WHEN ul.id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+             FROM posts p
+             JOIN users u ON u.id = p.user_id
+             LEFT JOIN (
+                SELECT user_id, MAX(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS is_verified
+                FROM identity_verifications
+                GROUP BY user_id
+             ) iv ON iv.user_id = u.id
+             LEFT JOIN (SELECT post_id, COUNT(*) AS likes_count FROM post_likes GROUP BY post_id) pl ON pl.post_id = p.id
+             LEFT JOIN (SELECT post_id, COUNT(*) AS comments_count FROM post_comments GROUP BY post_id) pc ON pc.post_id = p.id
+             LEFT JOIN (SELECT post_id, COUNT(*) AS images_count, MIN(image_path) AS first_image_path, MIN(thumbnail_path) AS first_thumbnail_path FROM post_images GROUP BY post_id) pi ON pi.post_id = p.id
+             LEFT JOIN post_likes ul ON ul.post_id = p.id AND ul.user_id = :viewer
+             WHERE p.id = :id AND p.status='active'
+             LIMIT 1",
+            [':id' => $postId, ':viewer' => $viewerId]
+        ) ?: [];
+    }
+
+    private function resolveCommentContext(int $commentId, int $selectedPostId): ?array
+    {
+        if ($commentId <= 0) {
+            return null;
+        }
+
+        $row = $this->fetchOne(
+            'SELECT id, post_id, parent_comment_id FROM post_comments WHERE id=:id LIMIT 1',
+            [':id' => $commentId]
+        );
+
+        if (!$row) {
+            return null;
+        }
+
+        $parentId = (int) ($row['parent_comment_id'] ?? 0);
+        return [
+            'comment_id' => (int) ($row['id'] ?? 0),
+            'post_id' => (int) ($row['post_id'] ?? $selectedPostId),
+            'parent_comment_id' => $parentId > 0 ? $parentId : null,
+            'root_comment_id' => $parentId > 0 ? $parentId : (int) ($row['id'] ?? 0),
+            'is_reply' => $parentId > 0,
+        ];
+    }
+
     private function loadImagesForPosts(array $postIds): array
     {
         if ($postIds === []) {
@@ -319,7 +478,7 @@ final class FeedService extends Model
         return $grouped;
     }
 
-    private function loadTopCommentsForPosts(array $postIds): array
+    private function loadTopCommentsForPosts(array $postIds, array $expandedPostIds = [], ?array $commentContext = null): array
     {
         if ($postIds === []) {
             return [];
@@ -345,29 +504,65 @@ final class FeedService extends Model
         $stmt->execute(array_values($postIds));
         $parents = $stmt->fetchAll();
 
+        $parentsByPost = [];
+        foreach ($parents as $parentRow) {
+            $parentsByPost[(int) $parentRow['post_id']][] = $parentRow;
+        }
+
         $parentIds = array_map(static fn(array $row): int => (int) $row['id'], $parents);
         $repliesByParent = $this->loadRepliesByParent($parentIds);
 
-        $grouped = [];
-        foreach ($parents as $row) {
-            $id = (int) $row['id'];
-            $postId = (int) $row['post_id'];
-            $grouped[$postId][] = [
-                'id' => $id,
-                'user_id' => (int) $row['user_id'],
-                'comment_text' => $row['comment_text'],
-                'created_at' => $row['created_at'],
-                'author_name' => $row['author_name'],
-                'reply_count' => (int) ($row['reply_count'] ?? 0),
-                'replies' => $repliesByParent[$id] ?? [],
+        $targetRootId = (int) ($commentContext['root_comment_id'] ?? 0);
+        $results = [];
+        foreach ($postIds as $postId) {
+            $postRows = $parentsByPost[$postId] ?? [];
+            $allItems = [];
+            foreach ($postRows as $row) {
+                $id = (int) $row['id'];
+                $allItems[] = [
+                    'id' => $id,
+                    'user_id' => (int) $row['user_id'],
+                    'comment_text' => $row['comment_text'],
+                    'created_at' => $row['created_at'],
+                    'author_name' => $row['author_name'],
+                    'reply_count' => (int) ($row['reply_count'] ?? 0),
+                    'replies' => $repliesByParent[$id] ?? [],
+                ];
+            }
+
+            $isExpanded = in_array((int) $postId, $expandedPostIds, true);
+            if ($isExpanded) {
+                $shownItems = $allItems;
+            } else {
+                $shownItems = array_slice($allItems, 0, 3);
+                if ($targetRootId > 0) {
+                    $existsInShown = false;
+                    foreach ($shownItems as $shown) {
+                        if ((int) ($shown['id'] ?? 0) === $targetRootId) {
+                            $existsInShown = true;
+                            break;
+                        }
+                    }
+
+                    if (!$existsInShown) {
+                        foreach ($allItems as $candidate) {
+                            if ((int) ($candidate['id'] ?? 0) === $targetRootId) {
+                                $shownItems[] = $candidate;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            $results[$postId] = [
+                'items' => $shownItems,
+                'has_more' => count($allItems) > count($shownItems),
+                'loaded_total' => count($shownItems),
             ];
         }
 
-        foreach ($grouped as $postId => $postComments) {
-            $grouped[$postId] = array_slice($postComments, 0, 3);
-        }
-
-        return $grouped;
+        return $results;
     }
 
     private function loadRepliesByParent(array $parentIds): array
@@ -397,6 +592,12 @@ final class FeedService extends Model
         }
 
         return $grouped;
+    }
+
+    private function countLikes(int $postId): int
+    {
+        $row = $this->fetchOne('SELECT COUNT(*) AS total FROM post_likes WHERE post_id=:post_id', [':post_id' => $postId]);
+        return (int) ($row['total'] ?? 0);
     }
 
     private function looksLikeSpam(string $content): bool

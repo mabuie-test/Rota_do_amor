@@ -24,9 +24,20 @@ final class CompatibilityDuelController extends Controller
     public function index(): void
     {
         $userId = Auth::id() ?? 0;
+        $selectedDuelId = max(0, (int) Request::input('duel', 0));
+        $duelContextStatus = 'active';
         try {
             $duel = $this->service->getOrCreateDailyDuel($userId);
             $policy = $this->service->premiumPolicy();
+            if ($selectedDuelId > 0 && (int) ($duel['id'] ?? 0) !== $selectedDuelId) {
+                $requested = $this->service->getDuelByIdForUser($userId, $selectedDuelId);
+                if ($requested !== []) {
+                    $duel = $requested;
+                } else {
+                    $duelContextStatus = 'fallback';
+                    Flash::set('warning', 'O duelo da notificação não está mais disponível. Mostramos teu duelo atual.');
+                }
+            }
         } catch (Throwable $exception) {
             error_log('[compatibility_duel.index_fallback] ' . $exception->getMessage());
             $duel = [];
@@ -36,13 +47,20 @@ final class CompatibilityDuelController extends Controller
         if (!empty($duel)) {
             $this->dailyRoutes->trackFromModule($userId, 'compatibility_duel_joined', 'compatibility_duel', 1);
         }
-        $this->view('compatibility-duel/index', ['title' => 'Duelo de Compatibilidade', 'duel' => $duel, 'premium_policy' => $policy]);
+        $this->view('compatibility-duel/index', [
+            'title' => 'Duelo de Compatibilidade',
+            'duel' => $duel,
+            'premium_policy' => $policy,
+            'selected_duel_id' => $selectedDuelId,
+            'duel_context_status' => $duelContextStatus,
+        ]);
     }
 
     public function vote(): void
     {
         $userId = Auth::id() ?? 0;
-        $ok = $this->service->vote((int) Request::input('duel_id', 0), $userId, (int) Request::input('selected_option_id', 0));
+        $duelId = (int) Request::input('duel_id', 0);
+        $ok = $this->service->vote($duelId, $userId, (int) Request::input('selected_option_id', 0));
         if ($ok) {
             $this->dailyRoutes->trackFromModule($userId, 'compatibility_duel_voted', 'compatibility_duel', 1);
             Flash::set('success', 'Voto registado.');
@@ -50,7 +68,7 @@ final class CompatibilityDuelController extends Controller
             Flash::set('error', 'Não foi possível registar voto.');
         }
 
-        Response::redirect('/compatibility-duel');
+        Response::redirect('/compatibility-duel?duel=' . $duelId);
     }
 
     public function action(): void

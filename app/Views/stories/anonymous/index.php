@@ -1,3 +1,4 @@
+<?php $selectedStoryId = (int) ($selected_story_id ?? 0); ?>
 <h3 class="mb-3">Histórias Anónimas</h3>
 <div class="rd-card mb-3"><div class="card-body">
   <form method="post" action="/stories/anonymous" class="row g-2"><?= csrf_field() ?>
@@ -9,18 +10,19 @@
 </div></div>
 
 <?php foreach (($stories ?? []) as $story): ?>
-<div class="rd-card mb-3"><div class="card-body">
+<?php $storyId = (int) ($story['id'] ?? 0); ?>
+<div class="rd-card mb-3 <?= $selectedStoryId === $storyId ? 'rd-story-highlight' : '' ?>" id="story-<?= $storyId ?>"><div class="card-body">
   <p class="small text-muted mb-1">Categoria: <?= e((string) ($story['category'] ?? 'relacoes')) ?> · <?= e((string) ($story['created_at'] ?? '')) ?> <?php if ((int) ($story['is_featured'] ?? 0) === 1): ?><span class="badge text-bg-success">Destaque</span><?php endif; ?></p>
   <?php if (!empty($story['title'])): ?><h6><?= e((string) $story['title']) ?></h6><?php endif; ?>
   <p><?= nl2br(e((string) ($story['content'] ?? ''))) ?></p>
   <div class="d-flex gap-2 flex-wrap mb-2">
     <?php foreach (['apoio'=>'Apoio','empatia'=>'Empatia','concordo'=>'Concordo','discordo'=>'Discordo','curioso'=>'Curioso'] as $key=>$label): ?>
-      <form method="post" action="/stories/anonymous/react"><?= csrf_field() ?><input type="hidden" name="story_id" value="<?= (int) $story['id'] ?>"><input type="hidden" name="reaction_type" value="<?= e($key) ?>"><button class="btn btn-sm btn-outline-primary"><?= e($label) ?></button></form>
+      <form method="post" action="/stories/anonymous/react"><?= csrf_field() ?><input type="hidden" name="story_id" value="<?= $storyId ?>"><input type="hidden" name="reaction_type" value="<?= e($key) ?>"><button class="btn btn-sm btn-outline-primary"><?= e($label) ?></button></form>
     <?php endforeach; ?>
   </div>
   <p class="small">Reações: <strong><?= (int) ($story['reactions_count'] ?? 0) ?></strong> · Comentários: <strong><?= (int) ($story['comments_count'] ?? 0) ?></strong></p>
   <?php foreach (($story['comments_preview'] ?? []) as $comment): ?><p class="small text-muted mb-1">💬 <?= e((string) ($comment['comment_text'] ?? '')) ?></p><?php endforeach; ?>
-  <form method="post" action="/stories/anonymous/comment" class="d-flex gap-2 mb-2"><?= csrf_field() ?><input type="hidden" name="story_id" value="<?= (int) $story['id'] ?>"><input class="form-control" name="comment" placeholder="Comentar" maxlength="500"><button class="btn btn-sm btn-rd-soft">Enviar</button></form>
-  <form method="post" action="/stories/anonymous/report" class="d-flex gap-2"><?= csrf_field() ?><input type="hidden" name="story_id" value="<?= (int) $story['id'] ?>"><input class="form-control form-control-sm" name="reason" placeholder="Motivo da denúncia"><button class="btn btn-sm btn-outline-danger">Denunciar</button></form>
+  <form method="post" action="/stories/anonymous/comment" class="d-flex gap-2 mb-2"><?= csrf_field() ?><input type="hidden" name="story_id" value="<?= $storyId ?>"><input class="form-control" name="comment" placeholder="Comentar" maxlength="500"><button class="btn btn-sm btn-rd-soft">Enviar</button></form>
+  <form method="post" action="/stories/anonymous/report" class="d-flex gap-2"><?= csrf_field() ?><input type="hidden" name="story_id" value="<?= $storyId ?>"><input class="form-control form-control-sm" name="reason" placeholder="Motivo da denúncia"><button class="btn btn-sm btn-outline-danger">Denunciar</button></form>
 </div></div>
 <?php endforeach; ?>

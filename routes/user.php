@@ -77,6 +77,7 @@ $router->add('GET', '/member/{id}', [DiscoverController::class, 'show'], $coreAc
 
 $router->add('GET', '/notifications', [NotificationController::class, 'index'], $coreAccess);
 $router->add('GET', '/notifications/{id}/go', [NotificationController::class, 'go'], $coreAccess);
+$router->add('POST', '/notifications/read-all', [NotificationController::class, 'readAll'], $coreAccess);
 $router->add('GET', '/daily-route', [DailyRouteController::class, 'index'], $coreAccess);
 $router->add('POST', '/daily-route/claim-reward', [DailyRouteController::class, 'claimReward'], $coreAccess);
 $router->add('GET', '/dates', [SafeDateController::class, 'index'], $coreAccess);

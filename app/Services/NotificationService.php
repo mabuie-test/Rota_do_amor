@@ -28,6 +28,27 @@ final class NotificationService extends Model
         return array_map(fn(array $row): array => $this->hydrateNotification($row), $rows);
     }
 
+    public function unreadCountForUser(int $userId): int
+    {
+        if ($userId <= 0) {
+            return 0;
+        }
+
+        $row = $this->fetchOne('SELECT COUNT(*) AS total FROM notifications WHERE user_id=:id AND is_read=0', [':id' => $userId]);
+        return (int) ($row['total'] ?? 0);
+    }
+
+    public function markAllAsRead(int $userId): int
+    {
+        if ($userId <= 0) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare('UPDATE notifications SET is_read=1, read_at=COALESCE(read_at, NOW()) WHERE user_id=:user_id AND is_read=0');
+        $stmt->execute([':user_id' => $userId]);
+        return $stmt->rowCount();
+    }
+
     public function getForUser(int $notificationId, int $userId): array
     {
         $row = $this->fetchOne('SELECT * FROM notifications WHERE id=:id AND user_id=:user_id LIMIT 1', [
@@ -50,7 +71,7 @@ final class NotificationService extends Model
         ]);
     }
 
-    public function resolveDestination(array $notification): string
+    public function resolveDestinationContext(array $notification): array
     {
         $type = (string) ($notification['type'] ?? '');
         $payload = is_array($notification['payload'] ?? null) ? $notification['payload'] : [];
@@ -64,32 +85,56 @@ final class NotificationService extends Model
         $duelId = (int) ($payload['duel_id'] ?? 0);
         $inviteId = (int) ($payload['invite_id'] ?? 0);
 
-        if ($safeDateId > 0) {
-            return '/dates/' . $safeDateId;
+        if ($safeDateId > 0 && $this->existsSafeDate($safeDateId)) {
+            return ['url' => '/dates/' . $safeDateId, 'is_valid' => true, 'fallback_message' => null];
         }
 
         if ($postId > 0) {
-            return $this->buildFeedPostUrl($postId, $commentId);
+            if ($this->existsPost($postId)) {
+                if ($commentId > 0 && !$this->existsPostComment($postId, $commentId)) {
+                    return ['url' => '/feed?post=' . $postId . '#post-' . $postId, 'is_valid' => false, 'fallback_message' => 'O comentário indicado já não está disponível.'];
+                }
+
+                return ['url' => $this->buildFeedPostUrl($postId, $commentId), 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/feed', 'is_valid' => false, 'fallback_message' => 'A publicação desta notificação já não está disponível.'];
         }
 
         if ($conversationId > 0) {
-            return '/messages?conversation=' . $conversationId;
+            return ['url' => '/messages?conversation=' . $conversationId, 'is_valid' => true, 'fallback_message' => null];
         }
 
         if ($storyId > 0) {
-            return '/stories/anonymous?story=' . $storyId . '#story-' . $storyId;
+            if ($this->existsStory($storyId)) {
+                return ['url' => '/stories/anonymous?story=' . $storyId . '#story-' . $storyId, 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/stories/anonymous', 'is_valid' => false, 'fallback_message' => 'A história associada já não está acessível.'];
         }
 
         if ($duelId > 0) {
-            return '/compatibility-duel?duel=' . $duelId;
+            if ($this->existsDuelForOwner((int) ($notification['user_id'] ?? 0), $duelId)) {
+                return ['url' => '/compatibility-duel?duel=' . $duelId, 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/compatibility-duel', 'is_valid' => false, 'fallback_message' => 'Este duelo não está mais disponível no teu contexto atual.'];
         }
 
         if ($inviteId > 0 && in_array($type, ['invite_accepted', 'invite_declined'], true)) {
-            return '/invites/sent?invite=' . $inviteId;
+            if ($this->existsInviteForOwner((int) ($notification['user_id'] ?? 0), $inviteId)) {
+                return ['url' => '/invites/sent?invite=' . $inviteId, 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/invites/sent', 'is_valid' => false, 'fallback_message' => 'O convite associado já não está disponível.'];
         }
 
         if ($profileId > 0 && in_array($type, ['profile_view', 'visitor_profile', 'profile_visit'], true)) {
-            return '/discover/profile/' . $profileId;
+            if ($this->isProfileAccessible((int) ($notification['user_id'] ?? 0), $profileId)) {
+                return ['url' => '/member/' . $profileId, 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/discover', 'is_valid' => false, 'fallback_message' => 'Este perfil já não pode ser visualizado.'];
         }
 
         $map = [
@@ -108,32 +153,26 @@ final class NotificationService extends Model
             'daily_route_ready' => '/daily-route',
             'daily_route_almost_done' => '/daily-route',
             'daily_route_completed' => '/daily-route',
-            'safe_date_proposed' => '/dates',
-            'safe_date_accepted' => '/dates',
-            'safe_date_declined' => '/dates',
-            'safe_date_cancelled' => '/dates',
-            'safe_date_reschedule_requested' => '/dates',
-            'safe_date_rescheduled' => '/dates',
-            'safe_date_reschedule_declined' => '/dates',
-            'safe_date_completed' => '/dates',
-            'safe_date_arrived' => '/dates',
-            'safe_date_finished_well' => '/dates',
-            'safe_date_expired' => '/dates',
         ];
 
         if (str_starts_with($type, 'daily_route_')) {
-            return '/daily-route';
+            return ['url' => '/daily-route', 'is_valid' => true, 'fallback_message' => null];
         }
 
         if (str_starts_with($type, 'safe_date_') || str_starts_with($type, 'safe_date_reminder_')) {
-            return '/dates';
+            return ['url' => '/dates', 'is_valid' => true, 'fallback_message' => null];
         }
 
         if (str_starts_with($type, 'anonymous_story_') || str_starts_with($type, 'story_')) {
-            return '/stories/anonymous';
+            return ['url' => '/stories/anonymous', 'is_valid' => true, 'fallback_message' => null];
         }
 
-        return $map[$type] ?? '/notifications';
+        return ['url' => $map[$type] ?? '/notifications', 'is_valid' => true, 'fallback_message' => null];
+    }
+
+    public function resolveDestination(array $notification): string
+    {
+        return (string) ($this->resolveDestinationContext($notification)['url'] ?? '/notifications');
     }
 
     private function buildFeedPostUrl(int $postId, int $commentId = 0): string
@@ -144,6 +183,56 @@ final class NotificationService extends Model
         }
 
         return $base . '#post-' . $postId;
+    }
+
+    private function existsPost(int $postId): bool
+    {
+        return $this->fetchOne('SELECT id FROM posts WHERE id=:id AND status=:status LIMIT 1', [':id' => $postId, ':status' => 'active']) !== null;
+    }
+
+    private function existsPostComment(int $postId, int $commentId): bool
+    {
+        return $this->fetchOne('SELECT id FROM post_comments WHERE id=:id AND post_id=:post_id LIMIT 1', [':id' => $commentId, ':post_id' => $postId]) !== null;
+    }
+
+    private function existsStory(int $storyId): bool
+    {
+        return $this->fetchOne("SELECT id FROM anonymous_stories WHERE id=:id AND status IN ('published','featured') LIMIT 1", [':id' => $storyId]) !== null;
+    }
+
+    private function existsDuelForOwner(int $userId, int $duelId): bool
+    {
+        return $this->fetchOne('SELECT id FROM compatibility_duels WHERE id=:id AND user_id=:user_id LIMIT 1', [':id' => $duelId, ':user_id' => $userId]) !== null;
+    }
+
+    private function existsInviteForOwner(int $userId, int $inviteId): bool
+    {
+        return $this->fetchOne('SELECT id FROM connection_invites WHERE id=:id AND sender_user_id=:user_id LIMIT 1', [':id' => $inviteId, ':user_id' => $userId]) !== null;
+    }
+
+    private function existsSafeDate(int $safeDateId): bool
+    {
+        return $this->fetchOne('SELECT id FROM safe_dates WHERE id=:id LIMIT 1', [':id' => $safeDateId]) !== null;
+    }
+
+    private function isProfileAccessible(int $viewerId, int $targetId): bool
+    {
+        if ($viewerId <= 0 || $targetId <= 0 || $viewerId === $targetId) {
+            return false;
+        }
+
+        return $this->fetchOne(
+            "SELECT u.id FROM users u
+             WHERE u.id=:target_id
+               AND u.status='active'
+               AND NOT EXISTS (
+                    SELECT 1 FROM blocks b
+                    WHERE (b.actor_user_id=:viewer_1 AND b.target_user_id=u.id)
+                       OR (b.actor_user_id=u.id AND b.target_user_id=:viewer_2)
+               )
+             LIMIT 1",
+            [':target_id' => $targetId, ':viewer_1' => $viewerId, ':viewer_2' => $viewerId]
+        ) !== null;
     }
 
     private function hydrateNotification(array $row): array
@@ -158,7 +247,10 @@ final class NotificationService extends Model
         }
 
         $row['payload'] = $payload;
-        $row['destination_url'] = $this->resolveDestination($row);
+        $destination = $this->resolveDestinationContext($row);
+        $row['destination_url'] = $destination['url'] ?? '/notifications';
+        $row['destination_valid'] = (bool) ($destination['is_valid'] ?? true);
+        $row['destination_fallback_message'] = $destination['fallback_message'] ?? null;
 
         return $row;
     }

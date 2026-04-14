@@ -19,6 +19,10 @@ final class FavoriteController extends Controller
     public function toggle(): void
     {
         $active = $this->service->toggle(Auth::id() ?? 0, (int) Request::input('target_user_id', 0));
-        Response::json(['ok' => true, 'active' => $active]);
+        Response::json([
+            'ok' => true,
+            'active' => $active,
+            'message' => $active ? 'Favoritado com sucesso.' : 'Favorito removido.',
+        ]);
     }
 }

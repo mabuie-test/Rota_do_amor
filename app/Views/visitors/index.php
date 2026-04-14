@@ -14,7 +14,7 @@
         <p class="mb-1"><strong><?= e((string) ($row['visitor_name'] ?? 'Visitante')) ?></strong> <?php if ((int) ($row['visits_from_same'] ?? 1) >= 2): ?><span class="badge text-bg-warning">recorrente</span><?php endif; ?></p>
         <p class="small text-muted mb-0">Origem: <?= e((string) ($row['source_context'] ?? 'discover')) ?> · <?= e((string) ($row['created_at'] ?? '')) ?></p>
       </div>
-      <?php if ((int) ($row['visitor_user_id'] ?? 0) > 0): ?><a class="btn btn-sm btn-rd-primary" href="/discover/profile/<?= (int) $row['visitor_user_id'] ?>">Ver perfil</a><?php else: ?><button class="btn btn-sm btn-outline-secondary" disabled>Bloqueado</button><?php endif; ?>
+      <?php if ((int) ($row['visitor_user_id'] ?? 0) > 0): ?><a class="btn btn-sm btn-rd-primary" href="/member/<?= (int) $row['visitor_user_id'] ?>">Ver perfil</a><?php else: ?><button class="btn btn-sm btn-outline-secondary" disabled>Bloqueado</button><?php endif; ?>
     </div></div>
   </div>
 <?php endforeach; ?>

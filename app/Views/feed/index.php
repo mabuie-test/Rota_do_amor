@@ -1,4 +1,9 @@
-<?php $pg = $pagination ?? ['page' => 1, 'total_pages' => 1]; $viewerId = (int) ($viewer_id ?? 0); $selectedPostId = (int) ($selected_post_id ?? 0); ?>
+<?php
+$pg = $pagination ?? ['page' => 1, 'total_pages' => 1];
+$viewerId = (int) ($viewer_id ?? 0);
+$selectedPostId = (int) ($selected_post_id ?? 0);
+$selectedCommentId = (int) ($selected_comment_id ?? 0);
+?>
 <div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
   <h3 class="mb-0"><i class="fa-solid fa-sparkles me-2"></i>Feed Social</h3>
   <button class="btn btn-rd-primary" data-bs-toggle="modal" data-bs-target="#createPostModal"><i class="fa-solid fa-pen-to-square me-1"></i>Criar publicação</button>
@@ -52,28 +57,30 @@
       </div>
     <?php endif; ?>
 
-    <div class="small text-muted mb-2">❤️ <?= (int) ($post['likes_count'] ?? 0) ?> · 💬 <?= (int) ($post['comments_count'] ?? 0) ?> · 📎 <?= (int) ($post['images_count'] ?? 0) ?></div>
+    <div class="small text-muted mb-2">❤️ <span data-like-count><?= (int) ($post['likes_count'] ?? 0) ?></span> · 💬 <?= (int) ($post['comments_count'] ?? 0) ?> · 📎 <?= (int) ($post['images_count'] ?? 0) ?></div>
 
     <?php if (!empty($post['comments'])): ?>
       <div class="border rounded p-2 bg-light-subtle small mb-2 d-flex flex-column gap-2 rd-comment-thread">
         <?php foreach (($post['comments'] ?? []) as $comment): ?>
-          <div>
+          <?php $commentId = (int) ($comment['id'] ?? 0); $isTargetComment = $selectedCommentId === $commentId; ?>
+          <div id="comment-<?= $commentId ?>" class="rd-comment-item <?= $isTargetComment ? 'rd-comment-highlight' : '' ?>">
             <div><a href="/member/<?= (int) ($comment['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($comment['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($comment['comment_text'] ?? '')) ?></div>
             <div class="small text-muted d-flex gap-2">
               <span><?= (int) ($comment['reply_count'] ?? 0) ?> respostas</span>
-              <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-reply-toggle data-post-id="<?= $postId ?>" data-parent-id="<?= (int) ($comment['id'] ?? 0) ?>">Responder</button>
+              <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-reply-toggle data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">Responder</button>
             </div>
             <?php if (!empty($comment['replies'])): ?>
               <div class="ps-3 mt-1 border-start">
                 <?php foreach (($comment['replies'] ?? []) as $reply): ?>
-                  <div><a href="/member/<?= (int) ($reply['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($reply['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($reply['comment_text'] ?? '')) ?></div>
+                  <?php $replyId = (int) ($reply['id'] ?? 0); $isTargetReply = $selectedCommentId === $replyId; ?>
+                  <div id="comment-<?= $replyId ?>" class="rd-comment-reply <?= $isTargetReply ? 'rd-comment-highlight' : '' ?>"><a href="/member/<?= (int) ($reply['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($reply['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($reply['comment_text'] ?? '')) ?></div>
                 <?php endforeach; ?>
               </div>
             <?php endif; ?>
-            <form method="post" action="/feed/comment" class="mt-1 d-none" id="reply-form-<?= $postId ?>-<?= (int) ($comment['id'] ?? 0) ?>">
+            <form method="post" action="/feed/comment" class="mt-1 d-none" id="reply-form-<?= $postId ?>-<?= $commentId ?>">
               <?= csrf_field() ?>
               <input type="hidden" name="post_id" value="<?= $postId ?>">
-              <input type="hidden" name="parent_comment_id" value="<?= (int) ($comment['id'] ?? 0) ?>">
+              <input type="hidden" name="parent_comment_id" value="<?= $commentId ?>">
               <div class="d-flex gap-2">
                 <input class="form-control form-control-sm" name="comment" maxlength="600" placeholder="Responder comentário..." required>
                 <button class="btn btn-sm btn-rd-primary">Responder</button>
@@ -81,6 +88,10 @@
             </form>
           </div>
         <?php endforeach; ?>
+
+        <?php if ((bool) ($post['comments_has_more'] ?? false)): ?>
+          <a class="small text-decoration-none fw-semibold" href="/feed?post=<?= $postId ?>&show_comments=all#post-<?= $postId ?>">Ver mais comentários</a>
+        <?php endif; ?>
       </div>
     <?php endif; ?>
 

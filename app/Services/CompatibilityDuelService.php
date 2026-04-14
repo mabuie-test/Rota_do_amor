@@ -49,6 +49,33 @@ final class CompatibilityDuelService extends Model
         }
     }
 
+    public function getDuelByIdForUser(int $userId, int $duelId): array
+    {
+        if ($userId <= 0 || $duelId <= 0) {
+            return [];
+        }
+
+        $duel = $this->fetchOne('SELECT * FROM compatibility_duels WHERE id=:id AND user_id=:user_id LIMIT 1', [
+            ':id' => $duelId,
+            ':user_id' => $userId,
+        ]);
+        if (!$duel) {
+            return [];
+        }
+
+        $options = $this->fetchAllRows(
+            'SELECT o.*, CONCAT(u.first_name, " ", u.last_name) AS candidate_name, u.profile_photo_path, u.profession, u.relationship_goal
+             FROM compatibility_duel_options o
+             JOIN users u ON u.id = o.candidate_user_id
+             WHERE o.duel_id = :duel_id
+             ORDER BY o.sort_order ASC, o.id ASC',
+            [':duel_id' => $duelId]
+        );
+        $duel['options'] = $options;
+
+        return $duel;
+    }
+
     public function vote(int $duelId, int $userId, int $selectedOptionId): bool
     {
         $duel = $this->fetchOne('SELECT * FROM compatibility_duels WHERE id = :id AND user_id = :user_id LIMIT 1', [':id' => $duelId, ':user_id' => $userId]);
