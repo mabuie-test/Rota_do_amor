@@ -37,10 +37,34 @@ $currentDuelId = (int) ($duel['id'] ?? 0);
   </div></div>
   <script>
     document.querySelectorAll('.duel-action-btn').forEach(function (button) {
-      button.addEventListener('click', function () {
-        fetch('/compatibility-duel/action', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: '_token=<?= e(csrf_token()) ?>&duel_id=' + encodeURIComponent(button.dataset.duelId) + '&action_type=' + encodeURIComponent(button.dataset.action)})
-          .then(function () { button.classList.remove('btn-outline-primary'); button.classList.add('btn-success'); })
-          .catch(function () { button.classList.add('btn-outline-danger'); });
+      button.addEventListener('click', async function () {
+        button.disabled = true;
+
+        try {
+          const response = await fetch('/compatibility-duel/action', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Accept': 'application/json'
+            },
+            body: '_token=<?= e(csrf_token()) ?>&duel_id=' + encodeURIComponent(button.dataset.duelId) + '&action_type=' + encodeURIComponent(button.dataset.action)
+          });
+          const payload = await response.json();
+
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.message || 'Não foi possível concluir esta ação.');
+          }
+
+          button.classList.remove('btn-outline-primary', 'btn-outline-danger');
+          button.classList.add('btn-success');
+          button.setAttribute('title', payload.message || 'Ação concluída');
+        } catch (error) {
+          button.classList.remove('btn-success');
+          button.classList.add('btn-outline-danger');
+          button.setAttribute('title', error.message || 'Falha ao concluir ação');
+        } finally {
+          button.disabled = false;
+        }
       });
     });
   </script>

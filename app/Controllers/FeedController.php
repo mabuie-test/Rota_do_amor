@@ -105,7 +105,7 @@ final class FeedController extends Controller
         $key = 'feed_like:' . (Auth::id() ?? 0) . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('feed_like', $key, 60, 5)) {
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => 'Muitos likes em curto período.'], 429);
+                Response::json(['ok' => false, 'message' => 'Muitos likes em curto período.', 'action' => 'error', 'state' => null, 'created_id' => 0, 'target_id' => (int) Request::input('post_id', 0), 'error_code' => 'rate_limited'], 429);
             }
 
             Flash::set('error', 'Muitos likes em curto período.');
@@ -119,7 +119,7 @@ final class FeedController extends Controller
         if (!($result['success'] ?? false)) {
             $this->rateLimiter->hitFailure('feed_like', $key, $userId, ['reason' => 'invalid_like_request']);
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => $result['message'] ?? 'Não foi possível atualizar like.'], 422);
+                Response::json(['ok' => false, 'message' => $result['message'] ?? 'Não foi possível atualizar like.', 'action' => (string) ($result['action'] ?? 'error'), 'state' => null, 'created_id' => 0, 'target_id' => (int) ($result['post_id'] ?? $postId), 'error_code' => $result['error_code'] ?? 'feed_like_failed'], 422);
             }
 
             Flash::set('error', $result['message'] ?? 'Não foi possível atualizar like.');
@@ -132,7 +132,7 @@ final class FeedController extends Controller
         }
 
         if (Request::expectsJson()) {
-            Response::json(['ok' => true] + $result);
+            Response::json(['ok' => true, 'state' => ['liked_by_viewer' => (int) ($result['liked_by_viewer'] ?? 0), 'likes_count' => (int) ($result['likes_count'] ?? 0)], 'created_id' => 0, 'target_id' => (int) ($result['post_id'] ?? 0), 'error_code' => null] + $result);
         }
 
         Flash::set('success', (string) ($result['message'] ?? 'Like atualizado.'));
@@ -144,7 +144,7 @@ final class FeedController extends Controller
         $key = 'feed_comment:' . (Auth::id() ?? 0) . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('feed_comment', $key, 25, 5)) {
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => 'Muitos comentários em curto período.'], 429);
+                Response::json(['ok' => false, 'message' => 'Muitos comentários em curto período.', 'action' => 'error', 'state' => null, 'created_id' => 0, 'target_id' => (int) Request::input('post_id', 0), 'error_code' => 'rate_limited'], 429);
             }
 
             Flash::set('error', 'Muitos comentários em curto período.');
@@ -159,7 +159,7 @@ final class FeedController extends Controller
         if (!($result['success'] ?? false)) {
             $this->rateLimiter->hitFailure('feed_comment', $key, $userId, ['reason' => $result['error_code'] ?? 'comment_failed']);
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => $result['message'] ?? 'Não foi possível enviar comentário.'], 422);
+                Response::json(['ok' => false, 'message' => $result['message'] ?? 'Não foi possível enviar comentário.', 'action' => (string) ($result['action'] ?? 'error'), 'state' => null, 'created_id' => 0, 'target_id' => (int) ($result['post_id'] ?? $postId), 'error_code' => $result['error_code'] ?? 'feed_comment_failed'], 422);
             }
 
             Flash::set('error', $result['message'] ?? 'Não foi possível enviar comentário.');
@@ -169,7 +169,7 @@ final class FeedController extends Controller
         $this->rateLimiter->hitSuccess('feed_comment', $key, $userId, ['action' => $result['action'] ?? 'commented']);
         $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_COMMENT, 'feed', 1);
         if (Request::expectsJson()) {
-            Response::json(['ok' => true] + $result);
+            Response::json(['ok' => true, 'state' => ['post_id' => (int) ($result['post_id'] ?? 0)], 'created_id' => (int) ($result['created_id'] ?? 0), 'target_id' => (int) ($result['target_id'] ?? 0), 'error_code' => null] + $result);
         }
 
         Flash::set('success', (string) ($result['message'] ?? 'Comentário enviado.'));

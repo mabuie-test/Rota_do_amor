@@ -8,6 +8,14 @@ document.addEventListener('DOMContentLoaded', () => {
     container.textContent = message;
   };
 
+  const parseJsonSafe = async (response) => {
+    try {
+      return await response.json();
+    } catch (_error) {
+      return {};
+    }
+  };
+
   const scrollToElement = (selector) => {
     const element = document.querySelector(selector);
     if (!element) return;
@@ -196,6 +204,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+
+  document.querySelectorAll('[data-feed-like-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('[data-feed-like-button]');
+      const postId = form.querySelector('input[name="post_id"]')?.value || '0';
+      const token = form.querySelector('input[name="_token"]')?.value || '';
+      if (!button) {
+        form.submit();
+        return;
+      }
+
+      button.disabled = true;
+      try {
+        const response = await fetch('/feed/like', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'},
+          body: new URLSearchParams({post_id: String(postId), _token: token})
+        });
+        const payload = await parseJsonSafe(response);
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || 'Não foi possível atualizar like.');
+        }
+
+        const liked = Number(payload.state?.liked_by_viewer ?? payload.liked_by_viewer ?? 0) === 1;
+        const likesCount = Number(payload.state?.likes_count ?? payload.likes_count ?? 0);
+
+        button.dataset.liked = liked ? '1' : '0';
+        button.classList.toggle('btn-danger', liked);
+        button.classList.toggle('btn-outline-danger', !liked);
+        button.innerHTML = `<i class="fa-solid fa-heart me-1"></i>${liked ? 'Gostado' : 'Gostar'}`;
+
+        const countEl = document.querySelector(`[data-post-like-count="${CSS.escape(String(postId))}"]`);
+        if (countEl) countEl.textContent = String(likesCount);
+      } catch (error) {
+        button.classList.add('btn-outline-danger');
+        button.setAttribute('title', error.message || 'Falha ao atualizar like.');
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
   document.querySelectorAll('.rd-profile-actions').forEach((wrapper) => {
     const targetUser = wrapper.getAttribute('data-target-user');
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -219,14 +270,15 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
           body: new URLSearchParams({target_user_id: String(targetUser)})
         });
-        const data = await res.json();
+        const data = await parseJsonSafe(res);
         if (!res.ok || !data.ok) {
           throw new Error(data.message || 'Falha ao atualizar favorito.');
         }
 
-        isFavorited = data.active === true;
+        const favoriteState = data.state && typeof data.state.active !== 'undefined' ? data.state.active : data.active;
+        isFavorited = favoriteState === true;
         renderFavoriteState();
-        showInlineFeedback(feedback, isFavorited ? 'Perfil adicionado aos favoritos.' : 'Favorito removido.', 'success');
+        showInlineFeedback(feedback, data.message || (isFavorited ? 'Perfil adicionado aos favoritos.' : 'Favorito removido.'), 'success');
       } catch (error) {
         showInlineFeedback(feedback, error.message || 'Não foi possível atualizar favorito.', 'error');
       }
@@ -240,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
           body: new URLSearchParams({target_user_id: String(targetUser), reason: 'Ação do perfil vivo'})
         });
-        const data = await res.json();
+        const data = await parseJsonSafe(res);
         if (!res.ok || !data.ok || Number(data.block_id || 0) <= 0) {
           throw new Error(data.message || 'Não foi possível bloquear o membro.');
         }
@@ -259,12 +311,12 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
           body: new URLSearchParams({report_type: 'profile', target_user_id: String(targetUser), reason: 'abuse', details: 'Denúncia enviada via perfil público'})
         });
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
+        const data = await parseJsonSafe(res);
+        if (!res.ok || !data.ok || Number(data.created_id || data.report_id || 0) <= 0) {
           throw new Error(data.message || 'Não foi possível enviar denúncia.');
         }
 
-        showInlineFeedback(feedback, 'Denúncia enviada para revisão.', 'success');
+        showInlineFeedback(feedback, data.message || 'Denúncia enviada para revisão.', 'success');
       } catch (error) {
         showInlineFeedback(feedback, error.message || 'Falha ao enviar denúncia.', 'error');
       }

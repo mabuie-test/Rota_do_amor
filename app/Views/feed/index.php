@@ -57,7 +57,7 @@ $selectedCommentId = (int) ($selected_comment_id ?? 0);
       </div>
     <?php endif; ?>
 
-    <div class="small text-muted mb-2">❤️ <span data-like-count><?= (int) ($post['likes_count'] ?? 0) ?></span> · 💬 <?= (int) ($post['comments_count'] ?? 0) ?> · 📎 <?= (int) ($post['images_count'] ?? 0) ?></div>
+    <div class="small text-muted mb-2">❤️ <span data-like-count data-post-like-count="<?= $postId ?>"><?= (int) ($post['likes_count'] ?? 0) ?></span> · 💬 <?= (int) ($post['comments_count'] ?? 0) ?> · 📎 <?= (int) ($post['images_count'] ?? 0) ?></div>
 
     <?php if (!empty($post['comments'])): ?>
       <div class="border rounded p-2 bg-light-subtle small mb-2 d-flex flex-column gap-2 rd-comment-thread">
@@ -96,10 +96,10 @@ $selectedCommentId = (int) ($selected_comment_id ?? 0);
     <?php endif; ?>
 
     <div class="d-flex flex-wrap gap-2 align-items-start">
-      <form method="post" action="/feed/like" class="m-0">
+      <form method="post" action="/feed/like" class="m-0" data-feed-like-form>
         <?= csrf_field() ?>
         <input type="hidden" name="post_id" value="<?= $postId ?>">
-        <button class="btn btn-sm <?= (int) ($post['liked_by_viewer'] ?? 0) === 1 ? 'btn-danger' : 'btn-outline-danger' ?>" title="Gostar">
+        <button class="btn btn-sm <?= (int) ($post['liked_by_viewer'] ?? 0) === 1 ? 'btn-danger' : 'btn-outline-danger' ?>" title="Gostar" data-feed-like-button data-liked="<?= (int) ($post['liked_by_viewer'] ?? 0) ?>">
           <i class="fa-solid fa-heart me-1"></i><?= (int) ($post['liked_by_viewer'] ?? 0) === 1 ? 'Gostado' : 'Gostar' ?>
         </button>
       </form>

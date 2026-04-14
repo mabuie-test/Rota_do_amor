@@ -16,12 +16,9 @@
 <body>
 <?php
 use App\Core\Flash;
-use App\Core\Auth;
-use App\Services\NotificationService;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-$viewerId = Auth::id() ?? 0;
-$unreadNotifications = $viewerId > 0 ? (new NotificationService())->unreadCountForUser($viewerId) : 0;
+$unreadNotifications = (int) ($layout_unread_notifications ?? 0);
 $navItems = [
     '/dashboard' => ['label' => 'Dashboard', 'icon' => 'fa-house'],
     '/discover' => ['label' => 'Descobrir', 'icon' => 'fa-compass'],

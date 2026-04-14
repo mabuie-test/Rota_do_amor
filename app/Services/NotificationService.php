@@ -102,7 +102,11 @@ final class NotificationService extends Model
         }
 
         if ($conversationId > 0) {
-            return ['url' => '/messages?conversation=' . $conversationId, 'is_valid' => true, 'fallback_message' => null];
+            if ($this->existsConversationForUser((int) ($notification['user_id'] ?? 0), $conversationId)) {
+                return ['url' => '/messages?conversation=' . $conversationId, 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/messages', 'is_valid' => false, 'fallback_message' => 'A conversa desta notificação já não está disponível para ti.'];
         }
 
         if ($storyId > 0) {
@@ -122,11 +126,19 @@ final class NotificationService extends Model
         }
 
         if ($inviteId > 0 && in_array($type, ['invite_accepted', 'invite_declined'], true)) {
-            if ($this->existsInviteForOwner((int) ($notification['user_id'] ?? 0), $inviteId)) {
+            if ($this->existsSentInviteForUser((int) ($notification['user_id'] ?? 0), $inviteId)) {
                 return ['url' => '/invites/sent?invite=' . $inviteId, 'is_valid' => true, 'fallback_message' => null];
             }
 
             return ['url' => '/invites/sent', 'is_valid' => false, 'fallback_message' => 'O convite associado já não está disponível.'];
+        }
+
+        if ($inviteId > 0 && in_array($type, ['invite_received', 'invite_priority_received'], true)) {
+            if ($this->existsReceivedInviteForUser((int) ($notification['user_id'] ?? 0), $inviteId)) {
+                return ['url' => '/invites/received?invite=' . $inviteId, 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/invites/received', 'is_valid' => false, 'fallback_message' => 'O convite recebido já não está disponível.'];
         }
 
         if ($profileId > 0 && in_array($type, ['profile_view', 'visitor_profile', 'profile_visit'], true)) {
@@ -156,7 +168,12 @@ final class NotificationService extends Model
         ];
 
         if (str_starts_with($type, 'daily_route_')) {
-            return ['url' => '/daily-route', 'is_valid' => true, 'fallback_message' => null];
+            $dailyRouteId = (int) ($payload['daily_route_id'] ?? 0);
+            if ($dailyRouteId <= 0 || $this->existsDailyRouteForUser((int) ($notification['user_id'] ?? 0), $dailyRouteId)) {
+                return ['url' => '/daily-route', 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/daily-route', 'is_valid' => false, 'fallback_message' => 'A rota diária associada já não está disponível.'];
         }
 
         if (str_starts_with($type, 'safe_date_') || str_starts_with($type, 'safe_date_reminder_')) {
@@ -205,9 +222,28 @@ final class NotificationService extends Model
         return $this->fetchOne('SELECT id FROM compatibility_duels WHERE id=:id AND user_id=:user_id LIMIT 1', [':id' => $duelId, ':user_id' => $userId]) !== null;
     }
 
-    private function existsInviteForOwner(int $userId, int $inviteId): bool
+    private function existsSentInviteForUser(int $userId, int $inviteId): bool
     {
         return $this->fetchOne('SELECT id FROM connection_invites WHERE id=:id AND sender_user_id=:user_id LIMIT 1', [':id' => $inviteId, ':user_id' => $userId]) !== null;
+    }
+
+    private function existsReceivedInviteForUser(int $userId, int $inviteId): bool
+    {
+        return $this->fetchOne('SELECT id FROM connection_invites WHERE id=:id AND receiver_user_id=:user_id LIMIT 1', [':id' => $inviteId, ':user_id' => $userId]) !== null;
+    }
+
+    private function existsConversationForUser(int $userId, int $conversationId): bool
+    {
+        return $this->fetchOne('SELECT id FROM conversations WHERE id=:id AND (user_one_id=:user_id_1 OR user_two_id=:user_id_2) LIMIT 1', [
+            ':id' => $conversationId,
+            ':user_id_1' => $userId,
+            ':user_id_2' => $userId,
+        ]) !== null;
+    }
+
+    private function existsDailyRouteForUser(int $userId, int $routeId): bool
+    {
+        return $this->fetchOne('SELECT id FROM daily_routes WHERE id=:id AND user_id=:user_id LIMIT 1', [':id' => $routeId, ':user_id' => $userId]) !== null;
     }
 
     private function existsSafeDate(int $safeDateId): bool
