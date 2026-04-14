@@ -31,7 +31,14 @@ final class FeedController extends Controller
         $viewerId = Auth::id() ?? 0;
         $page = max(1, (int) Request::input('page', 1));
         $feed = $this->service->getFeedForUser($viewerId, $page, 15);
-        $this->view('feed/index', ['title' => 'Feed', 'feed' => $feed['items'], 'pagination' => $feed['pagination'], 'viewer_id' => $viewerId]);
+        $selectedPostId = max(0, (int) Request::input('post', 0));
+        $this->view('feed/index', [
+            'title' => 'Feed',
+            'feed' => $feed['items'],
+            'pagination' => $feed['pagination'],
+            'viewer_id' => $viewerId,
+            'selected_post_id' => $selectedPostId,
+        ]);
     }
 
     public function post(): void
@@ -101,14 +108,15 @@ final class FeedController extends Controller
             Response::redirect('/feed');
         }
         $userId = Auth::id() ?? 0;
-        $this->service->likePost((int) Request::input('post_id', 0), $userId);
+        $postId = (int) Request::input('post_id', 0);
+        $this->service->likePost($postId, $userId);
         $this->rateLimiter->hitSuccess('feed_like', $key, $userId);
         $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_LIKE, 'feed', 1);
         if (Request::expectsJson()) {
             Response::json(['ok' => true]);
         }
 
-        Response::redirect('/feed');
+        Response::redirect('/feed?post=' . $postId . '#post-' . $postId);
     }
 
     public function comment(): void
@@ -123,14 +131,16 @@ final class FeedController extends Controller
             Response::redirect('/feed');
         }
         $userId = Auth::id() ?? 0;
-        $this->service->commentPost((int) Request::input('post_id', 0), $userId, (string) Request::input('comment', ''));
+        $postId = (int) Request::input('post_id', 0);
+        $parentCommentId = (int) Request::input('parent_comment_id', 0);
+        $this->service->commentPost($postId, $userId, (string) Request::input('comment', ''), $parentCommentId);
         $this->rateLimiter->hitSuccess('feed_comment', $key, $userId);
         $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_COMMENT, 'feed', 1);
         if (Request::expectsJson()) {
             Response::json(['ok' => true]);
         }
 
-        Response::redirect('/feed');
+        Response::redirect('/feed?post=' . $postId . '#post-' . $postId);
     }
 
     public function delete(): void

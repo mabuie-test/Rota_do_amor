@@ -9,7 +9,10 @@ use Throwable;
 
 final class FeedService extends Model
 {
-    public function __construct(private readonly UploadService $uploads = new UploadService())
+    public function __construct(
+        private readonly UploadService $uploads = new UploadService(),
+        private readonly NotificationService $notifications = new NotificationService()
+    )
     {
         parent::__construct();
     }
@@ -66,11 +69,6 @@ final class FeedService extends Model
         }
     }
 
-    /**
-     * Política de media do feed:
-     * - Soft delete do post mantém os ficheiros e metadados de imagem para auditoria e eventual restauração.
-     * - Limpeza física fica reservada para operações administrativas de purge.
-     */
     public function deletePost(int $postId, int $userId): void
     {
         $this->db->beginTransaction();
@@ -92,12 +90,33 @@ final class FeedService extends Model
 
     public function likePost(int $postId, int $userId): void
     {
-        $this->db->prepare('INSERT IGNORE INTO post_likes (post_id,user_id,created_at) VALUES (:post_id,:user_id,NOW())')->execute([':post_id' => $postId, ':user_id' => $userId]);
+        if ($postId <= 0 || $userId <= 0) {
+            return;
+        }
+
+        $stmt = $this->db->prepare('INSERT IGNORE INTO post_likes (post_id,user_id,created_at) VALUES (:post_id,:user_id,NOW())');
+        $stmt->execute([':post_id' => $postId, ':user_id' => $userId]);
+        if ($stmt->rowCount() < 1) {
+            return;
+        }
+
+        $post = $this->fetchOne('SELECT p.id, p.user_id, CONCAT(u.first_name, " ", u.last_name) AS actor_name FROM posts p JOIN users u ON u.id = :actor_id WHERE p.id=:post_id LIMIT 1', [
+            ':post_id' => $postId,
+            ':actor_id' => $userId,
+        ]) ?: [];
+
+        $ownerId = (int) ($post['user_id'] ?? 0);
+        if ($ownerId > 0 && $ownerId !== $userId) {
+            $this->notifications->create(
+                $ownerId,
+                'feed_like_received',
+                'Novo like na tua publicação',
+                sprintf('%s gostou da tua publicação.', (string) ($post['actor_name'] ?? 'Alguém')),
+                ['post_id' => $postId, 'actor_user_id' => $userId]
+            );
+        }
     }
 
-    /**
-     * Gancho administrativo para purge físico de media de um post já removido.
-     */
     public function purgePostMedia(int $postId): int
     {
         $images = $this->fetchAllRows('SELECT image_path,thumbnail_path FROM post_images WHERE post_id=:post_id', [':post_id' => $postId]);
@@ -110,14 +129,48 @@ final class FeedService extends Model
         return count($images);
     }
 
-    public function commentPost(int $postId, int $userId, string $comment): void
+    public function commentPost(int $postId, int $userId, string $comment, int $parentCommentId = 0): void
     {
         $normalized = trim($comment);
-        if ($normalized === '' || mb_strlen($normalized) < 2 || mb_strlen($normalized) > 600) {
+        if ($normalized === '' || mb_strlen($normalized) < 2 || mb_strlen($normalized) > 600 || $postId <= 0 || $userId <= 0) {
             return;
         }
 
-        $this->db->prepare('INSERT INTO post_comments (post_id,user_id,comment_text,created_at) VALUES (:post_id,:user_id,:comment,NOW())')->execute([':post_id' => $postId, ':user_id' => $userId, ':comment' => $normalized]);
+        $parentId = null;
+        if ($parentCommentId > 0) {
+            $parent = $this->fetchOne('SELECT id,parent_comment_id FROM post_comments WHERE id=:id AND post_id=:post_id LIMIT 1', [
+                ':id' => $parentCommentId,
+                ':post_id' => $postId,
+            ]) ?: [];
+
+            if ($parent === [] || (int) ($parent['parent_comment_id'] ?? 0) > 0) {
+                return;
+            }
+
+            $parentId = (int) $parent['id'];
+        }
+
+        $this->db->prepare('INSERT INTO post_comments (post_id,user_id,parent_comment_id,comment_text,created_at) VALUES (:post_id,:user_id,:parent_comment_id,:comment,NOW())')->execute([
+            ':post_id' => $postId,
+            ':user_id' => $userId,
+            ':parent_comment_id' => $parentId,
+            ':comment' => $normalized,
+        ]);
+
+        $post = $this->fetchOne('SELECT p.user_id, CONCAT(u.first_name, " ", u.last_name) AS actor_name FROM posts p JOIN users u ON u.id=:actor_id WHERE p.id=:post_id LIMIT 1', [
+            ':post_id' => $postId,
+            ':actor_id' => $userId,
+        ]) ?: [];
+        $ownerId = (int) ($post['user_id'] ?? 0);
+        if ($ownerId > 0 && $ownerId !== $userId) {
+            $this->notifications->create(
+                $ownerId,
+                'feed_comment_received',
+                'Novo comentário na tua publicação',
+                sprintf('%s comentou a tua publicação.', (string) ($post['actor_name'] ?? 'Alguém')),
+                ['post_id' => $postId, 'actor_user_id' => $userId]
+            );
+        }
     }
 
     public function getFeedForUser(int $userId, int $page = 1, int $perPage = 20): array
@@ -179,13 +232,14 @@ final class FeedService extends Model
         $stmt->execute();
 
         $items = $stmt->fetchAll();
-        $images = $this->loadImagesForPosts(array_map(static fn(array $row): int => (int) $row['id'], $items));
-
-        $recentComments = $this->loadRecentCommentsForPosts(array_map(static fn(array $row): int => (int) $row['id'], $items));
+        $postIds = array_map(static fn(array $row): int => (int) $row['id'], $items);
+        $images = $this->loadImagesForPosts($postIds);
+        $comments = $this->loadTopCommentsForPosts($postIds);
 
         foreach ($items as &$item) {
-            $item['images'] = $images[(int) $item['id']] ?? [];
-            $item['recent_comments'] = $recentComments[(int) $item['id']] ?? [];
+            $postId = (int) $item['id'];
+            $item['images'] = $images[$postId] ?? [];
+            $item['comments'] = $comments[$postId] ?? [];
         }
         unset($item);
 
@@ -200,10 +254,35 @@ final class FeedService extends Model
         ];
     }
 
-    public function getUserPosts(int $userId): array
+    public function getUserPosts(int $userId, int $limit = 6): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM posts WHERE user_id=:user_id AND status='active' ORDER BY created_at DESC");
-        $stmt->execute([':user_id' => $userId]);
+        $limit = max(1, min(20, $limit));
+        $stmt = $this->db->prepare(
+            "SELECT p.id, p.user_id, p.content, p.created_at,
+                    COALESCE(pl.likes_count, 0) AS likes_count,
+                    COALESCE(pc.comments_count, 0) AS comments_count,
+                    COALESCE(pi.images_count, 0) AS images_count,
+                    pi.first_image_path,
+                    pi.first_thumbnail_path
+             FROM posts p
+             LEFT JOIN (
+                SELECT post_id, COUNT(*) AS likes_count FROM post_likes GROUP BY post_id
+             ) pl ON pl.post_id = p.id
+             LEFT JOIN (
+                SELECT post_id, COUNT(*) AS comments_count FROM post_comments GROUP BY post_id
+             ) pc ON pc.post_id = p.id
+             LEFT JOIN (
+                SELECT post_id, COUNT(*) AS images_count, MIN(image_path) AS first_image_path, MIN(thumbnail_path) AS first_thumbnail_path
+                FROM post_images GROUP BY post_id
+             ) pi ON pi.post_id = p.id
+             WHERE p.user_id=:user_id AND p.status='active'
+             ORDER BY p.created_at DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue(':user_id', $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+
         return $stmt->fetchAll();
     }
 
@@ -225,35 +304,77 @@ final class FeedService extends Model
         return $grouped;
     }
 
-    private function loadRecentCommentsForPosts(array $postIds): array
+    private function loadTopCommentsForPosts(array $postIds): array
     {
         if ($postIds === []) {
             return [];
         }
 
         $placeholders = implode(',', array_fill(0, count($postIds), '?'));
-        $sql = "SELECT x.post_id, x.id, x.comment_text, x.created_at, x.author_name
-                FROM (
-                    SELECT pc.post_id,
-                           pc.id,
-                           pc.comment_text,
-                           pc.created_at,
-                           CONCAT(u.first_name, ' ', u.last_name) AS author_name,
-                           ROW_NUMBER() OVER (PARTITION BY pc.post_id ORDER BY pc.id DESC) AS rn
-                    FROM post_comments pc
-                    JOIN users u ON u.id = pc.user_id
-                    WHERE pc.post_id IN ($placeholders)
-                ) x
-                WHERE x.rn <= 2
-                ORDER BY x.post_id ASC, x.id ASC";
+        $sql = "SELECT pc.id, pc.post_id, pc.user_id, pc.parent_comment_id, pc.comment_text, pc.created_at,
+                       CONCAT(u.first_name, ' ', u.last_name) AS author_name,
+                       COALESCE(rc.reply_count, 0) AS reply_count
+                FROM post_comments pc
+                JOIN users u ON u.id = pc.user_id
+                LEFT JOIN (
+                    SELECT parent_comment_id, COUNT(*) AS reply_count
+                    FROM post_comments
+                    WHERE parent_comment_id IS NOT NULL
+                    GROUP BY parent_comment_id
+                ) rc ON rc.parent_comment_id = pc.id
+                WHERE pc.post_id IN ($placeholders)
+                  AND pc.parent_comment_id IS NULL
+                ORDER BY pc.id DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute(array_values($postIds));
+        $parents = $stmt->fetchAll();
+
+        $parentIds = array_map(static fn(array $row): int => (int) $row['id'], $parents);
+        $repliesByParent = $this->loadRepliesByParent($parentIds);
+
+        $grouped = [];
+        foreach ($parents as $row) {
+            $id = (int) $row['id'];
+            $postId = (int) $row['post_id'];
+            $grouped[$postId][] = [
+                'id' => $id,
+                'user_id' => (int) $row['user_id'],
+                'comment_text' => $row['comment_text'],
+                'created_at' => $row['created_at'],
+                'author_name' => $row['author_name'],
+                'reply_count' => (int) ($row['reply_count'] ?? 0),
+                'replies' => $repliesByParent[$id] ?? [],
+            ];
+        }
+
+        foreach ($grouped as $postId => $postComments) {
+            $grouped[$postId] = array_slice($postComments, 0, 3);
+        }
+
+        return $grouped;
+    }
+
+    private function loadRepliesByParent(array $parentIds): array
+    {
+        if ($parentIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($parentIds), '?'));
+        $stmt = $this->db->prepare("SELECT pc.id, pc.parent_comment_id, pc.user_id, pc.comment_text, pc.created_at,
+                                           CONCAT(u.first_name, ' ', u.last_name) AS author_name
+                                    FROM post_comments pc
+                                    JOIN users u ON u.id = pc.user_id
+                                    WHERE pc.parent_comment_id IN ($placeholders)
+                                    ORDER BY pc.id ASC");
+        $stmt->execute(array_values($parentIds));
 
         $grouped = [];
         foreach ($stmt->fetchAll() as $row) {
-            $grouped[(int) $row['post_id']][] = [
+            $grouped[(int) $row['parent_comment_id']][] = [
                 'id' => (int) $row['id'],
+                'user_id' => (int) $row['user_id'],
                 'comment_text' => $row['comment_text'],
                 'created_at' => $row['created_at'],
                 'author_name' => $row['author_name'],
