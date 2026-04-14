@@ -73,6 +73,7 @@ $router->add('GET', '/compatibility-duel', [CompatibilityDuelController::class, 
 $router->add('POST', '/compatibility-duel/vote', [CompatibilityDuelController::class, 'vote'], $coreAccess);
 $router->add('POST', '/compatibility-duel/action', [CompatibilityDuelController::class, 'action'], $coreAccess);
 $router->add('GET', '/discover/profile/{id}', [DiscoverController::class, 'show'], $coreAccess);
+$router->add('GET', '/member/{id}', [DiscoverController::class, 'show'], $coreAccess);
 
 $router->add('GET', '/notifications', [NotificationController::class, 'index'], $coreAccess);
 $router->add('GET', '/notifications/{id}/go', [NotificationController::class, 'go'], $coreAccess);

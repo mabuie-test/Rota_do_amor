@@ -10,6 +10,9 @@
       <div>
         <strong class="d-block"><?= e((string) ($item['title'] ?? 'Notificação')) ?></strong>
         <div class="small text-muted"><?= e((string) ($item['body'] ?? '')) ?></div>
+        <div class="small mt-1 rd-notification-destination">
+          <i class="fa-solid fa-location-arrow me-1"></i>Ir para destino contextual
+        </div>
       </div>
       <small class="text-muted text-nowrap"><?= e((string) ($item['created_at'] ?? '')) ?></small>
     </div>

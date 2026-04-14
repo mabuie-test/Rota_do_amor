@@ -344,10 +344,27 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
 .rd-notification-item.is-read {
   opacity: .86;
 }
+.rd-notification-destination {
+  color: #7a1632;
+  font-weight: 600;
+}
 
 .rd-post-highlight {
   border-color: #d4a24c;
   box-shadow: 0 0 0 3px rgba(212,162,76,.18), var(--rd-shadow);
+}
+.rd-feed-floating-cta {
+  position: fixed;
+  right: 20px;
+  bottom: 26px;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border-radius: 999px;
+  z-index: 1030;
+}
+.rd-comment-thread {
+  background: linear-gradient(180deg, #fff, #fff8fb) !important;
 }
 
 .rd-profile-hero-photo {
@@ -399,3 +416,9 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
 .rd-lightbox__close { top: 16px; right: 16px; }
 .rd-lightbox__nav--prev { left: 14px; }
 .rd-lightbox__nav--next { right: 14px; }
+
+.rd-member-post-preview {
+  max-height: 180px;
+  width: 100%;
+  object-fit: cover;
+}

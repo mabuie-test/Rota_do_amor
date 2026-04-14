@@ -79,6 +79,11 @@ $targetId = (int) ($profile['id'] ?? 0);
       <?php foreach ($posts as $post): ?>
         <div class="rd-list-item">
           <?php if (!empty($post['content'])): ?><p class="mb-2"><?= e((string) $post['content']) ?></p><?php endif; ?>
+          <?php if (!empty($post['first_image_path'])): ?>
+            <a href="<?= e(url((string) $post['first_image_path'])) ?>" data-lightbox-group="member-posts" data-lightbox-index="<?= (int) $post['id'] ?>">
+              <img src="<?= e(url((string) (($post['first_thumbnail_path'] ?? '') !== '' ? $post['first_thumbnail_path'] : $post['first_image_path']))) ?>" class="img-fluid rounded border mb-2 rd-member-post-preview" alt="imagem da publicação">
+            </a>
+          <?php endif; ?>
           <div class="small text-muted d-flex flex-wrap gap-2 mb-2">
             <span>❤️ <?= (int) ($post['likes_count'] ?? 0) ?></span>
             <span>💬 <?= (int) ($post['comments_count'] ?? 0) ?></span>

@@ -56,20 +56,36 @@ final class NotificationService extends Model
         $payload = is_array($notification['payload'] ?? null) ? $notification['payload'] : [];
 
         $postId = (int) ($payload['post_id'] ?? 0);
+        $commentId = (int) ($payload['comment_id'] ?? 0);
         $profileId = (int) ($payload['profile_id'] ?? ($payload['sender_id'] ?? ($payload['visitor_user_id'] ?? 0)));
         $conversationId = (int) ($payload['conversation_id'] ?? 0);
         $safeDateId = (int) ($payload['safe_date_id'] ?? 0);
+        $storyId = (int) ($payload['story_id'] ?? 0);
+        $duelId = (int) ($payload['duel_id'] ?? 0);
+        $inviteId = (int) ($payload['invite_id'] ?? 0);
 
         if ($safeDateId > 0) {
             return '/dates/' . $safeDateId;
         }
 
         if ($postId > 0) {
-            return '/feed?post=' . $postId . '#post-' . $postId;
+            return $this->buildFeedPostUrl($postId, $commentId);
         }
 
         if ($conversationId > 0) {
             return '/messages?conversation=' . $conversationId;
+        }
+
+        if ($storyId > 0) {
+            return '/stories/anonymous?story=' . $storyId . '#story-' . $storyId;
+        }
+
+        if ($duelId > 0) {
+            return '/compatibility-duel?duel=' . $duelId;
+        }
+
+        if ($inviteId > 0 && in_array($type, ['invite_accepted', 'invite_declined'], true)) {
+            return '/invites/sent?invite=' . $inviteId;
         }
 
         if ($profileId > 0 && in_array($type, ['profile_view', 'visitor_profile', 'profile_visit'], true)) {
@@ -86,6 +102,8 @@ final class NotificationService extends Model
             'feed_like_received' => '/feed',
             'feed_comment_received' => '/feed',
             'visitors_hub_update' => '/visitors',
+            'visitor_profile' => '/visitors',
+            'profile_visit' => '/visitors',
             'compatibility_duel_action_taken' => '/compatibility-duel',
             'daily_route_ready' => '/daily-route',
             'daily_route_almost_done' => '/daily-route',
@@ -111,7 +129,21 @@ final class NotificationService extends Model
             return '/dates';
         }
 
+        if (str_starts_with($type, 'anonymous_story_') || str_starts_with($type, 'story_')) {
+            return '/stories/anonymous';
+        }
+
         return $map[$type] ?? '/notifications';
+    }
+
+    private function buildFeedPostUrl(int $postId, int $commentId = 0): string
+    {
+        $base = '/feed?post=' . $postId;
+        if ($commentId > 0) {
+            return $base . '&comment=' . $commentId . '#post-' . $postId;
+        }
+
+        return $base . '#post-' . $postId;
     }
 
     private function hydrateNotification(array $row): array
