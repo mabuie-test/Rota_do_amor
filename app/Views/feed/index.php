@@ -58,6 +58,7 @@ $selectedCommentId = (int) ($selected_comment_id ?? 0);
     <?php endif; ?>
 
     <div class="small text-muted mb-2">❤️ <span data-like-count data-post-like-count="<?= $postId ?>"><?= (int) ($post['likes_count'] ?? 0) ?></span> · 💬 <?= (int) ($post['comments_count'] ?? 0) ?> · 📎 <?= (int) ($post['images_count'] ?? 0) ?></div>
+    <div class="small d-none rd-feed-inline-feedback mb-2" data-feed-feedback data-post-id="<?= $postId ?>" aria-live="polite"></div>
 
     <?php if (!empty($post['comments'])): ?>
       <div class="border rounded p-2 bg-light-subtle small mb-2 d-flex flex-column gap-2 rd-comment-thread">
@@ -77,7 +78,7 @@ $selectedCommentId = (int) ($selected_comment_id ?? 0);
                 <?php endforeach; ?>
               </div>
             <?php endif; ?>
-            <form method="post" action="/feed/comment" class="mt-1 d-none" id="reply-form-<?= $postId ?>-<?= $commentId ?>">
+            <form method="post" action="/feed/comment" class="mt-1 d-none" id="reply-form-<?= $postId ?>-<?= $commentId ?>" data-feed-comment-form data-comment-kind="reply" data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">
               <?= csrf_field() ?>
               <input type="hidden" name="post_id" value="<?= $postId ?>">
               <input type="hidden" name="parent_comment_id" value="<?= $commentId ?>">
@@ -105,7 +106,7 @@ $selectedCommentId = (int) ($selected_comment_id ?? 0);
       </form>
       <details class="m-0">
         <summary class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-comment me-1"></i>Comentar</summary>
-        <form method="post" action="/feed/comment" class="mt-2 d-flex gap-2">
+        <form method="post" action="/feed/comment" class="mt-2 d-flex gap-2" data-feed-comment-form data-comment-kind="comment" data-post-id="<?= $postId ?>" data-parent-id="0">
           <?= csrf_field() ?>
           <input type="hidden" name="post_id" value="<?= $postId ?>">
           <input type="hidden" name="parent_comment_id" value="">

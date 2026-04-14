@@ -251,6 +251,12 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
   padding: .9rem;
 }
 
+.rd-feed-inline-feedback {
+  border-left: 2px solid #e7c8d2;
+  padding-left: .5rem;
+  min-height: 1rem;
+}
+
 .rd-checklist li {
   display: flex;
   justify-content: space-between;

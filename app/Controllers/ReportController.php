@@ -24,6 +24,7 @@ final class ReportController extends Controller
     public function store(): void
     {
         $userId = Auth::id() ?? 0;
+        $target = $this->resolveTargetContext();
         $key = 'report_create:' . $userId . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('report_create', $key, 10, 10)) {
             if (Request::expectsJson()) {
@@ -31,9 +32,10 @@ final class ReportController extends Controller
                     'ok' => false,
                     'message' => 'Muitas denúncias em pouco tempo.',
                     'action' => 'error',
-                    'state' => null,
+                    'state' => ['target' => $target],
                     'created_id' => 0,
-                    'target_id' => (int) Request::input('target_user_id', 0),
+                    'target_type' => $target['type'],
+                    'target_id' => $target['id'],
                     'error_code' => 'rate_limited',
                 ], 429);
             }
@@ -61,9 +63,10 @@ final class ReportController extends Controller
                     'ok' => false,
                     'message' => 'Não foi possível registar esta denúncia.',
                     'action' => 'error',
-                    'state' => null,
+                    'state' => ['target' => $target],
                     'created_id' => 0,
-                    'target_id' => (int) Request::input('target_user_id', 0),
+                    'target_type' => $target['type'],
+                    'target_id' => $target['id'],
                     'error_code' => 'report_create_failed',
                 ], 422);
             }
@@ -79,14 +82,35 @@ final class ReportController extends Controller
                 'ok' => true,
                 'message' => 'Denúncia enviada para revisão.',
                 'action' => 'created',
-                'state' => ['status' => 'pending'],
+                'state' => ['status' => 'pending', 'target' => $target],
                 'created_id' => $id,
-                'target_id' => (int) Request::input('target_user_id', 0),
+                'target_type' => $target['type'],
+                'target_id' => $target['id'],
                 'error_code' => null,
             ]);
         }
 
         Flash::set('success', 'Denúncia enviada para revisão.');
         Response::redirect('/feed');
+    }
+
+    private function resolveTargetContext(): array
+    {
+        $targetMessageId = (int) Request::input('target_message_id', 0);
+        if ($targetMessageId > 0) {
+            return ['type' => 'message', 'id' => $targetMessageId];
+        }
+
+        $targetPostId = (int) Request::input('target_post_id', 0);
+        if ($targetPostId > 0) {
+            return ['type' => 'post', 'id' => $targetPostId];
+        }
+
+        $targetUserId = (int) Request::input('target_user_id', 0);
+        if ($targetUserId > 0) {
+            return ['type' => 'profile', 'id' => $targetUserId];
+        }
+
+        return ['type' => 'unknown', 'id' => 0];
     }
 }

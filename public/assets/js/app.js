@@ -205,12 +205,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 
+  const feedFeedbackForPost = (postId) => document.querySelector(`[data-feed-feedback][data-post-id="${CSS.escape(String(postId))}"]`);
+
   document.querySelectorAll('[data-feed-like-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = form.querySelector('[data-feed-like-button]');
       const postId = form.querySelector('input[name="post_id"]')?.value || '0';
       const token = form.querySelector('input[name="_token"]')?.value || '';
+      const feedback = feedFeedbackForPost(postId);
       if (!button) {
         form.submit();
         return;
@@ -235,12 +238,99 @@ document.addEventListener('DOMContentLoaded', () => {
         button.classList.toggle('btn-danger', liked);
         button.classList.toggle('btn-outline-danger', !liked);
         button.innerHTML = `<i class="fa-solid fa-heart me-1"></i>${liked ? 'Gostado' : 'Gostar'}`;
+        showInlineFeedback(feedback, payload.message || (liked ? 'Like registado.' : 'Like removido.'), 'success');
 
         const countEl = document.querySelector(`[data-post-like-count="${CSS.escape(String(postId))}"]`);
         if (countEl) countEl.textContent = String(likesCount);
       } catch (error) {
         button.classList.add('btn-outline-danger');
         button.setAttribute('title', error.message || 'Falha ao atualizar like.');
+        showInlineFeedback(feedback, error.message || 'Falha ao atualizar like.', 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-feed-comment-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const postId = form.querySelector('input[name="post_id"]')?.value || form.getAttribute('data-post-id') || '0';
+      const parentCommentId = form.querySelector('input[name="parent_comment_id"]')?.value || '0';
+      const commentInput = form.querySelector('input[name="comment"]');
+      const token = form.querySelector('input[name="_token"]')?.value || '';
+      const feedback = feedFeedbackForPost(postId);
+      const submitButton = form.querySelector('button[type="submit"], button:not([type])');
+
+      if (!commentInput || token === '') {
+        form.submit();
+        return;
+      }
+
+      const comment = commentInput.value.trim();
+      if (comment === '') {
+        showInlineFeedback(feedback, 'Escreva um comentário antes de enviar.', 'error');
+        return;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
+
+      try {
+        const response = await fetch('/feed/comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: new URLSearchParams({ post_id: String(postId), parent_comment_id: String(parentCommentId), comment, _token: token })
+        });
+        const payload = await parseJsonSafe(response);
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || 'Não foi possível enviar comentário.');
+        }
+
+        showInlineFeedback(feedback, payload.message || 'Comentário enviado.', 'success');
+        const createdCommentId = Number(payload.created_id || 0);
+        const destinationPostId = Number(payload.post_id || payload.target_id || postId || 0);
+        const destination = new URL('/feed', window.location.origin);
+        destination.searchParams.set('post', String(destinationPostId));
+        if (createdCommentId > 0) {
+          destination.searchParams.set('comment', String(createdCommentId));
+        }
+        destination.hash = `post-${destinationPostId}`;
+        setTimeout(() => { window.location.assign(destination.toString()); }, 220);
+      } catch (error) {
+        showInlineFeedback(feedback, error.message || 'Falha ao enviar comentário.', 'error');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
+      }
+    });
+  });
+
+  document.querySelectorAll('.duel-action-btn').forEach((button) => {
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      const token = button.getAttribute('data-csrf-token') || '';
+
+      try {
+        const response = await fetch('/compatibility-duel/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: new URLSearchParams({ _token: token, duel_id: button.dataset.duelId || '0', action_type: button.dataset.action || '' })
+        });
+        const payload = await parseJsonSafe(response);
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || 'Não foi possível concluir esta ação.');
+        }
+
+        button.classList.remove('btn-outline-primary', 'btn-outline-danger');
+        button.classList.add('btn-success');
+        button.setAttribute('title', payload.message || 'Ação concluída');
+      } catch (error) {
+        button.classList.remove('btn-success');
+        button.classList.add('btn-outline-danger');
+        button.setAttribute('title', error.message || 'Falha ao concluir ação');
       } finally {
         button.disabled = false;
       }
