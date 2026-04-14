@@ -35,4 +35,57 @@ document.addEventListener('DOMContentLoaded', () => {
     provinceSelect.addEventListener('change', updateCities);
     updateCities();
   }
+
+  const passwordInput = document.getElementById('registerPassword');
+  const meter = document.querySelector('[data-password-meter]');
+  if (passwordInput && meter) {
+    const meterText = meter.querySelector('.rd-password-meter__text');
+    const meterBar = meter.querySelector('.rd-password-meter__bar');
+
+    const evaluatePasswordStrength = (password) => {
+      if (!password) {
+        return { level: '', label: 'Força da senha: —', progress: 0 };
+      }
+
+      let score = 0;
+      if (password.length >= 8) score += 1;
+      if (password.length >= 12) score += 1;
+      if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
+      if (/\d/.test(password)) score += 1;
+      if (/[^\w\s]/.test(password)) score += 1;
+
+      if (password.length < 8) {
+        return { level: 'is-weak', label: 'Força da senha: Fraca', progress: 33 };
+      }
+
+      if (score >= 5) {
+        return { level: 'is-strong', label: 'Força da senha: Forte', progress: 100 };
+      }
+
+      if (score >= 3) {
+        return { level: 'is-medium', label: 'Força da senha: Razoável', progress: 66 };
+      }
+
+      return { level: 'is-weak', label: 'Força da senha: Fraca', progress: 33 };
+    };
+
+    const renderStrength = () => {
+      const { level, label, progress } = evaluatePasswordStrength(passwordInput.value);
+      meter.classList.remove('is-weak', 'is-medium', 'is-strong');
+      if (level) {
+        meter.classList.add(level);
+      }
+
+      if (meterText) {
+        meterText.textContent = label;
+      }
+
+      if (meterBar) {
+        meterBar.setAttribute('aria-valuenow', String(progress));
+      }
+    };
+
+    passwordInput.addEventListener('input', renderStrength);
+    renderStrength();
+  }
 });

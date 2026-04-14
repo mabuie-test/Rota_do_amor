@@ -6,6 +6,7 @@
         <p class="lead mb-4">Uma plataforma premium para amizades, namoro e casamento com segurança, verificação e tecnologia de compatibilidade.</p>
         <div class="d-flex flex-wrap gap-2">
           <a href="/register" class="btn btn-light btn-lg"><i class="fa-solid fa-user-plus me-2"></i>Criar Conta</a>
+          <a href="/login" class="btn btn-outline-light btn-lg"><i class="fa-solid fa-right-to-bracket me-2"></i>Entrar</a>
           <a href="/about" class="btn btn-outline-light btn-lg">Como Funciona</a>
         </div>
       </div>

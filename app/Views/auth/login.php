@@ -9,6 +9,9 @@
           <div class="col-12 input-icon-wrap"><i class="fa-solid fa-lock"></i><input class="form-control" type="password" name="password" placeholder="Senha" required></div>
           <div class="col-12 d-grid"><button class="btn btn-rd-primary">Entrar na Conta</button></div>
           <div class="col-12 text-center"><a href="/forgot-password" class="small">Esqueci minha senha</a></div>
+          <div class="col-12 text-center">
+            <p class="small text-muted mb-0">Não tens uma conta? <a href="/register" class="fw-semibold text-decoration-none">Cria a tua conta</a></p>
+          </div>
         </form>
       </div>
     </div>
