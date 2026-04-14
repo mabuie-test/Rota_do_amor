@@ -3,6 +3,9 @@
   <h3 class="mb-0"><i class="fa-solid fa-sparkles me-2"></i>Feed Social</h3>
   <button class="btn btn-rd-primary" data-bs-toggle="modal" data-bs-target="#createPostModal"><i class="fa-solid fa-pen-to-square me-1"></i>Criar publicação</button>
 </div>
+<button class="btn btn-rd-primary rd-feed-floating-cta" data-bs-toggle="modal" data-bs-target="#createPostModal" title="Criar publicação">
+  <i class="fa-solid fa-plus"></i>
+</button>
 
 <div class="modal fade" id="createPostModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -29,7 +32,7 @@
   <div class="rd-card mb-2 <?= $selectedPostId === $postId ? 'rd-post-highlight' : '' ?>" id="post-<?= $postId ?>"><div class="card-body">
     <div class="d-flex justify-content-between gap-2">
       <div>
-        <a class="text-decoration-none" href="/discover/profile/<?= (int) ($post['user_id'] ?? 0) ?>"><strong><?= e((string) ($post['author_name'] ?? ('Utilizador #' . (int) $post['user_id']))) ?></strong></a>
+        <a class="text-decoration-none" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>"><strong><?= e((string) ($post['author_name'] ?? ('Utilizador #' . (int) $post['user_id']))) ?></strong></a>
         <?php if ((int) ($post['author_online'] ?? 0) === 1): ?><span class="badge bg-success">online</span><?php endif; ?>
         <?php if ((int) ($post['author_verified'] ?? 0) === 1): ?><span class="badge bg-primary">verificado</span><?php endif; ?>
       </div>
@@ -52,10 +55,10 @@
     <div class="small text-muted mb-2">❤️ <?= (int) ($post['likes_count'] ?? 0) ?> · 💬 <?= (int) ($post['comments_count'] ?? 0) ?> · 📎 <?= (int) ($post['images_count'] ?? 0) ?></div>
 
     <?php if (!empty($post['comments'])): ?>
-      <div class="border rounded p-2 bg-light-subtle small mb-2 d-flex flex-column gap-2">
+      <div class="border rounded p-2 bg-light-subtle small mb-2 d-flex flex-column gap-2 rd-comment-thread">
         <?php foreach (($post['comments'] ?? []) as $comment): ?>
           <div>
-            <div><a href="/discover/profile/<?= (int) ($comment['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($comment['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($comment['comment_text'] ?? '')) ?></div>
+            <div><a href="/member/<?= (int) ($comment['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($comment['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($comment['comment_text'] ?? '')) ?></div>
             <div class="small text-muted d-flex gap-2">
               <span><?= (int) ($comment['reply_count'] ?? 0) ?> respostas</span>
               <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-reply-toggle data-post-id="<?= $postId ?>" data-parent-id="<?= (int) ($comment['id'] ?? 0) ?>">Responder</button>
@@ -63,7 +66,7 @@
             <?php if (!empty($comment['replies'])): ?>
               <div class="ps-3 mt-1 border-start">
                 <?php foreach (($comment['replies'] ?? []) as $reply): ?>
-                  <div><a href="/discover/profile/<?= (int) ($reply['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($reply['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($reply['comment_text'] ?? '')) ?></div>
+                  <div><a href="/member/<?= (int) ($reply['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($reply['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($reply['comment_text'] ?? '')) ?></div>
                 <?php endforeach; ?>
               </div>
             <?php endif; ?>
@@ -99,7 +102,7 @@
           <button class="btn btn-sm btn-rd-primary">Enviar</button>
         </form>
       </details>
-      <a class="btn btn-sm btn-outline-secondary" href="/discover/profile/<?= (int) ($post['user_id'] ?? 0) ?>">Perfil</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>">Perfil</a>
       <?php if ((int) ($post['user_id'] ?? 0) === $viewerId): ?>
         <form method="post" action="/feed/delete"><?= csrf_field() ?><input type="hidden" name="post_id" value="<?= $postId ?>"><button class="btn btn-sm btn-outline-dark">Apagar</button></form>
       <?php endif; ?>

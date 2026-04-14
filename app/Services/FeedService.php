@@ -156,6 +156,7 @@ final class FeedService extends Model
             ':parent_comment_id' => $parentId,
             ':comment' => $normalized,
         ]);
+        $createdCommentId = (int) $this->db->lastInsertId();
 
         $post = $this->fetchOne('SELECT p.user_id, CONCAT(u.first_name, " ", u.last_name) AS actor_name FROM posts p JOIN users u ON u.id=:actor_id WHERE p.id=:post_id LIMIT 1', [
             ':post_id' => $postId,
@@ -168,8 +169,22 @@ final class FeedService extends Model
                 'feed_comment_received',
                 'Novo comentário na tua publicação',
                 sprintf('%s comentou a tua publicação.', (string) ($post['actor_name'] ?? 'Alguém')),
-                ['post_id' => $postId, 'actor_user_id' => $userId]
+                ['post_id' => $postId, 'comment_id' => $createdCommentId, 'actor_user_id' => $userId]
             );
+        }
+
+        if ($parentId !== null) {
+            $parentAuthor = $this->fetchOne('SELECT user_id FROM post_comments WHERE id=:id LIMIT 1', [':id' => $parentId]) ?: [];
+            $parentAuthorId = (int) ($parentAuthor['user_id'] ?? 0);
+            if ($parentAuthorId > 0 && $parentAuthorId !== $userId && $parentAuthorId !== $ownerId) {
+                $this->notifications->create(
+                    $parentAuthorId,
+                    'feed_comment_received',
+                    'Nova resposta ao teu comentário',
+                    sprintf('%s respondeu ao teu comentário.', (string) ($post['actor_name'] ?? 'Alguém')),
+                    ['post_id' => $postId, 'comment_id' => $createdCommentId, 'parent_comment_id' => $parentId, 'actor_user_id' => $userId]
+                );
+            }
         }
     }
 
