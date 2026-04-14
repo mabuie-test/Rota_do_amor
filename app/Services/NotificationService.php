@@ -85,8 +85,14 @@ final class NotificationService extends Model
         $duelId = (int) ($payload['duel_id'] ?? 0);
         $inviteId = (int) ($payload['invite_id'] ?? 0);
 
-        if ($safeDateId > 0 && $this->existsSafeDate($safeDateId)) {
-            return ['url' => '/dates/' . $safeDateId, 'is_valid' => true, 'fallback_message' => null];
+        $viewerId = (int) ($notification['user_id'] ?? 0);
+
+        if ($safeDateId > 0) {
+            if ($this->existsSafeDateForUser($viewerId, $safeDateId)) {
+                return ['url' => '/dates/' . $safeDateId, 'is_valid' => true, 'fallback_message' => null];
+            }
+
+            return ['url' => '/dates', 'is_valid' => false, 'fallback_message' => 'O Encontro Seguro desta notificação já não está disponível para ti.'];
         }
 
         if ($postId > 0) {
@@ -246,9 +252,16 @@ final class NotificationService extends Model
         return $this->fetchOne('SELECT id FROM daily_routes WHERE id=:id AND user_id=:user_id LIMIT 1', [':id' => $routeId, ':user_id' => $userId]) !== null;
     }
 
-    private function existsSafeDate(int $safeDateId): bool
+    private function existsSafeDateForUser(int $userId, int $safeDateId): bool
     {
-        return $this->fetchOne('SELECT id FROM safe_dates WHERE id=:id LIMIT 1', [':id' => $safeDateId]) !== null;
+        if ($userId <= 0 || $safeDateId <= 0) {
+            return false;
+        }
+
+        return $this->fetchOne(
+            'SELECT id FROM safe_dates WHERE id=:id AND (initiator_user_id=:user_id_initiator OR invitee_user_id=:user_id_invitee) LIMIT 1',
+            [':id' => $safeDateId, ':user_id_initiator' => $userId, ':user_id_invitee' => $userId]
+        ) !== null;
     }
 
     private function isProfileAccessible(int $viewerId, int $targetId): bool

@@ -27,7 +27,7 @@ $currentDuelId = (int) ($duel['id'] ?? 0);
           <?php if ($selectedOptionId === (int) $opt['id']): ?>
             <div class="mt-2 d-flex gap-2 flex-wrap">
               <?php foreach (['view_profile' => 'Ver Perfil', 'invite' => 'Convidar', 'favorite' => 'Favoritar'] as $type => $label): ?>
-                <button type="button" class="btn btn-sm btn-outline-primary duel-action-btn" data-duel-id="<?= $currentDuelId ?>" data-action="<?= e($type) ?>"><?= e($label) ?></button>
+                <button type="button" class="btn btn-sm btn-outline-primary duel-action-btn" data-duel-id="<?= $currentDuelId ?>" data-action="<?= e($type) ?>" data-csrf-token="<?= e(csrf_token()) ?>"><?= e($label) ?></button>
               <?php endforeach; ?>
             </div>
           <?php endif; ?>
@@ -35,37 +35,4 @@ $currentDuelId = (int) ($duel['id'] ?? 0);
       <?php endforeach; ?>
     </div>
   </div></div>
-  <script>
-    document.querySelectorAll('.duel-action-btn').forEach(function (button) {
-      button.addEventListener('click', async function () {
-        button.disabled = true;
-
-        try {
-          const response = await fetch('/compatibility-duel/action', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Accept': 'application/json'
-            },
-            body: '_token=<?= e(csrf_token()) ?>&duel_id=' + encodeURIComponent(button.dataset.duelId) + '&action_type=' + encodeURIComponent(button.dataset.action)
-          });
-          const payload = await response.json();
-
-          if (!response.ok || !payload.ok) {
-            throw new Error(payload.message || 'Não foi possível concluir esta ação.');
-          }
-
-          button.classList.remove('btn-outline-primary', 'btn-outline-danger');
-          button.classList.add('btn-success');
-          button.setAttribute('title', payload.message || 'Ação concluída');
-        } catch (error) {
-          button.classList.remove('btn-success');
-          button.classList.add('btn-outline-danger');
-          button.setAttribute('title', error.message || 'Falha ao concluir ação');
-        } finally {
-          button.disabled = false;
-        }
-      });
-    });
-  </script>
 <?php endif; ?>
