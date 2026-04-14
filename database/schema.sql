@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS user_photos (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
   image_path VARCHAR(255) NOT NULL,
+  thumbnail_path VARCHAR(255) NULL,
   is_primary TINYINT(1) NOT NULL DEFAULT 0,
   sort_order INT DEFAULT 0,
   created_at DATETIME NOT NULL,

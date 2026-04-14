@@ -11,6 +11,7 @@ use Throwable;
 final class ProfileService extends Model
 {
     private const MAX_GALLERY_PHOTOS = 8;
+    private ?bool $supportsPhotoThumbnailPath = null;
 
     public function __construct(private readonly UploadService $uploads = new UploadService())
     {
@@ -107,7 +108,7 @@ final class ProfileService extends Model
         return $this->fetchAllRows('SELECT * FROM user_photos WHERE user_id=:id ORDER BY is_primary DESC, sort_order ASC, created_at DESC', [':id' => $userId]);
     }
 
-    public function savePhoto(int $userId, string $path, bool $isPrimary = false): int
+    public function savePhoto(int $userId, string $path, bool $isPrimary = false, ?string $thumbnailPath = null): int
     {
         if (!$isPrimary) {
             $count = (int) ($this->fetchOne('SELECT COUNT(*) AS total FROM user_photos WHERE user_id = :id AND is_primary = 0', [':id' => $userId])['total'] ?? 0);
@@ -122,11 +123,20 @@ final class ProfileService extends Model
                 $this->execute('UPDATE user_photos SET is_primary = 0 WHERE user_id = :user_id', [':user_id' => $userId]);
             }
 
-            $this->execute('INSERT INTO user_photos (user_id,image_path,is_primary,sort_order,created_at) VALUES (:user_id,:path,:is_primary,0,NOW())', [
-                ':user_id' => $userId,
-                ':path' => $path,
-                ':is_primary' => $isPrimary ? 1 : 0,
-            ]);
+            if ($this->supportsPhotoThumbnailPath()) {
+                $this->execute('INSERT INTO user_photos (user_id,image_path,thumbnail_path,is_primary,sort_order,created_at) VALUES (:user_id,:path,:thumbnail_path,:is_primary,0,NOW())', [
+                    ':user_id' => $userId,
+                    ':path' => $path,
+                    ':thumbnail_path' => $thumbnailPath !== null && $thumbnailPath !== '' ? $thumbnailPath : null,
+                    ':is_primary' => $isPrimary ? 1 : 0,
+                ]);
+            } else {
+                $this->execute('INSERT INTO user_photos (user_id,image_path,is_primary,sort_order,created_at) VALUES (:user_id,:path,:is_primary,0,NOW())', [
+                    ':user_id' => $userId,
+                    ':path' => $path,
+                    ':is_primary' => $isPrimary ? 1 : 0,
+                ]);
+            }
             $photoId = (int) $this->db->lastInsertId();
 
             if ($isPrimary) {
@@ -222,7 +232,10 @@ final class ProfileService extends Model
 
     public function deletePhotoWithBundle(int $userId, int $photoId): ?array
     {
-        $photo = $this->fetchOne('SELECT id,image_path,is_primary FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
+        $columns = $this->supportsPhotoThumbnailPath()
+            ? 'id,image_path,thumbnail_path,is_primary'
+            : 'id,image_path,is_primary';
+        $photo = $this->fetchOne('SELECT ' . $columns . ' FROM user_photos WHERE id=:id AND user_id=:user_id', [':id' => $photoId, ':user_id' => $userId]);
         if (!$photo) {
             return null;
         }
@@ -242,7 +255,10 @@ final class ProfileService extends Model
 
             $this->db->commit();
 
-            return ['path' => (string) ($photo['image_path'] ?? ''), 'thumbnail_path' => null];
+            return [
+                'path' => (string) ($photo['image_path'] ?? ''),
+                'thumbnail_path' => $this->resolveThumbnailPath($photo),
+            ];
         } catch (Throwable) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -250,5 +266,31 @@ final class ProfileService extends Model
 
             return null;
         }
+    }
+
+    private function supportsPhotoThumbnailPath(): bool
+    {
+        if ($this->supportsPhotoThumbnailPath !== null) {
+            return $this->supportsPhotoThumbnailPath;
+        }
+
+        try {
+            $column = $this->fetchOne("SHOW COLUMNS FROM user_photos LIKE 'thumbnail_path'");
+            $this->supportsPhotoThumbnailPath = $column !== null && $column !== [];
+        } catch (Throwable) {
+            $this->supportsPhotoThumbnailPath = false;
+        }
+
+        return $this->supportsPhotoThumbnailPath;
+    }
+
+    private function resolveThumbnailPath(array $photo): ?string
+    {
+        $thumbnailPath = trim((string) ($photo['thumbnail_path'] ?? ''));
+        if ($thumbnailPath !== '') {
+            return $thumbnailPath;
+        }
+
+        return null;
     }
 }

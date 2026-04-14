@@ -79,7 +79,13 @@ final class MessageController extends Controller
 
         try {
             if (isset($_FILES['image']) && (int) ($_FILES['image']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                $attachments[] = $this->uploads->storeImage($_FILES['image'], 'messages/chat');
+                $storedAttachment = $this->uploads->storeImage($_FILES['image'], 'messages/chat');
+                $path = trim((string) ($storedAttachment['path'] ?? ''));
+                if ($path === '') {
+                    throw new RuntimeException('Falha no upload do anexo da mensagem.');
+                }
+
+                $attachments[] = $storedAttachment;
                 $messageType = 'image';
             }
 

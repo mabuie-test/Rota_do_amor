@@ -62,6 +62,12 @@ final class FeedController extends Controller
         try {
             if (isset($_FILES['images'])) {
                 $storedImages = $this->uploads->storeManyImages($_FILES['images'], 'feed/posts', 4);
+                foreach ($storedImages as $index => $storedImage) {
+                    $path = trim((string) ($storedImage['path'] ?? ''));
+                    if ($path === '') {
+                        throw new RuntimeException(sprintf('Falha no upload da imagem #%d.', $index + 1));
+                    }
+                }
             }
 
             $id = $this->service->createPost($userId, (string) Request::input('content', ''), $storedImages);

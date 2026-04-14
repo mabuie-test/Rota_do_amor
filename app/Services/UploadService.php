@@ -52,13 +52,17 @@ final class UploadService extends Model
         $fileName = $filePrefix . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
         $absolutePath = $baseDirectory . '/' . $fileName;
         if (!$this->moveUploadedFile($tmpPath, $absolutePath)) {
+            $this->logUploadIssue('move_uploaded_file_failed', ['domain' => $safeDomain, 'tmp_name' => $tmpPath, 'destination' => $absolutePath]);
             throw new RuntimeException('Falha ao mover ficheiro para o diretório final de uploads.');
         }
 
         try {
             $thumbPath = $this->createThumbnailIfPossible($absolutePath, $safeDomain, $extension);
         } catch (RuntimeException $exception) {
-            @unlink($absolutePath);
+            $this->logUploadIssue('thumbnail_generation_failed', ['domain' => $safeDomain, 'path' => $absolutePath, 'error' => $exception->getMessage()]);
+            if (@unlink($absolutePath) === false && is_file($absolutePath)) {
+                $this->logUploadIssue('rollback_main_file_failed', ['domain' => $safeDomain, 'path' => $absolutePath]);
+            }
             throw $exception;
         }
 
@@ -92,6 +96,7 @@ final class UploadService extends Model
             }
         } catch (RuntimeException $exception) {
             foreach ($stored as $item) {
+                $this->logUploadIssue('multi_upload_rollback', ['domain' => $domain, 'path' => $item['path'] ?? null, 'thumbnail_path' => $item['thumbnail_path'] ?? null]);
                 $this->deleteImageBundle($item);
             }
             throw $exception;
@@ -163,10 +168,12 @@ final class UploadService extends Model
     private function ensureWritableDirectory(string $directory): void
     {
         if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) {
+            $this->logUploadIssue('mkdir_failed', ['directory' => $directory]);
             throw new RuntimeException('Falha ao preparar diretório de uploads.');
         }
 
         if (!is_writable($directory)) {
+            $this->logUploadIssue('directory_not_writable', ['directory' => $directory]);
             throw new RuntimeException('Diretório de uploads sem permissão de escrita.');
         }
     }
@@ -296,9 +303,18 @@ final class UploadService extends Model
         imagedestroy($thumb);
 
         if (!$ok || !is_file($thumbAbsolute)) {
+            $this->logUploadIssue('thumbnail_write_failed', ['path' => $thumbAbsolute, 'extension' => $extension, 'domain' => $domain]);
             throw new RuntimeException('Falha ao gerar thumbnail.');
         }
 
         return 'storage/uploads/' . $domain . '/thumbs/' . $thumbName;
+    }
+
+    private function logUploadIssue(string $event, array $context = []): void
+    {
+        $payload = $context;
+        $payload['event'] = $event;
+        $payload['service'] = 'UploadService';
+        error_log('[upload.issue] ' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 }
