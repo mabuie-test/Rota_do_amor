@@ -1,6 +1,16 @@
--- Nota para hospedagem compartilhada (phpMyAdmin):
--- Se o usuário não tiver permissão CREATE DATABASE, selecione a base existente no phpMyAdmin
--- e importe este arquivo normalmente. Não é necessário executar CREATE DATABASE/USE.
+-- ============================================================================
+-- Rota_do_amor: schema autoritativo (instalação nova)
+-- ============================================================================
+-- Importação (phpMyAdmin / shared hosting / local):
+-- 1) Selecione uma base de dados já existente.
+-- 2) Importe este ficheiro completo.
+-- 3) Não é necessário CREATE DATABASE/USE neste ficheiro.
+--
+-- Este schema já consolida estrutura final + constraints + índices + seeds essenciais.
+-- Migrations em database/migrations ficam como histórico de upgrade para bases legadas.
+-- ============================================================================
+
+-- 2) TABELAS BASE GEOGRÁFICAS
 
 CREATE TABLE IF NOT EXISTS provinces (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -16,6 +26,9 @@ CREATE TABLE IF NOT EXISTS cities (
   CONSTRAINT fk_cities_province FOREIGN KEY (province_id) REFERENCES provinces(id),
   UNIQUE KEY uq_city_province (province_id, name)
 );
+
+
+-- 3) UTILIZADORES E IDENTIDADE
 
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -93,6 +106,9 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   CONSTRAINT fk_preferences_province FOREIGN KEY (preferred_province_id) REFERENCES provinces(id),
   CONSTRAINT fk_preferences_city FOREIGN KEY (preferred_city_id) REFERENCES cities(id)
 );
+
+
+-- 4) SUBSCRIÇÃO, PAGAMENTOS E PREMIUM
 
 CREATE TABLE IF NOT EXISTS subscriptions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -217,6 +233,9 @@ CREATE TABLE IF NOT EXISTS user_badges (
   CONSTRAINT fk_user_badges_user FOREIGN KEY (user_id) REFERENCES users(id),
   INDEX idx_user_badges_user_active (user_id, is_active)
 );
+
+
+-- 5) CONEXÕES, CONVITES, MATCHES E CONVERSAS
 
 CREATE TABLE IF NOT EXISTS swipe_actions (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -363,6 +382,9 @@ CREATE TABLE IF NOT EXISTS message_typing_states (
   INDEX idx_typing_expires (conversation_id, expires_at)
 );
 
+
+-- 6) FEED SOCIAL
+
 CREATE TABLE IF NOT EXISTS posts (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -400,6 +422,9 @@ CREATE TABLE IF NOT EXISTS message_attachments (
   CONSTRAINT fk_message_attachments_message FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
   INDEX idx_message_attachments_message (message_id, id)
 );
+
+
+-- 7) ENCONTROS SEGUROS
 
 CREATE TABLE IF NOT EXISTS safe_dates (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -571,6 +596,9 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 
 
+
+-- 8) DIÁRIO E GAMIFICAÇÃO
+
 CREATE TABLE IF NOT EXISTS daily_routes (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -662,6 +690,9 @@ CREATE TABLE IF NOT EXISTS daily_route_event_logs (
   INDEX idx_daily_route_events_type_created (event_type, created_at),
   INDEX idx_daily_route_events_module_created (source_module, created_at)
 );
+
+
+-- 9) NOTIFICAÇÕES E AUDITORIA
 
 CREATE TABLE IF NOT EXISTS notifications (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -784,6 +815,9 @@ CREATE TABLE IF NOT EXISTS profile_visits (
   INDEX idx_profile_visits_pair_created (visitor_user_id, visited_user_id, created_at)
 );
 
+
+-- 10) HISTÓRIAS ANÓNIMAS
+
 CREATE TABLE IF NOT EXISTS anonymous_stories (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   author_user_id BIGINT NOT NULL,
@@ -847,6 +881,9 @@ CREATE TABLE IF NOT EXISTS anonymous_story_reports (
   INDEX idx_story_reports_story_status (story_id, status)
 );
 
+
+-- 11) DUELO DE COMPATIBILIDADE
+
 CREATE TABLE IF NOT EXISTS compatibility_duels (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -898,3 +935,148 @@ CREATE TABLE IF NOT EXISTS compatibility_duel_actions (
   INDEX idx_duel_actions_type_created (action_type, created_at),
   INDEX idx_duel_actions_duel_created (duel_id, created_at)
 );
+
+
+-- 12) SEEDS ESSENCIAIS
+
+-- Províncias base de Moçambique
+INSERT INTO provinces (name) VALUES
+('Cabo Delgado'),
+('Gaza'),
+('Inhambane'),
+('Manica'),
+('Maputo Cidade'),
+('Maputo Província'),
+('Nampula'),
+('Niassa'),
+('Sofala'),
+('Tete'),
+('Zambézia')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- Cidades essenciais por província
+INSERT INTO cities (province_id, name)
+SELECT p.id, c.city_name
+FROM provinces p
+JOIN (
+  SELECT 'Maputo Cidade' AS province_name, 'Maputo' AS city_name UNION ALL
+  SELECT 'Maputo Cidade', 'KaMpfumo' UNION ALL
+  SELECT 'Maputo Cidade', 'KaMavota' UNION ALL
+  SELECT 'Maputo Cidade', 'KaMubukwana' UNION ALL
+  SELECT 'Maputo Cidade', 'KaTembe' UNION ALL
+  SELECT 'Maputo Província', 'Matola' UNION ALL
+  SELECT 'Maputo Província', 'Boane' UNION ALL
+  SELECT 'Maputo Província', 'Marracuene' UNION ALL
+  SELECT 'Maputo Província', 'Moamba' UNION ALL
+  SELECT 'Maputo Província', 'Namaacha' UNION ALL
+  SELECT 'Maputo Província', 'Matutuíne' UNION ALL
+  SELECT 'Maputo Província', 'Manhiça' UNION ALL
+  SELECT 'Maputo Província', 'Magude' UNION ALL
+  SELECT 'Gaza', 'Xai-Xai' UNION ALL
+  SELECT 'Gaza', 'Chókwè' UNION ALL
+  SELECT 'Gaza', 'Chibuto' UNION ALL
+  SELECT 'Gaza', 'Macia' UNION ALL
+  SELECT 'Gaza', 'Bilene' UNION ALL
+  SELECT 'Inhambane', 'Inhambane' UNION ALL
+  SELECT 'Inhambane', 'Maxixe' UNION ALL
+  SELECT 'Inhambane', 'Vilankulo' UNION ALL
+  SELECT 'Inhambane', 'Massinga' UNION ALL
+  SELECT 'Inhambane', 'Jangamo' UNION ALL
+  SELECT 'Sofala', 'Beira' UNION ALL
+  SELECT 'Sofala', 'Dondo' UNION ALL
+  SELECT 'Sofala', 'Nhamatanda' UNION ALL
+  SELECT 'Sofala', 'Gorongosa' UNION ALL
+  SELECT 'Sofala', 'Buzi' UNION ALL
+  SELECT 'Manica', 'Chimoio' UNION ALL
+  SELECT 'Manica', 'Manica' UNION ALL
+  SELECT 'Manica', 'Gondola' UNION ALL
+  SELECT 'Manica', 'Sussundenga' UNION ALL
+  SELECT 'Tete', 'Tete' UNION ALL
+  SELECT 'Tete', 'Moatize' UNION ALL
+  SELECT 'Tete', 'Ulongué' UNION ALL
+  SELECT 'Tete', 'Angónia' UNION ALL
+  SELECT 'Zambézia', 'Quelimane' UNION ALL
+  SELECT 'Zambézia', 'Mocuba' UNION ALL
+  SELECT 'Zambézia', 'Gurué' UNION ALL
+  SELECT 'Zambézia', 'Milange' UNION ALL
+  SELECT 'Zambézia', 'Mocubela' UNION ALL
+  SELECT 'Nampula', 'Nampula' UNION ALL
+  SELECT 'Nampula', 'Nacala' UNION ALL
+  SELECT 'Nampula', 'Ilha de Moçambique' UNION ALL
+  SELECT 'Nampula', 'Nacala-a-Velha' UNION ALL
+  SELECT 'Nampula', 'Monapo' UNION ALL
+  SELECT 'Cabo Delgado', 'Pemba' UNION ALL
+  SELECT 'Cabo Delgado', 'Montepuez' UNION ALL
+  SELECT 'Cabo Delgado', 'Mocímboa da Praia' UNION ALL
+  SELECT 'Cabo Delgado', 'Mueda' UNION ALL
+  SELECT 'Niassa', 'Lichinga' UNION ALL
+  SELECT 'Niassa', 'Cuamba' UNION ALL
+  SELECT 'Niassa', 'Mandimba' UNION ALL
+  SELECT 'Niassa', 'Marrupa'
+) c ON c.province_name = p.name
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+-- 13) SETTINGS BASE DO SISTEMA
+INSERT INTO site_settings (setting_key, setting_value, value_type, updated_at) VALUES
+('activation_price', '100', 'int', NOW()),
+('monthly_subscription_price', '40', 'int', NOW()),
+('boost_price', '25', 'int', NOW()),
+('boost_duration_hours', '24', 'int', NOW()),
+('email_verification_required', 'true', 'bool', NOW()),
+('allow_chat_only_after_match', 'true', 'bool', NOW()),
+('safe_dates_premium_guard_enabled', 'true', 'bool', NOW()),
+('safe_dates_free_daily_limit', '5', 'int', NOW()),
+('safe_dates_premium_daily_limit', '10', 'int', NOW()),
+('safe_dates_verified_only_requires_identity', 'true', 'bool', NOW()),
+('safe_dates_max_open_free', '2', 'int', NOW()),
+('safe_dates_max_open_premium', '5', 'int', NOW()),
+('daily_route_reward_boost_hours', '2', 'int', NOW()),
+('daily_route_reward_badge_type', 'constancia_diaria', 'string', NOW()),
+('daily_route_reward_boost_hours_premium', '3', 'int', NOW()),
+('daily_route_streak_bonus_threshold', '7', 'int', NOW()),
+('daily_route_streak_bonus_boost_hours', '1', 'int', NOW()),
+('daily_route_target_discover_active', '8', 'int', NOW()),
+('daily_route_target_discover_default', '5', 'int', NOW()),
+('daily_route_target_feed_interactions', '2', 'int', NOW()),
+('daily_route_target_premium_momentum', '1', 'int', NOW()),
+('daily_route_premium_streak_bonus_threshold', '10', 'int', NOW()),
+('daily_route_premium_streak_bonus_boost_hours', '1', 'int', NOW()),
+('daily_route_premium_discovery_priority_hours', '2', 'int', NOW()),
+('daily_route_reward_badge_days', '30', 'int', NOW()),
+('daily_route_reward_badge_days_premium', '45', 'int', NOW()),
+('daily_route_nudge_end_of_day_hour', '19', 'int', NOW()),
+('daily_route_nudge_inactive_days', '3', 'int', NOW()),
+('daily_route_nudge_streak_risk_min_streak', '2', 'int', NOW()),
+('daily_route_nudge_new_user_window_days', '14', 'int', NOW()),
+('daily_route_enable_visitors_hub_task', '1', 'bool', NOW()),
+('daily_route_enable_anonymous_stories_task', '1', 'bool', NOW()),
+('daily_route_enable_compatibility_duel_task', '1', 'bool', NOW()),
+('visitors_free_visible_visitors', '2', 'int', NOW()),
+('visitors_free_history_hours', '24', 'int', NOW()),
+('visitors_premium_history_days', '30', 'int', NOW()),
+('visitors_track_limit_per_hour', '120', 'int', NOW()),
+('compatibility_duel_free_daily_limit', '1', 'int', NOW()),
+('compatibility_duel_premium_daily_limit', '1', 'int', NOW()),
+('compatibility_duel_extra_enabled', '0', 'bool', NOW()),
+('compatibility_duel_premium_insights_enabled', '1', 'bool', NOW())
+ON DUPLICATE KEY UPDATE
+  setting_value = VALUES(setting_value),
+  value_type = VALUES(value_type),
+  updated_at = VALUES(updated_at);
+
+-- Admin inicial (idempotente). Recomenda-se trocar password após o primeiro login.
+INSERT INTO admins (name, email, password, role, status, created_at, updated_at)
+VALUES (
+  'Super Admin',
+  'admin@rotadoamor.mz',
+  '$2y$10$QQq7P4ElG29E6Ytv8PHdPu2jX4rAtA3ahUBygQzf1sY4pVH4A8M7a',
+  'super_admin',
+  'active',
+  NOW(),
+  NOW()
+)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  role = VALUES(role),
+  status = VALUES(status),
+  updated_at = VALUES(updated_at);
