@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Core\Config;
 use App\Core\Model;
+use PDOException;
 
 final class MessageService extends Model
 {
@@ -29,8 +30,24 @@ final class MessageService extends Model
             return (int) $conversation['id'];
         }
 
-        $this->db->prepare('INSERT INTO conversations (user_one_id,user_two_id,created_at,updated_at) VALUES (:a,:b,NOW(),NOW())')->execute([':a' => $a, ':b' => $b]);
-        return (int) $this->db->lastInsertId();
+        try {
+            $this->db->prepare('INSERT INTO conversations (user_one_id,user_two_id,created_at,updated_at) VALUES (:a,:b,NOW(),NOW())')->execute([':a' => $a, ':b' => $b]);
+            return (int) $this->db->lastInsertId();
+        } catch (PDOException $exception) {
+            $isIntegrityViolation = $exception->getCode() === '23000';
+            if (!$isIntegrityViolation) {
+                throw $exception;
+            }
+
+            $retry = $this->db->prepare('SELECT id FROM conversations WHERE user_one_id=:a AND user_two_id=:b LIMIT 1');
+            $retry->execute([':a' => $a, ':b' => $b]);
+            $row = $retry->fetch();
+            if ($row) {
+                return (int) $row['id'];
+            }
+
+            throw $exception;
+        }
     }
 
     public function sendMessage(int $senderId, int $receiverId, string $messageText, string $messageType = 'text', array $attachments = []): int
@@ -174,25 +191,48 @@ final class MessageService extends Model
         return $stmt->fetch() ?: [];
     }
 
-    public function markAsDelivered(int $conversationId, int $receiverId): void
+    public function markAsDelivered(int $conversationId, int $receiverId, int $afterMessageId = 0): int
     {
         if (!$this->isConversationParticipant($conversationId, $receiverId)) {
-            return;
+            return 0;
         }
 
-        $this->db->prepare('UPDATE messages SET delivered_at = IFNULL(delivered_at, NOW()) WHERE conversation_id = :conversation_id AND receiver_id = :receiver_id')->execute([
+        $stmt = $this->db->prepare('UPDATE messages
+            SET delivered_at = NOW()
+            WHERE conversation_id = :conversation_id
+              AND receiver_id = :receiver_id
+              AND delivered_at IS NULL
+              AND id > :after_id');
+        $stmt->execute([
             ':conversation_id' => $conversationId,
             ':receiver_id' => $receiverId,
+            ':after_id' => max(0, $afterMessageId),
         ]);
+
+        return (int) $stmt->rowCount();
     }
 
-    public function markAsRead(int $conversationId, int $readerId): void
+    public function markAsRead(int $conversationId, int $readerId, int $afterMessageId = 0): int
     {
         if (!$this->isConversationParticipant($conversationId, $readerId)) {
-            return;
+            return 0;
         }
 
-        $this->db->prepare('UPDATE messages SET is_read = 1, delivered_at = IFNULL(delivered_at, NOW()), read_at = IFNULL(read_at, NOW()) WHERE conversation_id = :conversation_id AND receiver_id = :reader_id AND is_read = 0')->execute([':conversation_id' => $conversationId, ':reader_id' => $readerId]);
+        $stmt = $this->db->prepare('UPDATE messages
+            SET is_read = 1,
+                delivered_at = IF(delivered_at IS NULL, NOW(), delivered_at),
+                read_at = IF(read_at IS NULL, NOW(), read_at)
+            WHERE conversation_id = :conversation_id
+              AND receiver_id = :reader_id
+              AND is_read = 0
+              AND id > :after_id');
+        $stmt->execute([
+            ':conversation_id' => $conversationId,
+            ':reader_id' => $readerId,
+            ':after_id' => max(0, $afterMessageId),
+        ]);
+
+        return (int) $stmt->rowCount();
     }
 
     public function setTypingState(int $conversationId, int $userId, bool $isTyping): void
@@ -221,7 +261,11 @@ final class MessageService extends Model
 
     public function touchPresence(int $userId): void
     {
-        $this->execute('UPDATE users SET online_status = 1, last_activity_at = NOW() WHERE id = :id AND (last_activity_at IS NULL OR TIMESTAMPDIFF(SECOND, last_activity_at, NOW()) >= 20)', [':id' => $userId]);
+        $minSeconds = max(15, (int) Config::env('CHAT_PRESENCE_TOUCH_INTERVAL_SECONDS', '45'));
+        $this->execute('UPDATE users SET online_status = 1, last_activity_at = NOW() WHERE id = :id AND (last_activity_at IS NULL OR TIMESTAMPDIFF(SECOND, last_activity_at, NOW()) >= :min_seconds)', [
+            ':id' => $userId,
+            ':min_seconds' => $minSeconds,
+        ]);
     }
 
     public function getConversationUpdates(int $conversationId, int $viewerId, int $afterMessageId): array

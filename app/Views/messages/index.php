@@ -103,6 +103,7 @@ $safeDateMeta = safe_date_capability_meta($safeDateCapabilities, 'messages');
   };
 
   const receiptLabel = (message) => message.read_at ? 'Lida' : (message.delivered_at ? 'Entregue' : 'Enviada');
+  const sanitizeRelativePath = (value) => String(value || '').replace(/^\/+/, '').replace(/[^a-zA-Z0-9_\-/.]/g, '');
 
   const renderMessage = (message) => {
     if (list.querySelector(`[data-message-id="${message.id}"]`)) return;
@@ -112,20 +113,57 @@ $safeDateMeta = safe_date_capability_meta($safeDateCapabilities, 'messages');
     wrapper.dataset.messageId = String(message.id);
     wrapper.dataset.senderId = String(message.sender_id);
 
-    let attachments = '';
-    (message.attachments || []).forEach((a) => {
-      attachments += `<a href="/${a.file_path}" target="_blank"><img src="/${a.file_path}" style="max-width:220px" class="img-fluid rounded border mt-2" alt="imagem anexada"></a>`;
+    const title = document.createElement('div');
+    title.className = 'small fw-semibold mb-1';
+    title.textContent = isMine ? 'Tu' : otherName;
+
+    const bubble = document.createElement('div');
+    bubble.className = `rd-chat-bubble ${isMine ? 'rd-chat-bubble--mine' : 'rd-chat-bubble--other'}`;
+    if (message.message_type === 'image') {
+      const imgLabel = document.createElement('div');
+      imgLabel.className = `small mb-1 ${isMine ? 'text-white-50' : 'text-muted'}`;
+      imgLabel.textContent = '📷 Imagem';
+      bubble.appendChild(imgLabel);
+    }
+
+    if (message.message_type !== 'image' || String(message.message_text || '').trim() !== '[imagem]') {
+      const textNode = document.createElement('div');
+      textNode.textContent = String(message.message_text || '');
+      bubble.appendChild(textNode);
+    }
+
+    (message.attachments || []).forEach((attachment) => {
+      const safePath = sanitizeRelativePath(attachment?.file_path);
+      if (!safePath || !safePath.startsWith('storage/uploads/')) return;
+      const anchor = document.createElement('a');
+      anchor.href = `/${safePath}`;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      const img = document.createElement('img');
+      img.src = `/${safePath}`;
+      img.style.maxWidth = '220px';
+      img.className = 'img-fluid rounded border mt-2';
+      img.alt = 'imagem anexada';
+      anchor.appendChild(img);
+      bubble.appendChild(anchor);
     });
 
-    wrapper.innerHTML = `
-      <div class="small fw-semibold mb-1">${isMine ? 'Tu' : otherName}</div>
-      <div class="rd-chat-bubble ${isMine ? 'rd-chat-bubble--mine' : 'rd-chat-bubble--other'}">
-        ${(message.message_type === 'image') ? `<div class="small mb-1 ${isMine ? 'text-white-50' : 'text-muted'}">📷 Imagem</div>` : ''}
-        ${(message.message_type !== 'image' || String(message.message_text || '').trim() !== '[imagem]') ? `<div>${String(message.message_text || '').replace(/</g,'&lt;')}</div>` : ''}
-        ${attachments}
-      </div>
-      <div><small class="text-muted">${message.created_at || ''}</small>${isMine ? `<small class="text-muted ms-2" data-receipt>${receiptLabel(message)}</small>` : ''}</div>
-    `;
+    const meta = document.createElement('div');
+    const time = document.createElement('small');
+    time.className = 'text-muted';
+    time.textContent = String(message.created_at || '');
+    meta.appendChild(time);
+    if (isMine) {
+      const receipt = document.createElement('small');
+      receipt.className = 'text-muted ms-2';
+      receipt.dataset.receipt = '1';
+      receipt.textContent = receiptLabel(message);
+      meta.appendChild(receipt);
+    }
+
+    wrapper.appendChild(title);
+    wrapper.appendChild(bubble);
+    wrapper.appendChild(meta);
     list.appendChild(wrapper);
     list.scrollTop = list.scrollHeight;
   };

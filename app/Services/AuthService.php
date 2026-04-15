@@ -51,8 +51,13 @@ final class AuthService extends Model
 
     private function checkRateLimit(string $email): bool
     {
-        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM activity_logs WHERE action = 'login_failed' AND target_type='email' AND metadata_json LIKE :email_pattern AND created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
-        $stmt->execute([':email_pattern' => '%"email":"' . mb_strtolower(trim($email)) . '"%']);
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS total
+            FROM activity_logs
+            WHERE action = 'login_failed'
+              AND target_type = 'login'
+              AND rate_limit_key = :rate_limit_key
+              AND created_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)");
+        $stmt->execute([':rate_limit_key' => $this->loginRateLimitKey($email)]);
         $total = (int) ($stmt->fetch()['total'] ?? 0);
 
         return $total < 10;
@@ -60,14 +65,20 @@ final class AuthService extends Model
 
     private function recordLoginAttempt(string $email, bool $success): void
     {
-        $this->execute('INSERT INTO activity_logs (actor_type,actor_id,action,target_type,target_id,metadata_json,ip_address,created_at) VALUES (:actor_type,:actor_id,:action,:target_type,:target_id,:metadata,:ip,NOW())', [
+        $this->execute('INSERT INTO activity_logs (actor_type,actor_id,action,target_type,target_id,rate_limit_key,metadata_json,ip_address,created_at) VALUES (:actor_type,:actor_id,:action,:target_type,:target_id,:rate_limit_key,:metadata,:ip,NOW())', [
             ':actor_type' => 'system',
             ':actor_id' => null,
             ':action' => $success ? 'login_success' : 'login_failed',
-            ':target_type' => 'email',
+            ':target_type' => 'login',
             ':target_id' => null,
             ':metadata' => json_encode(['email' => mb_strtolower(trim($email))], JSON_THROW_ON_ERROR),
             ':ip' => Request::ip(),
+            ':rate_limit_key' => $this->loginRateLimitKey($email),
         ]);
+    }
+
+    private function loginRateLimitKey(string $email): string
+    {
+        return 'login:' . hash('sha256', mb_strtolower(trim($email)) . '|' . Request::ip());
     }
 }
