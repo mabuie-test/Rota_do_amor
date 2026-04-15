@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Core\Model;
 use DateInterval;
 use DateTimeImmutable;
+use PDOException;
 
 final class SafeDateService extends Model
 {
@@ -404,14 +405,27 @@ final class SafeDateService extends Model
             return ['ok' => false, 'message' => 'Preencha título, local e data/hora válida (futura).'];
         }
 
+        $pairLockKey = $this->pairLockKey($initiatorId, $inviteeId);
+        if (!$this->acquirePairLock($pairLockKey, 3)) {
+            $this->rateLimiter->hitFailure('safe_date_propose', $rateKey, $initiatorId, ['reason' => 'pair_lock_timeout']);
+            return ['ok' => false, 'message' => 'Não foi possível concluir a proposta agora. Tente novamente em instantes.'];
+        }
+
         $context = $this->relationshipContext($initiatorId, $inviteeId);
         if (!$context['eligible']) {
+            $this->releasePairLock($pairLockKey);
             $this->rateLimiter->hitFailure('safe_date_propose', $rateKey, $initiatorId, ['reason' => 'relationship_context']);
             return ['ok' => false, 'message' => 'É necessário match ativo ou convite aceite para propor encontro.'];
         }
 
         try {
             $this->db->beginTransaction();
+
+            if ($this->hasOpenDateBetween($initiatorId, $inviteeId)) {
+                $this->db->rollBack();
+                $this->rateLimiter->hitFailure('safe_date_propose', $rateKey, $initiatorId, ['reason' => 'open_duplicate_locked']);
+                return ['ok' => false, 'message' => 'Já existe um encontro seguro em aberto com esta pessoa.'];
+            }
 
             $this->execute(
                 'INSERT INTO safe_dates (initiator_user_id,invitee_user_id,match_id,conversation_id,title,meeting_type,proposed_location,proposed_datetime,note,status,safety_level,confirmation_code,expires_at,last_transition_at,created_at,updated_at)
@@ -451,12 +465,26 @@ final class SafeDateService extends Model
             );
             $this->audit->logSystemEvent('safe_date_created', 'safe_date', $safeDateId, ['origin' => 'safe_dates', 'initiator_user_id' => $initiatorId, 'invitee_user_id' => $inviteeId, 'safety_level' => $safetyLevel]);
             $this->rateLimiter->hitSuccess('safe_date_propose', $rateKey, $initiatorId, ['safe_date_id' => $safeDateId, 'premium' => $hasPremium]);
+            $this->releasePairLock($pairLockKey);
 
             return ['ok' => true, 'safe_date_id' => $safeDateId];
+        } catch (PDOException $exception) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->releasePairLock($pairLockKey);
+            if ($exception->getCode() === '23000') {
+                $this->rateLimiter->hitFailure('safe_date_propose', $rateKey, $initiatorId, ['reason' => 'open_duplicate_constraint']);
+                return ['ok' => false, 'message' => 'Já existe um encontro seguro em aberto com esta pessoa.'];
+            }
+
+            $this->rateLimiter->hitFailure('safe_date_propose', $rateKey, $initiatorId, ['reason' => 'db_exception']);
+            return ['ok' => false, 'message' => 'Falha ao criar encontro seguro.'];
         } catch (\Throwable) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
+            $this->releasePairLock($pairLockKey);
             $this->rateLimiter->hitFailure('safe_date_propose', $rateKey, $initiatorId, ['reason' => 'exception']);
             return ['ok' => false, 'message' => 'Falha ao criar encontro seguro.'];
         }
@@ -1280,6 +1308,32 @@ final class SafeDateService extends Model
         ];
 
         return $cache;
+    }
+
+    private function pairLockKey(int $userId, int $otherUserId): string
+    {
+        [$a, $b] = $userId < $otherUserId ? [$userId, $otherUserId] : [$otherUserId, $userId];
+
+        return 'safe_date_pair:' . $a . ':' . $b;
+    }
+
+    private function acquirePairLock(string $lockKey, int $timeoutSeconds): bool
+    {
+        $row = $this->fetchOne('SELECT GET_LOCK(:lock_key, :timeout_seconds) AS got_lock', [
+            ':lock_key' => $lockKey,
+            ':timeout_seconds' => max(1, $timeoutSeconds),
+        ]);
+
+        return (int) ($row['got_lock'] ?? 0) === 1;
+    }
+
+    private function releasePairLock(string $lockKey): void
+    {
+        try {
+            $this->fetchOne('SELECT RELEASE_LOCK(:lock_key)', [':lock_key' => $lockKey]);
+        } catch (\Throwable) {
+            // best-effort unlock
+        }
     }
 
     private function userOpenSafeDatesCount(int $userId): int

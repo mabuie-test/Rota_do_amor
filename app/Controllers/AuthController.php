@@ -35,7 +35,7 @@ final class AuthController extends Controller
         $emailKey = mb_strtolower(trim($email));
         $key = 'user_login:' . $emailKey . ':' . Request::ip();
         if ($this->rateLimiter->tooManyAttempts('user_login', $key, 10, 10, 'failed')) {
-            Response::json(['ok' => false, 'message' => 'Muitas tentativas. Tente novamente em alguns minutos.'], 429);
+            $this->respondLoginBlocked('Muitas tentativas. Tente novamente em alguns minutos.');
         }
 
         $result = $this->authService->attemptLogin($email, (string) Request::input('password', ''));
@@ -55,6 +55,16 @@ final class AuthController extends Controller
         }
 
         Response::redirect('/dashboard');
+    }
+
+    private function respondLoginBlocked(string $message): never
+    {
+        if (Request::expectsJson()) {
+            Response::json(['ok' => false, 'message' => $message], 429);
+        }
+
+        Flash::set('error', $message);
+        Response::redirect('/login');
     }
 
     public function logout(): void

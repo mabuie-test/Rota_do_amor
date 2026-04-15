@@ -226,6 +226,7 @@ CREATE TABLE IF NOT EXISTS swipe_actions (
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_swipe_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
   CONSTRAINT fk_swipe_target FOREIGN KEY (target_user_id) REFERENCES users(id),
+  CONSTRAINT chk_swipe_distinct_users CHECK (actor_user_id <> target_user_id),
   UNIQUE KEY uq_swipe_actor_target (actor_user_id, target_user_id),
   INDEX idx_swipe_target (target_user_id, action_type)
 );
@@ -240,6 +241,7 @@ CREATE TABLE IF NOT EXISTS matches (
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_match_user_one FOREIGN KEY (user_one_id) REFERENCES users(id),
   CONSTRAINT fk_match_user_two FOREIGN KEY (user_two_id) REFERENCES users(id),
+  CONSTRAINT chk_matches_canonical CHECK (user_one_id < user_two_id),
   UNIQUE KEY uq_match_pair (user_one_id, user_two_id),
   INDEX idx_matches_status (status)
 );
@@ -282,6 +284,7 @@ CREATE TABLE IF NOT EXISTS connections (
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_connections_requester FOREIGN KEY (requester_id) REFERENCES users(id),
   CONSTRAINT fk_connections_receiver FOREIGN KEY (receiver_id) REFERENCES users(id),
+  CONSTRAINT chk_connections_distinct_users CHECK (requester_id <> receiver_id),
   UNIQUE KEY uq_connection_pair (requester_id, receiver_id)
 );
 
@@ -321,6 +324,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   updated_at DATETIME NOT NULL,
   CONSTRAINT fk_conversation_user_one FOREIGN KEY (user_one_id) REFERENCES users(id),
   CONSTRAINT fk_conversation_user_two FOREIGN KEY (user_two_id) REFERENCES users(id),
+  CONSTRAINT chk_conversations_canonical CHECK (user_one_id < user_two_id),
   UNIQUE KEY uq_conversation_pair (user_one_id, user_two_id)
 );
 
@@ -339,6 +343,7 @@ CREATE TABLE IF NOT EXISTS messages (
   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
   CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id),
   CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_id) REFERENCES users(id),
+  CONSTRAINT chk_messages_sender_receiver CHECK (sender_id <> receiver_id),
   INDEX idx_messages_receiver_read (receiver_id, is_read),
   INDEX idx_messages_conversation_id (conversation_id, id),
   INDEX idx_messages_conversation_receiver_read (conversation_id, receiver_id, is_read, id),
@@ -408,6 +413,14 @@ CREATE TABLE IF NOT EXISTS safe_dates (
   proposed_datetime DATETIME NOT NULL,
   note VARCHAR(500) NULL,
   status ENUM('proposed','accepted','declined','cancelled','reschedule_requested','rescheduled','completed','expired') NOT NULL DEFAULT 'proposed',
+  pair_user_low BIGINT GENERATED ALWAYS AS (LEAST(initiator_user_id, invitee_user_id)) STORED,
+  pair_user_high BIGINT GENERATED ALWAYS AS (GREATEST(initiator_user_id, invitee_user_id)) STORED,
+  open_pair_guard TINYINT GENERATED ALWAYS AS (
+    CASE
+      WHEN status IN ('proposed','accepted','reschedule_requested','rescheduled') THEN 1
+      ELSE NULL
+    END
+  ) STORED,
   safety_level ENUM('standard','verified_only','premium_guard') NOT NULL DEFAULT 'standard',
   confirmation_code VARCHAR(20) NULL,
   accepted_at DATETIME NULL,
@@ -437,6 +450,7 @@ CREATE TABLE IF NOT EXISTS safe_dates (
   CONSTRAINT fk_safe_dates_reschedule_requested_by FOREIGN KEY (reschedule_requested_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_safe_dates_arrived_by FOREIGN KEY (arrived_confirmed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_safe_dates_ended_well_by FOREIGN KEY (ended_well_confirmed_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_safe_dates_distinct_users CHECK (initiator_user_id <> invitee_user_id),
   INDEX idx_safe_dates_initiator_status_created (initiator_user_id, status, created_at),
   INDEX idx_safe_dates_invitee_status_created (invitee_user_id, status, created_at),
   INDEX idx_safe_dates_status_datetime (status, proposed_datetime),
@@ -445,7 +459,8 @@ CREATE TABLE IF NOT EXISTS safe_dates (
   INDEX idx_safe_dates_reschedule_pending (status, reschedule_requested_by_user_id, reschedule_requested_at),
   INDEX idx_safe_dates_reminder_windows (status, proposed_datetime, reminder_24h_sent_at, reminder_2h_sent_at),
   INDEX idx_safe_dates_admin_filters (status, safety_level, created_at, id),
-  INDEX idx_safe_dates_admin_participants (initiator_user_id, invitee_user_id, created_at)
+  INDEX idx_safe_dates_admin_participants (initiator_user_id, invitee_user_id, created_at),
+  UNIQUE KEY uq_safe_dates_open_pair (pair_user_low, pair_user_high, open_pair_guard)
 );
 
 CREATE TABLE IF NOT EXISTS safe_date_status_history (
@@ -512,6 +527,7 @@ CREATE TABLE IF NOT EXISTS favorites (
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_favorites_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_favorites_target FOREIGN KEY (favorite_user_id) REFERENCES users(id),
+  CONSTRAINT chk_favorites_distinct_users CHECK (user_id <> favorite_user_id),
   UNIQUE KEY uq_favorite_pair (user_id, favorite_user_id)
 );
 
@@ -523,6 +539,7 @@ CREATE TABLE IF NOT EXISTS blocks (
   created_at DATETIME NOT NULL,
   CONSTRAINT fk_blocks_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
   CONSTRAINT fk_blocks_target FOREIGN KEY (target_user_id) REFERENCES users(id),
+  CONSTRAINT chk_blocks_distinct_users CHECK (actor_user_id <> target_user_id),
   UNIQUE KEY uq_block_pair (actor_user_id, target_user_id)
 );
 
@@ -544,6 +561,12 @@ CREATE TABLE IF NOT EXISTS reports (
   CONSTRAINT fk_reports_target_post FOREIGN KEY (target_post_id) REFERENCES posts(id),
   CONSTRAINT fk_reports_target_message FOREIGN KEY (target_message_id) REFERENCES messages(id),
   CONSTRAINT fk_reports_resolved_admin FOREIGN KEY (resolved_by_admin_id) REFERENCES admins(id),
+  CONSTRAINT chk_reports_not_self_target CHECK (target_user_id IS NULL OR reporter_user_id <> target_user_id),
+  CONSTRAINT chk_reports_target_coherence CHECK (
+    (report_type = 'profile' AND target_user_id IS NOT NULL AND target_post_id IS NULL AND target_message_id IS NULL)
+    OR (report_type = 'post' AND target_post_id IS NOT NULL AND target_user_id IS NULL AND target_message_id IS NULL)
+    OR (report_type = 'message' AND target_message_id IS NOT NULL AND target_user_id IS NULL AND target_post_id IS NULL)
+  ),
   INDEX idx_reports_status (status)
 );
 

@@ -143,20 +143,28 @@ final class MessageController extends Controller
         }
 
         $this->service->touchPresence($userId);
-        $this->service->markAsDelivered($conversationId, $userId);
-        $this->service->markAsRead($conversationId, $userId);
+        $this->service->markAsDelivered($conversationId, $userId, $afterId);
+        $this->service->markAsRead($conversationId, $userId, $afterId);
 
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('X-Accel-Buffering: no');
 
         $startedAt = time();
+        $presenceTouchedAt = 0;
         while (time() - $startedAt < 25) {
-            $this->service->markAsDelivered($conversationId, $userId);
+            if ((time() - $presenceTouchedAt) >= 12) {
+                $this->service->touchPresence($userId);
+                $presenceTouchedAt = time();
+            }
+
+            $checkpointId = $afterId;
             $updates = $this->service->getConversationUpdates($conversationId, $userId, $afterId);
             $messages = $updates['messages'] ?? [];
             if ($messages !== []) {
                 $afterId = (int) end($messages)['id'];
+                $this->service->markAsDelivered($conversationId, $userId, $checkpointId);
+                $this->service->markAsRead($conversationId, $userId, $checkpointId);
             }
 
             $payload = [

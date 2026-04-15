@@ -18,6 +18,9 @@ final class UploadService extends Model
      * - Ficheiros ligados a entidades soft-deleted permanecem até purge administrativo.
      */
     private const DEFAULT_MAX_SIZE = 5242880; // 5 MB
+    private const DEFAULT_MAX_WIDTH = 6000;
+    private const DEFAULT_MAX_HEIGHT = 6000;
+    private const DEFAULT_MAX_MEGAPIXELS = 24;
     private const ALLOWED_MIME_MAP = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
@@ -43,6 +46,8 @@ final class UploadService extends Model
         if ($extension === null) {
             throw new RuntimeException('Formato inválido. Apenas JPEG, PNG e WEBP são permitidos.');
         }
+
+        $this->assertImageGeometry($tmpPath);
 
         $safeDomain = $this->normalizeDomain($domain);
         $filePrefix = str_replace(['/', '\\'], '_', $safeDomain);
@@ -316,5 +321,48 @@ final class UploadService extends Model
         $payload['event'] = $event;
         $payload['service'] = 'UploadService';
         error_log('[upload.issue] ' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function assertImageGeometry(string $path): void
+    {
+        $size = @getimagesize($path);
+        if (!is_array($size)) {
+            $this->logUploadIssue('geometry_read_failed', ['path' => $path]);
+            throw new RuntimeException('Imagem inválida ou corrompida.');
+        }
+
+        $width = (int) ($size[0] ?? 0);
+        $height = (int) ($size[1] ?? 0);
+        if ($width <= 0 || $height <= 0) {
+            $this->logUploadIssue('geometry_invalid', ['path' => $path, 'width' => $width, 'height' => $height]);
+            throw new RuntimeException('Imagem inválida: dimensões não reconhecidas.');
+        }
+
+        $maxWidth = max(1280, (int) Config::env('UPLOAD_MAX_IMAGE_WIDTH', (string) self::DEFAULT_MAX_WIDTH));
+        $maxHeight = max(1280, (int) Config::env('UPLOAD_MAX_IMAGE_HEIGHT', (string) self::DEFAULT_MAX_HEIGHT));
+        $maxMegaPixels = max(4, (int) Config::env('UPLOAD_MAX_IMAGE_MEGAPIXELS', (string) self::DEFAULT_MAX_MEGAPIXELS));
+        $maxPixels = $maxMegaPixels * 1_000_000;
+
+        if ($width > $maxWidth) {
+            $this->logUploadIssue('geometry_width_exceeded', ['path' => $path, 'width' => $width, 'max_width' => $maxWidth]);
+            throw new RuntimeException(sprintf('Imagem demasiado larga. Máximo permitido: %d px.', $maxWidth));
+        }
+
+        if ($height > $maxHeight) {
+            $this->logUploadIssue('geometry_height_exceeded', ['path' => $path, 'height' => $height, 'max_height' => $maxHeight]);
+            throw new RuntimeException(sprintf('Imagem demasiado alta. Máximo permitido: %d px.', $maxHeight));
+        }
+
+        $pixels = $width * $height;
+        if ($pixels > $maxPixels) {
+            $this->logUploadIssue('geometry_megapixel_exceeded', [
+                'path' => $path,
+                'width' => $width,
+                'height' => $height,
+                'pixels' => $pixels,
+                'max_pixels' => $maxPixels,
+            ]);
+            throw new RuntimeException(sprintf('Imagem com resolução excessiva. Máximo permitido: %d MP.', $maxMegaPixels));
+        }
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Middleware\CsrfMiddleware;
+use App\Middleware\SecurityHeadersMiddleware;
 use Throwable;
 
 final class App
@@ -13,6 +14,7 @@ final class App
     {
         try {
             Session::start();
+            (new SecurityHeadersMiddleware())->handle();
 
             $router = new Router();
             require dirname(__DIR__, 2) . '/routes/web.php';
