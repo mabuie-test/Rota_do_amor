@@ -3,6 +3,31 @@
 <?php $title='Sem matches ainda'; $description='Continue curtindo perfis para criar conexões.'; require dirname(__DIR__).'/partials/empty-state.php'; ?>
 <?php else: ?>
 <?php $safeDateEligibleMap = is_array($safe_date_eligible_map ?? null) ? $safe_date_eligible_map : []; ?>
+<?php $safeDateCapabilitiesMap = is_array($safe_date_capabilities_map ?? null) ? $safe_date_capabilities_map : []; ?>
+<?php
+$safeDateMeta = static function (array $capabilities): array {
+  $labels = ['Standard'];
+  if (!empty($capabilities['can_verified_only'])) {
+    $labels[] = 'Verificados';
+  }
+  if (!empty($capabilities['can_premium_guard'])) {
+    $labels[] = 'Premium Guard';
+  }
+
+  $context = 'Encontro Seguro disponível';
+  if (!empty($capabilities['can_premium_guard'])) {
+    $context = 'Premium Guard disponível';
+  } elseif (!empty($capabilities['can_verified_only'])) {
+    $context = 'Disponível com Verificados';
+  }
+
+  return [
+    'labels' => $labels,
+    'context' => $context,
+    'summary' => 'Níveis: ' . implode(', ', $labels),
+  ];
+};
+?>
 <div class="row g-3">
 <?php foreach (($matches ?? []) as $match): ?>
   <?php
@@ -10,6 +35,10 @@
     $counterpartName = (string) ($match['counterpart_name'] ?? ('Utilizador #' . $counterpartId));
     $counterpartPhoto = (string) ($match['counterpart_photo'] ?? '');
     $canProposeSafeDate = $counterpartId > 0 && !empty($safeDateEligibleMap[$counterpartId]);
+    $safeDateCapabilities = $counterpartId > 0 && isset($safeDateCapabilitiesMap[$counterpartId]) && is_array($safeDateCapabilitiesMap[$counterpartId])
+      ? $safeDateCapabilitiesMap[$counterpartId]
+      : [];
+    $safeDateMetaData = $safeDateMeta($safeDateCapabilities);
   ?>
   <div class="col-md-6 col-lg-4">
     <div class="rd-card h-100">
@@ -29,9 +58,19 @@
           <a href="/member/<?= $counterpartId ?>" class="btn btn-sm btn-rd-soft">Ver perfil</a>
           <a href="/messages" class="btn btn-sm btn-rd-primary">Conversar</a>
           <?php if ($canProposeSafeDate): ?>
-            <a href="/dates?invitee_user_id=<?= $counterpartId ?>" class="btn btn-sm btn-outline-success">Propor Encontro Seguro</a>
+            <a href="/dates?invitee_user_id=<?= $counterpartId ?>" class="btn btn-sm btn-outline-success" title="<?= e($safeDateMetaData['summary']) ?>">Convidar para Encontro Seguro</a>
           <?php endif; ?>
         </div>
+        <?php if ($canProposeSafeDate): ?>
+          <div class="rd-safe-capability-note mt-2">
+            <span class="small text-muted"><?= e($safeDateMetaData['context']) ?></span>
+            <div class="rd-safe-capability-badges mt-1">
+              <?php foreach ($safeDateMetaData['labels'] as $label): ?>
+                <span class="rd-safe-pill"><?= e($label) ?></span>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>

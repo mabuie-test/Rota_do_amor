@@ -28,6 +28,31 @@
 
 <div class="row g-3">
   <?php $safeDateEligibleMap = is_array($safe_date_eligible_map ?? null) ? $safe_date_eligible_map : []; ?>
+  <?php $safeDateCapabilitiesMap = is_array($safe_date_capabilities_map ?? null) ? $safe_date_capabilities_map : []; ?>
+  <?php
+  $safeDateMeta = static function (array $capabilities): array {
+    $labels = ['Standard'];
+    if (!empty($capabilities['can_verified_only'])) {
+      $labels[] = 'Verificados';
+    }
+    if (!empty($capabilities['can_premium_guard'])) {
+      $labels[] = 'Premium Guard';
+    }
+
+    $context = 'Encontro Seguro disponível';
+    if (!empty($capabilities['can_premium_guard'])) {
+      $context = 'Premium Guard disponível';
+    } elseif (!empty($capabilities['can_verified_only'])) {
+      $context = 'Disponível com Verificados';
+    }
+
+    return [
+      'labels' => $labels,
+      'context' => $context,
+      'summary' => 'Níveis: ' . implode(', ', $labels),
+    ];
+  };
+  ?>
   <?php if (empty($invites)): ?>
     <div class="col-12"><?php $title='Sem convites por enquanto'; $description='Quando alguém demonstrar interesse qualificado, você verá aqui.'; require dirname(__DIR__) . '/partials/empty-state.php'; ?></div>
   <?php endif; ?>
@@ -37,6 +62,10 @@
       $senderId = (int) ($invite['sender_user_id'] ?? 0);
       $senderPhoto = (string) ($invite['sender_photo'] ?? '');
       $canProposeSafeDate = $senderId > 0 && !empty($safeDateEligibleMap[$senderId]);
+      $safeDateCapabilities = $senderId > 0 && isset($safeDateCapabilitiesMap[$senderId]) && is_array($safeDateCapabilitiesMap[$senderId])
+        ? $safeDateCapabilitiesMap[$senderId]
+        : [];
+      $safeDateMetaData = $safeDateMeta($safeDateCapabilities);
     ?>
     <div class="col-lg-6">
       <div class="rd-card h-100 rd-invite-card">
@@ -77,9 +106,19 @@
           <div class="d-flex flex-wrap gap-2 mb-2">
             <a href="/member/<?= $senderId ?>" class="btn btn-sm btn-rd-soft">Ver perfil</a>
             <?php if ($canProposeSafeDate): ?>
-              <a href="/dates?invitee_user_id=<?= $senderId ?>" class="btn btn-sm btn-outline-success">Propor Encontro Seguro</a>
+              <a href="/dates?invitee_user_id=<?= $senderId ?>" class="btn btn-sm btn-outline-success" title="<?= e($safeDateMetaData['summary']) ?>">Responder com Encontro Seguro</a>
             <?php endif; ?>
           </div>
+          <?php if ($canProposeSafeDate): ?>
+            <div class="rd-safe-capability-note mb-2">
+              <span class="small text-muted"><?= e($safeDateMetaData['context']) ?></span>
+              <div class="rd-safe-capability-badges mt-1">
+                <?php foreach ($safeDateMetaData['labels'] as $label): ?>
+                  <span class="rd-safe-pill"><?= e($label) ?></span>
+                <?php endforeach; ?>
+              </div>
+            </div>
+          <?php endif; ?>
 
           <?php if (!empty($invite['is_pending'])): ?>
           <div class="d-flex gap-2">

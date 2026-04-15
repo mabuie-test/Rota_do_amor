@@ -244,13 +244,32 @@ final class SafeDateService extends Model
 
     public function eligibleInviteeIdMapForUser(int $userId): array
     {
+        $profiles = $this->eligibleProfileCapabilitiesMapForUser($userId);
+        $map = [];
+        foreach ($profiles as $profileId => $capabilities) {
+            if ($profileId > 0 && !empty($capabilities['can_standard'])) {
+                $map[$profileId] = true;
+            }
+        }
+
+        return $map;
+    }
+
+    public function eligibleProfileCapabilitiesMapForUser(int $userId): array
+    {
         $profiles = $this->eligibleProfilesForUser($userId);
         $map = [];
         foreach ($profiles as $profile) {
             $profileId = (int) ($profile['id'] ?? 0);
-            if ($profileId > 0) {
-                $map[$profileId] = true;
+            if ($profileId <= 0) {
+                continue;
             }
+
+            $map[$profileId] = [
+                'can_standard' => (bool) ($profile['can_standard'] ?? false),
+                'can_verified_only' => (bool) ($profile['can_verified_only'] ?? false),
+                'can_premium_guard' => (bool) ($profile['can_premium_guard'] ?? false),
+            ];
         }
 
         return $map;
