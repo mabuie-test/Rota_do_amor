@@ -8,28 +8,7 @@ $otherName = (string) ($context['other_user_name'] ?? 'Utilizador');
 $safeDateCapabilities = is_array($context['safe_date_safety_capabilities'] ?? null) ? $context['safe_date_safety_capabilities'] : [];
 $pg = $pagination ?? ['page' => 1, 'has_more' => false];
 $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online agora' : 'Offline';
-$safeDateMeta = (static function (array $capabilities): array {
-  $labels = ['Standard'];
-  if (!empty($capabilities['can_verified_only'])) {
-    $labels[] = 'Verificados';
-  }
-  if (!empty($capabilities['can_premium_guard'])) {
-    $labels[] = 'Premium Guard';
-  }
-
-  $context = 'Encontro Seguro disponível';
-  if (!empty($capabilities['can_premium_guard'])) {
-    $context = 'Premium Guard disponível';
-  } elseif (!empty($capabilities['can_verified_only'])) {
-    $context = 'Disponível com Verificados';
-  }
-
-  return [
-    'labels' => $labels,
-    'context' => $context,
-    'summary' => 'Níveis: ' . implode(', ', $labels),
-  ];
-})($safeDateCapabilities);
+$safeDateMeta = safe_date_capability_meta($safeDateCapabilities, 'messages');
 ?>
 <div class="row g-3">
   <div class="col-lg-4"><div class="rd-card"><div class="card-body"><h6>Conversas</h6>
@@ -48,11 +27,13 @@ $safeDateMeta = (static function (array $capabilities): array {
 
   <div class="col-lg-8"><div class="rd-card"><div class="card-body">
     <?php if (!empty($context)): ?>
-      <div class="small text-muted mb-2 p-2 border rounded bg-light-subtle"><strong><?= e($otherName) ?></strong> · <?= e($otherStatusLabel) ?></div>
+      <div class="small text-muted mb-2 p-2 border rounded bg-light-subtle">
+        <strong><a href="/member/<?= (int) $otherId ?>" class="text-decoration-none"><?= e($otherName) ?></a></strong> · <?= e($otherStatusLabel) ?>
+      </div>
       <div class="d-flex flex-wrap gap-2 mb-2">
         <a class="btn btn-sm btn-rd-soft" href="/member/<?= (int) $otherId ?>">Ver perfil</a>
         <?php if (!empty($context['can_propose_safe_date'])): ?>
-          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= (int) $otherId ?>&conversation_id=<?= (int) $activeConversationId ?>" title="<?= e($safeDateMeta['summary']) ?>">Levar para Encontro Seguro</a>
+          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= (int) $otherId ?>&conversation_id=<?= (int) $activeConversationId ?>" title="<?= e($safeDateMeta['summary']) ?>">Sugerir Encontro Seguro na conversa</a>
         <?php endif; ?>
         <?php if ((int) ($context['active_safe_date_id'] ?? 0) > 0): ?>
           <a class="btn btn-sm btn-outline-primary" href="/dates/<?= (int) $context['active_safe_date_id'] ?>">Ver encontro #<?= (int) $context['active_safe_date_id'] ?></a>
