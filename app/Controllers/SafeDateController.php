@@ -26,13 +26,33 @@ final class SafeDateController extends Controller
         $userId = Auth::id() ?? 0;
         $scope = (string) Request::input('scope', 'upcoming');
         $items = $this->service->listForUser($userId, $scope);
+        $eligibleProfiles = $this->service->eligibleProfilesForUser($userId);
+        $selectedInviteeId = (int) Request::input('invitee_user_id', 0);
+        $selectedInviteeProfile = [];
+        $prefillConversationId = (int) Request::input('conversation_id', 0);
+
+        if ($selectedInviteeId > 0) {
+            foreach ($eligibleProfiles as $profile) {
+                if ((int) ($profile['id'] ?? 0) !== $selectedInviteeId) {
+                    continue;
+                }
+
+                $selectedInviteeProfile = $profile;
+                if ($prefillConversationId <= 0) {
+                    $prefillConversationId = (int) ($profile['conversation_id'] ?? 0);
+                }
+                break;
+            }
+        }
 
         $this->view('safe-dates/index', [
             'title' => 'Encontro Seguro',
             'items' => $items,
             'scope' => $scope,
-            'prefill_invitee_id' => (int) Request::input('invitee_user_id', 0),
-            'prefill_conversation_id' => (int) Request::input('conversation_id', 0),
+            'eligible_profiles' => $eligibleProfiles,
+            'selected_invitee_profile' => $selectedInviteeProfile,
+            'prefill_invitee_id' => $selectedInviteeId,
+            'prefill_conversation_id' => $prefillConversationId,
         ]);
     }
 

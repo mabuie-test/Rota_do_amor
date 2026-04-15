@@ -8,6 +8,7 @@ $primaryPhoto = $profile['profile_photo_path'] ?? ($photos[0]['image_path'] ?? n
 $badges = $profile['badges'] ?? [];
 $posts = $profile['recent_posts'] ?? [];
 $targetId = (int) ($profile['id'] ?? 0);
+$safeDateProposal = is_array($safe_date_proposal ?? null) ? $safe_date_proposal : ['ok' => false];
 ?>
 <div class="rd-card mb-3"><div class="card-body">
   <div class="d-flex flex-column flex-lg-row gap-4 align-items-start">
@@ -45,6 +46,11 @@ $targetId = (int) ($profile['id'] ?? 0);
 
       <div class="d-flex flex-wrap gap-2 rd-profile-actions" data-target-user="<?= $targetId ?>" data-is-favorited="<?= (int) ($profile['is_favorited'] ?? 0) ?>">
         <form method="post" action="/invites/send"><?= csrf_field() ?><input type="hidden" name="receiver_user_id" value="<?= $targetId ?>"><button class="btn btn-sm btn-rd-primary"><i class="fa-solid fa-envelope-open-heart me-1"></i>Convidar</button></form>
+        <?php if (!empty($safeDateProposal['ok'])): ?>
+          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= $targetId ?><?= !empty($safeDateProposal['conversation_id']) ? '&conversation_id=' . (int) $safeDateProposal['conversation_id'] : '' ?>">
+            <i class="fa-solid fa-shield-heart me-1"></i>Propor Encontro Seguro
+          </a>
+        <?php endif; ?>
         <button class="btn btn-sm btn-rd-soft" data-action="favorite"><i class="fa-solid fa-star me-1"></i><span data-favorite-label><?= ((int) ($profile['is_favorited'] ?? 0) === 1) ? 'Favoritado' : 'Favoritar' ?></span></button>
         <button class="btn btn-sm btn-outline-danger" data-action="block"><i class="fa-solid fa-ban me-1"></i>Bloquear</button>
         <button class="btn btn-sm btn-outline-warning" data-action="report"><i class="fa-solid fa-flag me-1"></i>Denunciar</button>

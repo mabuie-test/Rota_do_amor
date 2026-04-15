@@ -239,6 +239,42 @@ h3 { font-size: clamp(1.8rem, 2.5vw, 2.2rem); margin-bottom: 1rem !important; }
   background: linear-gradient(180deg, #fff, #fff7fa);
 }
 
+.rd-eligible-grid {
+  display: grid;
+  gap: .65rem;
+  max-height: 340px;
+  overflow: auto;
+  padding-right: .25rem;
+}
+
+.rd-eligible-card {
+  border: 1px solid #e8d7de;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff, #fff8fb);
+  padding: .65rem;
+  display: block;
+}
+
+.rd-eligible-card.is-selected {
+  border-color: var(--rd-secondary);
+  box-shadow: 0 0 0 2px rgba(176,58,91,.16);
+}
+
+.rd-eligible-card__photo {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid #ead6dd;
+}
+
+.rd-eligible-card__photo--placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--rd-secondary);
+  background: #f8eef2;
+}
+
 .rd-section-title {
   font-size: 1.15rem;
   margin-bottom: .25rem;

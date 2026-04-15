@@ -74,6 +74,94 @@ final class SafeDateService extends Model
         return $rows;
     }
 
+    public function eligibleProfilesForUser(int $userId): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $candidates = $this->fetchAllRows(
+            "SELECT u.id,
+                    u.first_name,
+                    u.last_name,
+                    u.profile_photo_path,
+                    c.name AS city_name,
+                    p.name AS province_name,
+                    EXISTS (SELECT 1 FROM identity_verifications iv WHERE iv.user_id = u.id AND iv.status = 'approved' LIMIT 1) AS is_verified,
+                    EXISTS (SELECT 1 FROM premium_features pf WHERE pf.user_id = u.id AND pf.status = 'active' AND pf.ends_at >= NOW() LIMIT 1) AS has_premium
+             FROM users u
+             LEFT JOIN cities c ON c.id = u.city_id
+             LEFT JOIN provinces p ON p.id = u.province_id
+             WHERE u.id <> :viewer_id
+               AND u.status = 'active'
+             ORDER BY u.first_name ASC, u.last_name ASC
+             LIMIT 250",
+            [':viewer_id' => $userId]
+        );
+
+        $eligible = [];
+        foreach ($candidates as $candidate) {
+            $inviteeId = (int) ($candidate['id'] ?? 0);
+            if ($inviteeId <= 0) {
+                continue;
+            }
+
+            $pairEligibility = $this->validatePairEligibility($userId, $inviteeId, 'standard');
+            if (empty($pairEligibility['ok'])) {
+                continue;
+            }
+
+            if ($this->hasOpenDateBetween($userId, $inviteeId)) {
+                continue;
+            }
+
+            $relationship = $this->relationshipSnapshot($userId, $inviteeId);
+            if (empty($relationship['eligible'])) {
+                continue;
+            }
+
+            $eligible[] = [
+                'id' => $inviteeId,
+                'name' => trim((string) (($candidate['first_name'] ?? '') . ' ' . ($candidate['last_name'] ?? ''))),
+                'profile_photo_path' => (string) ($candidate['profile_photo_path'] ?? ''),
+                'city_name' => (string) ($candidate['city_name'] ?? ''),
+                'province_name' => (string) ($candidate['province_name'] ?? ''),
+                'is_verified' => (int) ($candidate['is_verified'] ?? 0) === 1,
+                'has_premium' => (int) ($candidate['has_premium'] ?? 0) === 1,
+                'match_active' => (bool) ($relationship['match_active'] ?? false),
+                'accepted_invite' => (bool) ($relationship['accepted_invite'] ?? false),
+                'conversation_id' => (int) ($relationship['conversation_id'] ?? 0),
+            ];
+        }
+
+        return $eligible;
+    }
+
+    public function proposalContextForPair(int $initiatorId, int $inviteeId): array
+    {
+        $validation = $this->validatePairEligibility($initiatorId, $inviteeId, 'standard');
+        if (empty($validation['ok'])) {
+            return ['ok' => false, 'message' => (string) ($validation['message'] ?? 'Par inválido para encontro seguro.')];
+        }
+
+        if ($this->hasOpenDateBetween($initiatorId, $inviteeId)) {
+            return ['ok' => false, 'message' => 'Já existe um encontro seguro em aberto com esta pessoa.'];
+        }
+
+        $relationship = $this->relationshipSnapshot($initiatorId, $inviteeId);
+        if (empty($relationship['eligible'])) {
+            return ['ok' => false, 'message' => 'É necessário match ativo ou convite aceite para propor encontro.'];
+        }
+
+        return [
+            'ok' => true,
+            'match_active' => (bool) ($relationship['match_active'] ?? false),
+            'accepted_invite' => (bool) ($relationship['accepted_invite'] ?? false),
+            'conversation_id' => (int) ($relationship['conversation_id'] ?? 0),
+            'match_id' => (int) ($relationship['match_id'] ?? 0),
+        ];
+    }
+
     public function detailForUser(int $safeDateId, int $userId): array
     {
         $this->expirePendingForUser($userId);
@@ -852,6 +940,18 @@ final class SafeDateService extends Model
 
     private function relationshipContext(int $userId, int $otherUserId): array
     {
+        $snapshot = $this->relationshipSnapshot($userId, $otherUserId);
+        $conversationId = !empty($snapshot['eligible']) ? $this->messages->getOrCreateConversation($userId, $otherUserId) : 0;
+
+        return [
+            'eligible' => (bool) ($snapshot['eligible'] ?? false),
+            'match_id' => (int) ($snapshot['match_id'] ?? 0) ?: null,
+            'conversation_id' => $conversationId > 0 ? $conversationId : null,
+        ];
+    }
+
+    private function relationshipSnapshot(int $userId, int $otherUserId): array
+    {
         [$a, $b] = $userId < $otherUserId ? [$userId, $otherUserId] : [$otherUserId, $userId];
 
         $match = $this->fetchOne('SELECT id FROM matches WHERE user_one_id = :a AND user_two_id = :b AND status = :status LIMIT 1', [
@@ -873,13 +973,24 @@ final class SafeDateService extends Model
             ]
         );
 
-        $conversationId = $this->messages->getOrCreateConversation($userId, $otherUserId);
-
         return [
             'eligible' => (bool) $match || (bool) $acceptedInvite,
-            'match_id' => (int) ($match['id'] ?? 0) ?: null,
-            'conversation_id' => $conversationId > 0 ? $conversationId : null,
+            'match_active' => (bool) $match,
+            'accepted_invite' => (bool) $acceptedInvite,
+            'match_id' => (int) ($match['id'] ?? 0),
+            'conversation_id' => $this->existingConversationId($userId, $otherUserId),
         ];
+    }
+
+    private function existingConversationId(int $userId, int $otherUserId): int
+    {
+        [$a, $b] = $userId < $otherUserId ? [$userId, $otherUserId] : [$otherUserId, $userId];
+        $row = $this->fetchOne(
+            'SELECT id FROM conversations WHERE user_one_id = :a AND user_two_id = :b LIMIT 1',
+            [':a' => $a, ':b' => $b]
+        );
+
+        return (int) ($row['id'] ?? 0);
     }
 
     private function hasOpenDateBetween(int $userId, int $otherUserId): bool

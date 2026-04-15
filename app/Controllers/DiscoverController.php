@@ -10,13 +10,15 @@ use App\Core\Request;
 use App\Services\DailyRouteEventBridge;
 use App\Services\DiscoveryService;
 use App\Services\ProfileVisitService;
+use App\Services\SafeDateService;
 
 final class DiscoverController extends Controller
 {
     public function __construct(
         private readonly DiscoveryService $service = new DiscoveryService(),
         private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge(),
-        private readonly ProfileVisitService $visits = new ProfileVisitService()
+        private readonly ProfileVisitService $visits = new ProfileVisitService(),
+        private readonly SafeDateService $safeDates = new SafeDateService()
     )
     {
     }
@@ -53,7 +55,13 @@ final class DiscoverController extends Controller
             $this->dailyRoutes->trackFromModule($viewerId, 'visitor_profile_engaged', 'discover', 1);
         }
 
-        $this->view('discover/show', ['title' => 'Perfil', 'profile' => $profile]);
+        $safeDateProposal = $this->safeDates->proposalContextForPair($viewerId, $targetId);
+
+        $this->view('discover/show', [
+            'title' => 'Perfil',
+            'profile' => $profile,
+            'safe_date_proposal' => $safeDateProposal,
+        ]);
     }
 
 }
