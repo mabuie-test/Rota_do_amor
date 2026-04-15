@@ -10,28 +10,7 @@ $posts = $profile['recent_posts'] ?? [];
 $targetId = (int) ($profile['id'] ?? 0);
 $safeDateProposal = is_array($safe_date_proposal ?? null) ? $safe_date_proposal : ['ok' => false];
 $safeDateCapabilities = is_array($safeDateProposal['safety_capabilities'] ?? null) ? $safeDateProposal['safety_capabilities'] : [];
-$safeDateMeta = (static function (array $capabilities): array {
-  $labels = ['Standard'];
-  if (!empty($capabilities['can_verified_only'])) {
-    $labels[] = 'Verificados';
-  }
-  if (!empty($capabilities['can_premium_guard'])) {
-    $labels[] = 'Premium Guard';
-  }
-
-  $context = 'Este par suporta Encontro Seguro';
-  if (!empty($capabilities['can_premium_guard'])) {
-    $context = 'Este par suporta Premium Guard';
-  } elseif (!empty($capabilities['can_verified_only'])) {
-    $context = 'Este par suporta Standard + Verificados';
-  }
-
-  return [
-    'labels' => $labels,
-    'context' => $context,
-    'summary' => 'Níveis: ' . implode(', ', $labels),
-  ];
-})($safeDateCapabilities);
+$safeDateMeta = safe_date_capability_meta($safeDateCapabilities, 'profile');
 ?>
 <div class="rd-card mb-3"><div class="card-body">
   <div class="d-flex flex-column flex-lg-row gap-4 align-items-start">

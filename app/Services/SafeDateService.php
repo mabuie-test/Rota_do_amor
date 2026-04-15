@@ -255,6 +255,35 @@ final class SafeDateService extends Model
         return $map;
     }
 
+    public function eligibleProfileContextForUser(int $userId): array
+    {
+        $profiles = $this->eligibleProfilesForUser($userId);
+        $capabilitiesMap = [];
+        $eligibleMap = [];
+
+        foreach ($profiles as $profile) {
+            $profileId = (int) ($profile['id'] ?? 0);
+            if ($profileId <= 0) {
+                continue;
+            }
+
+            $capabilitiesMap[$profileId] = [
+                'can_standard' => (bool) ($profile['can_standard'] ?? false),
+                'can_verified_only' => (bool) ($profile['can_verified_only'] ?? false),
+                'can_premium_guard' => (bool) ($profile['can_premium_guard'] ?? false),
+            ];
+
+            if (!empty($profile['can_standard'])) {
+                $eligibleMap[$profileId] = true;
+            }
+        }
+
+        return [
+            'capabilities_map' => $capabilitiesMap,
+            'eligible_map' => $eligibleMap,
+        ];
+    }
+
     public function eligibleProfileCapabilitiesMapForUser(int $userId): array
     {
         $profiles = $this->eligibleProfilesForUser($userId);

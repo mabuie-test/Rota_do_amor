@@ -22,18 +22,12 @@ final class MatchController extends Controller
     {
         $userId = Auth::id() ?? 0;
         $matches = $this->service->getUserMatches($userId);
-        $safeDateCapabilitiesMap = $this->safeDates->eligibleProfileCapabilitiesMapForUser($userId);
-        $safeDateEligibleMap = [];
-        foreach ($safeDateCapabilitiesMap as $counterpartId => $capabilities) {
-            if (!empty($capabilities['can_standard'])) {
-                $safeDateEligibleMap[(int) $counterpartId] = true;
-            }
-        }
+        $safeDateContext = $this->safeDates->eligibleProfileContextForUser($userId);
         $this->view('matches/index', [
             'title' => 'Matches',
             'matches' => $matches,
-            'safe_date_eligible_map' => $safeDateEligibleMap,
-            'safe_date_capabilities_map' => $safeDateCapabilitiesMap,
+            'safe_date_eligible_map' => $safeDateContext['eligible_map'] ?? [],
+            'safe_date_capabilities_map' => $safeDateContext['capabilities_map'] ?? [],
         ]);
     }
 }
