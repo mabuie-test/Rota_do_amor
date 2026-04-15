@@ -9,6 +9,29 @@ $badges = $profile['badges'] ?? [];
 $posts = $profile['recent_posts'] ?? [];
 $targetId = (int) ($profile['id'] ?? 0);
 $safeDateProposal = is_array($safe_date_proposal ?? null) ? $safe_date_proposal : ['ok' => false];
+$safeDateCapabilities = is_array($safeDateProposal['safety_capabilities'] ?? null) ? $safeDateProposal['safety_capabilities'] : [];
+$safeDateMeta = (static function (array $capabilities): array {
+  $labels = ['Standard'];
+  if (!empty($capabilities['can_verified_only'])) {
+    $labels[] = 'Verificados';
+  }
+  if (!empty($capabilities['can_premium_guard'])) {
+    $labels[] = 'Premium Guard';
+  }
+
+  $context = 'Este par suporta Encontro Seguro';
+  if (!empty($capabilities['can_premium_guard'])) {
+    $context = 'Este par suporta Premium Guard';
+  } elseif (!empty($capabilities['can_verified_only'])) {
+    $context = 'Este par suporta Standard + Verificados';
+  }
+
+  return [
+    'labels' => $labels,
+    'context' => $context,
+    'summary' => 'Níveis: ' . implode(', ', $labels),
+  ];
+})($safeDateCapabilities);
 ?>
 <div class="rd-card mb-3"><div class="card-body">
   <div class="d-flex flex-column flex-lg-row gap-4 align-items-start">
@@ -47,7 +70,7 @@ $safeDateProposal = is_array($safe_date_proposal ?? null) ? $safe_date_proposal 
       <div class="d-flex flex-wrap gap-2 rd-profile-actions" data-target-user="<?= $targetId ?>" data-is-favorited="<?= (int) ($profile['is_favorited'] ?? 0) ?>">
         <form method="post" action="/invites/send"><?= csrf_field() ?><input type="hidden" name="receiver_user_id" value="<?= $targetId ?>"><button class="btn btn-sm btn-rd-primary"><i class="fa-solid fa-envelope-open-heart me-1"></i>Convidar</button></form>
         <?php if (!empty($safeDateProposal['ok'])): ?>
-          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= $targetId ?><?= !empty($safeDateProposal['conversation_id']) ? '&conversation_id=' . (int) $safeDateProposal['conversation_id'] : '' ?>">
+          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= $targetId ?><?= !empty($safeDateProposal['conversation_id']) ? '&conversation_id=' . (int) $safeDateProposal['conversation_id'] : '' ?>" title="<?= e($safeDateMeta['summary']) ?>">
             <i class="fa-solid fa-shield-heart me-1"></i>Propor Encontro Seguro
           </a>
         <?php endif; ?>
@@ -57,6 +80,16 @@ $safeDateProposal = is_array($safe_date_proposal ?? null) ? $safe_date_proposal 
         <a class="btn btn-sm btn-outline-secondary" href="#member-posts"><i class="fa-solid fa-newspaper me-1"></i>Ver publicações</a>
         <a class="btn btn-sm btn-outline-secondary" href="/discover"><i class="fa-solid fa-compass me-1"></i>Voltar</a>
       </div>
+      <?php if (!empty($safeDateProposal['ok'])): ?>
+        <div class="rd-safe-capability-note mt-2">
+          <span class="small text-muted"><?= e($safeDateMeta['context']) ?></span>
+          <div class="rd-safe-capability-badges mt-1">
+            <?php foreach ($safeDateMeta['labels'] as $label): ?>
+              <span class="rd-safe-pill"><?= e($label) ?></span>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
       <div class="small mt-2 rd-profile-feedback d-none" role="status" aria-live="polite"></div>
     </div>
   </div>

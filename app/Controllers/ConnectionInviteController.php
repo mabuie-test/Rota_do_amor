@@ -34,12 +34,20 @@ final class ConnectionInviteController extends Controller
         ];
 
         $listing = $this->service->listReceived($userId, $filters);
+        $safeDateCapabilitiesMap = $this->safeDates->eligibleProfileCapabilitiesMapForUser($userId);
+        $safeDateEligibleMap = [];
+        foreach ($safeDateCapabilitiesMap as $counterpartId => $capabilities) {
+            if (!empty($capabilities['can_standard'])) {
+                $safeDateEligibleMap[(int) $counterpartId] = true;
+            }
+        }
         $this->view('invites/received', [
             'title' => 'Convites Recebidos com Intenção',
             'invites' => $listing['items'],
             'pagination' => $listing['pagination'],
             'filters' => $filters,
-            'safe_date_eligible_map' => $this->safeDates->eligibleInviteeIdMapForUser($userId),
+            'safe_date_eligible_map' => $safeDateEligibleMap,
+            'safe_date_capabilities_map' => $safeDateCapabilitiesMap,
         ]);
     }
 

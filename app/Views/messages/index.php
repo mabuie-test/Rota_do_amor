@@ -5,8 +5,31 @@ $viewerId = (int) ($viewer_id ?? 0);
 $context = $context ?? [];
 $otherId = (int) ($context['other_user_id'] ?? 0);
 $otherName = (string) ($context['other_user_name'] ?? 'Utilizador');
+$safeDateCapabilities = is_array($context['safe_date_safety_capabilities'] ?? null) ? $context['safe_date_safety_capabilities'] : [];
 $pg = $pagination ?? ['page' => 1, 'has_more' => false];
 $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online agora' : 'Offline';
+$safeDateMeta = (static function (array $capabilities): array {
+  $labels = ['Standard'];
+  if (!empty($capabilities['can_verified_only'])) {
+    $labels[] = 'Verificados';
+  }
+  if (!empty($capabilities['can_premium_guard'])) {
+    $labels[] = 'Premium Guard';
+  }
+
+  $context = 'Encontro Seguro disponível';
+  if (!empty($capabilities['can_premium_guard'])) {
+    $context = 'Premium Guard disponível';
+  } elseif (!empty($capabilities['can_verified_only'])) {
+    $context = 'Disponível com Verificados';
+  }
+
+  return [
+    'labels' => $labels,
+    'context' => $context,
+    'summary' => 'Níveis: ' . implode(', ', $labels),
+  ];
+})($safeDateCapabilities);
 ?>
 <div class="row g-3">
   <div class="col-lg-4"><div class="rd-card"><div class="card-body"><h6>Conversas</h6>
@@ -29,13 +52,23 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
       <div class="d-flex flex-wrap gap-2 mb-2">
         <a class="btn btn-sm btn-rd-soft" href="/member/<?= (int) $otherId ?>">Ver perfil</a>
         <?php if (!empty($context['can_propose_safe_date'])): ?>
-          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= (int) $otherId ?>&conversation_id=<?= (int) $activeConversationId ?>">Propor Encontro Seguro</a>
+          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= (int) $otherId ?>&conversation_id=<?= (int) $activeConversationId ?>" title="<?= e($safeDateMeta['summary']) ?>">Levar para Encontro Seguro</a>
         <?php endif; ?>
         <?php if ((int) ($context['active_safe_date_id'] ?? 0) > 0): ?>
           <a class="btn btn-sm btn-outline-primary" href="/dates/<?= (int) $context['active_safe_date_id'] ?>">Ver encontro #<?= (int) $context['active_safe_date_id'] ?></a>
         <?php endif; ?>
         <?php if (!empty($context['next_safe_date_datetime'])): ?><span class="small text-muted">Próximo encontro: <?= e((string) $context['next_safe_date_datetime']) ?></span><?php endif; ?>
       </div>
+      <?php if (!empty($context['can_propose_safe_date'])): ?>
+        <div class="rd-safe-capability-note mb-2">
+          <span class="small text-muted"><?= e($safeDateMeta['context']) ?></span>
+          <div class="rd-safe-capability-badges mt-1">
+            <?php foreach ($safeDateMeta['labels'] as $label): ?>
+              <span class="rd-safe-pill"><?= e($label) ?></span>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endif; ?>
       <div id="typing-indicator" class="small text-muted mb-2" style="min-height: 20px;"></div>
       <div class="rd-chat-shell mb-3">
       <div id="message-list" class="rd-chat-list">

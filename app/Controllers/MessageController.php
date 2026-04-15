@@ -49,9 +49,13 @@ final class MessageController extends Controller
             $this->service->markAsDelivered($activeConversationId, $userId);
             $this->service->markAsRead($activeConversationId, $userId);
             $otherUserId = (int) ($activeContext['other_user_id'] ?? 0);
-            $activeContext['can_propose_safe_date'] = $otherUserId > 0
-                ? !empty($this->safeDates->proposalContextForPair($userId, $otherUserId)['ok'])
-                : false;
+            $proposalContext = $otherUserId > 0
+                ? $this->safeDates->proposalContextForPair($userId, $otherUserId)
+                : ['ok' => false, 'safety_capabilities' => []];
+            $activeContext['can_propose_safe_date'] = !empty($proposalContext['ok']);
+            $activeContext['safe_date_safety_capabilities'] = is_array($proposalContext['safety_capabilities'] ?? null)
+                ? $proposalContext['safety_capabilities']
+                : [];
         }
 
         $this->view('messages/index', [
