@@ -6,6 +6,23 @@ $prefillConversation = (int) ($prefill_conversation_id ?? 0);
 $eligibleProfiles = is_array($eligible_profiles ?? null) ? $eligible_profiles : [];
 $selectedInviteeProfile = is_array($selected_invitee_profile ?? null) ? $selected_invitee_profile : [];
 $hasSelectedInvitee = $selectedInviteeProfile !== [] && (int) ($selectedInviteeProfile['id'] ?? 0) > 0;
+$selectedCapabilities = [
+    'can_standard' => true,
+    'can_verified_only' => (bool) ($selectedInviteeProfile['can_verified_only'] ?? false),
+    'can_premium_guard' => (bool) ($selectedInviteeProfile['can_premium_guard'] ?? false),
+];
+$safetyLevelOptions = [
+    'standard' => ['label' => 'Standard', 'available' => (bool) ($selectedCapabilities['can_standard'] ?? true)],
+    'verified_only' => ['label' => 'Apenas verificados', 'available' => (bool) ($selectedCapabilities['can_verified_only'] ?? false)],
+    'premium_guard' => ['label' => 'Premium Guard', 'available' => (bool) ($selectedCapabilities['can_premium_guard'] ?? false)],
+];
+$unavailableSafety = [];
+foreach ($safetyLevelOptions as $key => $cfg) {
+    if ($key === 'standard' || !empty($cfg['available'])) {
+        continue;
+    }
+    $unavailableSafety[] = (string) ($cfg['label'] ?? $key);
+}
 $statusLabels = [
     'proposed' => 'Proposto',
     'accepted' => 'Aceite',
@@ -37,8 +54,8 @@ $statusLabels = [
               $photoPath = (string) ($profile['profile_photo_path'] ?? '');
               $locationLabel = trim((string) (($profile['city_name'] ?? '') . (($profile['city_name'] ?? '') !== '' && ($profile['province_name'] ?? '') !== '' ? ' · ' : '') . ($profile['province_name'] ?? '')));
             ?>
-            <a class="text-decoration-none text-reset rd-eligible-card <?= $isSelected ? 'is-selected' : '' ?>" href="/dates?scope=<?= e($scope) ?>&invitee_user_id=<?= $profileId ?>">
-              <div class="d-flex gap-2 align-items-center">
+            <div class="rd-eligible-card <?= $isSelected ? 'is-selected' : '' ?>">
+              <div class="d-flex gap-2 align-items-center mb-2">
                 <?php if ($photoPath !== ''): ?>
                   <img src="<?= e(url($photoPath)) ?>" alt="foto de perfil" class="rd-eligible-card__photo">
                 <?php else: ?>
@@ -55,7 +72,11 @@ $statusLabels = [
                   </div>
                 </div>
               </div>
-            </a>
+              <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-rd-primary flex-fill" href="/dates?scope=<?= e($scope) ?>&invitee_user_id=<?= $profileId ?>">Selecionar</a>
+                <a class="btn btn-sm btn-rd-soft" href="/member/<?= $profileId ?>">Ver perfil</a>
+              </div>
+            </div>
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
@@ -79,6 +100,7 @@ $statusLabels = [
               <?php if ($selectedLocation !== ''): ?><div class="small text-muted"><?= e($selectedLocation) ?></div><?php endif; ?>
               <div class="d-flex flex-wrap gap-1 mt-1">
                 <?php if (!empty($selectedInviteeProfile['is_verified'])): ?><span class="rd-badge badge-verified">Verificado</span><?php endif; ?>
+                <?php if (!empty($selectedInviteeProfile['has_premium'])): ?><span class="rd-badge badge-premium">Premium</span><?php endif; ?>
                 <?php if (!empty($selectedInviteeProfile['match_active'])): ?><span class="rd-badge badge-active">Match activo</span><?php endif; ?>
                 <?php if (!empty($selectedInviteeProfile['accepted_invite'])): ?><span class="rd-badge badge-pending">Convite aceite</span><?php endif; ?>
                 <a class="rd-badge badge-active text-decoration-none" href="/member/<?= $selectedId ?>">Ver perfil</a>
@@ -92,7 +114,19 @@ $statusLabels = [
           <?php if ($prefillConversation > 0): ?><input type="hidden" name="conversation_id" value="<?= $prefillConversation ?>"><?php endif; ?>
           <div class="col-12"><label class="form-label small">Título</label><input name="title" class="form-control" maxlength="160" placeholder="Ex.: Café no fim de tarde" required></div>
           <div class="col-md-6"><label class="form-label small">Tipo</label><select name="meeting_type" class="form-select"><option value="coffee">Café</option><option value="lunch">Almoço</option><option value="dinner">Jantar</option><option value="walk">Passeio</option><option value="event">Evento</option><option value="video_call">Vídeo chamada</option><option value="other">Outro</option></select></div>
-          <div class="col-md-6"><label class="form-label small">Nível de segurança</label><select name="safety_level" class="form-select"><option value="standard">Standard</option><option value="verified_only">Apenas verificados</option><option value="premium_guard">Premium Guard</option></select></div>
+          <div class="col-md-6">
+            <label class="form-label small">Nível de segurança</label>
+            <select name="safety_level" class="form-select" data-safe-date-safety-level>
+              <?php foreach ($safetyLevelOptions as $value => $cfg): ?>
+                <option value="<?= e($value) ?>" <?= empty($cfg['available']) ? 'disabled' : '' ?>><?= e((string) ($cfg['label'] ?? $value)) ?><?= empty($cfg['available']) ? ' (indisponível para este par)' : '' ?></option>
+              <?php endforeach; ?>
+            </select>
+            <?php if ($unavailableSafety !== []): ?>
+              <div class="small text-muted mt-1" data-safe-date-safety-note>Neste par, os níveis indisponíveis são: <?= e(implode(', ', $unavailableSafety)) ?>.</div>
+            <?php else: ?>
+              <div class="small text-muted mt-1" data-safe-date-safety-note>Todos os níveis de segurança deste formulário estão disponíveis para este par.</div>
+            <?php endif; ?>
+          </div>
           <div class="col-12"><label class="form-label small">Local proposto</label><input name="proposed_location" class="form-control" maxlength="255" placeholder="Local público recomendado" required></div>
           <div class="col-12"><label class="form-label small">Data e hora</label><input name="proposed_datetime" class="form-control" type="datetime-local" required></div>
           <div class="col-12"><label class="form-label small">Nota</label><textarea name="note" class="form-control" maxlength="500" rows="2" placeholder="Mensagem opcional"></textarea></div>
@@ -127,7 +161,13 @@ $statusLabels = [
         <?php foreach ($items as $item): ?>
           <a href="/dates/<?= (int) $item['id'] ?>" class="text-decoration-none text-reset d-block border rounded-4 p-3 mb-2 rd-invite-card">
             <div class="d-flex justify-content-between align-items-start gap-2">
-              <div>
+              <div class="d-flex gap-2 align-items-start">
+                <?php if (!empty($item['counterpart_photo'])): ?>
+                  <img src="<?= e(url((string) $item['counterpart_photo'])) ?>" alt="foto contraparte" class="rd-eligible-card__photo">
+                <?php else: ?>
+                  <div class="rd-eligible-card__photo rd-eligible-card__photo--placeholder"><i class="fa-solid fa-user"></i></div>
+                <?php endif; ?>
+                <div>
                 <strong><?= e((string) ($item['title'] ?? 'Encontro Seguro')) ?></strong>
                 <div class="small text-muted">
                   com
@@ -135,6 +175,7 @@ $statusLabels = [
                   · <?= e((string) ($item['proposed_location'] ?? '')) ?>
                 </div>
                 <div class="small text-muted">Data ativa: <?= e((string) ($item['proposed_datetime'] ?? '')) ?> · Segurança: <?= e((string) ($item['safety_level'] ?? 'standard')) ?></div>
+                </div>
               </div>
               <span class="rd-badge badge-active"><?= e((string) ($statusLabels[(string) ($item['status'] ?? '')] ?? ($item['status'] ?? ''))) ?></span>
             </div>

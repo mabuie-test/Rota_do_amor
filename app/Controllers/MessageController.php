@@ -12,6 +12,7 @@ use App\Core\Response;
 use App\Services\DailyRouteEventBridge;
 use App\Services\MessageService;
 use App\Services\RateLimiterService;
+use App\Services\SafeDateService;
 use App\Services\UploadService;
 use RuntimeException;
 
@@ -21,7 +22,8 @@ final class MessageController extends Controller
         private readonly MessageService $service = new MessageService(),
         private readonly RateLimiterService $rateLimiter = new RateLimiterService(),
         private readonly UploadService $uploads = new UploadService(),
-        private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge()
+        private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge(),
+        private readonly SafeDateService $safeDates = new SafeDateService()
     )
     {
     }
@@ -46,6 +48,10 @@ final class MessageController extends Controller
             $activeContext = $this->service->getConversationContext($activeConversationId, $userId);
             $this->service->markAsDelivered($activeConversationId, $userId);
             $this->service->markAsRead($activeConversationId, $userId);
+            $otherUserId = (int) ($activeContext['other_user_id'] ?? 0);
+            $activeContext['can_propose_safe_date'] = $otherUserId > 0
+                ? !empty($this->safeDates->proposalContextForPair($userId, $otherUserId)['ok'])
+                : false;
         }
 
         $this->view('messages/index', [

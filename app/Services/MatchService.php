@@ -18,8 +18,26 @@ final class MatchService extends Model
 
     public function getUserMatches(int $userId): array
     {
-        $stmt = $this->db->prepare('SELECT * FROM matches WHERE status = :status AND (user_one_id = :id_one OR user_two_id = :id_two) ORDER BY matched_at DESC');
-        $stmt->execute([':status' => 'active', ':id_one' => $userId, ':id_two' => $userId]);
+        $stmt = $this->db->prepare(
+            "SELECT m.*,
+                    CASE WHEN m.user_one_id = :viewer_1 THEN m.user_two_id ELSE m.user_one_id END AS counterpart_id,
+                    CASE WHEN m.user_one_id = :viewer_2 THEN CONCAT(u2.first_name, ' ', u2.last_name) ELSE CONCAT(u1.first_name, ' ', u1.last_name) END AS counterpart_name,
+                    CASE WHEN m.user_one_id = :viewer_3 THEN u2.profile_photo_path ELSE u1.profile_photo_path END AS counterpart_photo
+             FROM matches m
+             JOIN users u1 ON u1.id = m.user_one_id
+             JOIN users u2 ON u2.id = m.user_two_id
+             WHERE m.status = :status
+               AND (m.user_one_id = :id_one OR m.user_two_id = :id_two)
+             ORDER BY m.matched_at DESC"
+        );
+        $stmt->execute([
+            ':viewer_1' => $userId,
+            ':viewer_2' => $userId,
+            ':viewer_3' => $userId,
+            ':status' => 'active',
+            ':id_one' => $userId,
+            ':id_two' => $userId,
+        ]);
         return $stmt->fetchAll();
     }
 
