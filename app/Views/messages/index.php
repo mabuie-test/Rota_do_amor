@@ -27,7 +27,10 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
     <?php if (!empty($context)): ?>
       <div class="small text-muted mb-2 p-2 border rounded bg-light-subtle"><strong><?= e($otherName) ?></strong> · <?= e($otherStatusLabel) ?></div>
       <div class="d-flex flex-wrap gap-2 mb-2">
-        <a class="btn btn-sm btn-rd-soft" href="/dates?invitee_user_id=<?= (int) $otherId ?>&conversation_id=<?= (int) $activeConversationId ?>">Propor Encontro Seguro</a>
+        <a class="btn btn-sm btn-rd-soft" href="/member/<?= (int) $otherId ?>">Ver perfil</a>
+        <?php if (!empty($context['can_propose_safe_date'])): ?>
+          <a class="btn btn-sm btn-outline-success" href="/dates?invitee_user_id=<?= (int) $otherId ?>&conversation_id=<?= (int) $activeConversationId ?>">Propor Encontro Seguro</a>
+        <?php endif; ?>
         <?php if ((int) ($context['active_safe_date_id'] ?? 0) > 0): ?>
           <a class="btn btn-sm btn-outline-primary" href="/dates/<?= (int) $context['active_safe_date_id'] ?>">Ver encontro #<?= (int) $context['active_safe_date_id'] ?></a>
         <?php endif; ?>

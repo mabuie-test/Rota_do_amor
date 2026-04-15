@@ -80,6 +80,15 @@ final class SafeDateService extends Model
             return [];
         }
 
+        $policy = $this->safeDatePremiumPolicy();
+        $viewerMeta = $this->fetchOne(
+            "SELECT EXISTS (SELECT 1 FROM identity_verifications iv WHERE iv.user_id = :viewer_id AND iv.status = 'approved' LIMIT 1) AS is_verified,
+                    EXISTS (SELECT 1 FROM premium_features pf WHERE pf.user_id = :viewer_id AND pf.status = 'active' AND pf.ends_at >= NOW() LIMIT 1) AS has_premium",
+            [':viewer_id' => $userId]
+        ) ?: [];
+        $viewerVerified = (int) ($viewerMeta['is_verified'] ?? 0) === 1;
+        $viewerPremium = (int) ($viewerMeta['has_premium'] ?? 0) === 1;
+
         $candidates = $this->fetchAllRows(
             "SELECT u.id,
                     u.first_name,
@@ -99,6 +108,67 @@ final class SafeDateService extends Model
             [':viewer_id' => $userId]
         );
 
+        if ($candidates === []) {
+            return [];
+        }
+
+        $candidateIds = [];
+        foreach ($candidates as $candidate) {
+            $candidateId = (int) ($candidate['id'] ?? 0);
+            if ($candidateId > 0) {
+                $candidateIds[] = $candidateId;
+            }
+        }
+        if ($candidateIds === []) {
+            return [];
+        }
+
+        $openDateMap = $this->pairIdSet(
+            "SELECT CASE WHEN initiator_user_id = ? THEN invitee_user_id ELSE initiator_user_id END AS other_user_id
+             FROM safe_dates
+             WHERE status IN ('proposed','accepted','reschedule_requested','rescheduled')
+               AND (initiator_user_id = ? OR invitee_user_id = ?)
+               AND (initiator_user_id IN (%s) OR invitee_user_id IN (%s))",
+            $userId,
+            $candidateIds
+        );
+        $matchMap = $this->pairIdSet(
+            "SELECT CASE WHEN user_one_id = ? THEN user_two_id ELSE user_one_id END AS other_user_id
+             FROM matches
+             WHERE status = 'active'
+               AND (user_one_id = ? OR user_two_id = ?)
+               AND (user_one_id IN (%s) OR user_two_id IN (%s))",
+            $userId,
+            $candidateIds
+        );
+        $acceptedInviteMap = $this->pairIdSet(
+            "SELECT CASE WHEN sender_user_id = ? THEN receiver_user_id ELSE sender_user_id END AS other_user_id
+             FROM connection_invites
+             WHERE status = 'accepted'
+               AND (sender_user_id = ? OR receiver_user_id = ?)
+               AND (sender_user_id IN (%s) OR receiver_user_id IN (%s))",
+            $userId,
+            $candidateIds
+        );
+        $conversationMap = $this->pairValueMap(
+            "SELECT CASE WHEN user_one_id = ? THEN user_two_id ELSE user_one_id END AS other_user_id,
+                    id AS conversation_id
+             FROM conversations
+             WHERE (user_one_id = ? OR user_two_id = ?)
+               AND (user_one_id IN (%s) OR user_two_id IN (%s))",
+            $userId,
+            $candidateIds,
+            'conversation_id'
+        );
+        $blockedMap = $this->pairIdSet(
+            "SELECT CASE WHEN actor_user_id = ? THEN target_user_id ELSE actor_user_id END AS other_user_id
+             FROM blocks
+             WHERE (actor_user_id = ? OR target_user_id = ?)
+               AND (actor_user_id IN (%s) OR target_user_id IN (%s))",
+            $userId,
+            $candidateIds
+        );
+
         $eligible = [];
         foreach ($candidates as $candidate) {
             $inviteeId = (int) ($candidate['id'] ?? 0);
@@ -106,19 +176,25 @@ final class SafeDateService extends Model
                 continue;
             }
 
-            $pairEligibility = $this->validatePairEligibility($userId, $inviteeId, 'standard');
-            if (empty($pairEligibility['ok'])) {
+            if (isset($blockedMap[$inviteeId])) {
                 continue;
             }
 
-            if ($this->hasOpenDateBetween($userId, $inviteeId)) {
+            if (isset($openDateMap[$inviteeId])) {
                 continue;
             }
 
-            $relationship = $this->relationshipSnapshot($userId, $inviteeId);
-            if (empty($relationship['eligible'])) {
+            $hasMatch = isset($matchMap[$inviteeId]);
+            $hasAcceptedInvite = isset($acceptedInviteMap[$inviteeId]);
+            if (!$hasMatch && !$hasAcceptedInvite) {
                 continue;
             }
+
+            $inviteeVerified = (int) ($candidate['is_verified'] ?? 0) === 1;
+            $canVerifiedOnly = !empty($policy['verified_only_requires_identity'])
+                ? ($viewerVerified && $inviteeVerified)
+                : true;
+            $canPremiumGuard = !empty($policy['premium_guard_enabled']) && $viewerPremium;
 
             $eligible[] = [
                 'id' => $inviteeId,
@@ -126,11 +202,14 @@ final class SafeDateService extends Model
                 'profile_photo_path' => (string) ($candidate['profile_photo_path'] ?? ''),
                 'city_name' => (string) ($candidate['city_name'] ?? ''),
                 'province_name' => (string) ($candidate['province_name'] ?? ''),
-                'is_verified' => (int) ($candidate['is_verified'] ?? 0) === 1,
+                'is_verified' => $inviteeVerified,
                 'has_premium' => (int) ($candidate['has_premium'] ?? 0) === 1,
-                'match_active' => (bool) ($relationship['match_active'] ?? false),
-                'accepted_invite' => (bool) ($relationship['accepted_invite'] ?? false),
-                'conversation_id' => (int) ($relationship['conversation_id'] ?? 0),
+                'match_active' => $hasMatch,
+                'accepted_invite' => $hasAcceptedInvite,
+                'conversation_id' => (int) ($conversationMap[$inviteeId] ?? 0),
+                'can_standard' => true,
+                'can_verified_only' => $canVerifiedOnly,
+                'can_premium_guard' => $canPremiumGuard,
             ];
         }
 
@@ -159,7 +238,22 @@ final class SafeDateService extends Model
             'accepted_invite' => (bool) ($relationship['accepted_invite'] ?? false),
             'conversation_id' => (int) ($relationship['conversation_id'] ?? 0),
             'match_id' => (int) ($relationship['match_id'] ?? 0),
+            'safety_capabilities' => $this->safetyCapabilitiesForPair($initiatorId, $inviteeId),
         ];
+    }
+
+    public function eligibleInviteeIdMapForUser(int $userId): array
+    {
+        $profiles = $this->eligibleProfilesForUser($userId);
+        $map = [];
+        foreach ($profiles as $profile) {
+            $profileId = (int) ($profile['id'] ?? 0);
+            if ($profileId > 0) {
+                $map[$profileId] = true;
+            }
+        }
+
+        return $map;
     }
 
     public function detailForUser(int $safeDateId, int $userId): array
@@ -1176,6 +1270,87 @@ final class SafeDateService extends Model
             'users' => $users,
             'audit_events' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM activity_logs WHERE target_type = :target_type AND target_id = :target_id', [':target_type' => 'safe_date', ':target_id' => $safeDateId])['c'] ?? 0),
         ];
+    }
+
+    private function safetyCapabilitiesForPair(int $initiatorId, int $inviteeId): array
+    {
+        $policy = $this->safeDatePremiumPolicy();
+        $canVerifiedOnly = true;
+        if (!empty($policy['verified_only_requires_identity'])) {
+            $canVerifiedOnly = $this->isIdentityVerified($initiatorId) && $this->isIdentityVerified($inviteeId);
+        }
+
+        return [
+            'can_standard' => true,
+            'can_verified_only' => $canVerifiedOnly,
+            'can_premium_guard' => !empty($policy['premium_guard_enabled']) && $this->premium->userHasPremium($initiatorId),
+        ];
+    }
+
+    private function pairIdSet(string $sqlTemplate, int $userId, array $candidateIds): array
+    {
+        if ($candidateIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($candidateIds), '?'));
+        $sql = sprintf($sqlTemplate, $placeholders, $placeholders);
+        $stmt = $this->db->prepare($sql);
+        $index = 1;
+        $stmt->bindValue($index++, $userId, \PDO::PARAM_INT);
+        $stmt->bindValue($index++, $userId, \PDO::PARAM_INT);
+        $stmt->bindValue($index++, $userId, \PDO::PARAM_INT);
+        foreach ($candidateIds as $candidateId) {
+            $stmt->bindValue($index++, (int) $candidateId, \PDO::PARAM_INT);
+        }
+        foreach ($candidateIds as $candidateId) {
+            $stmt->bindValue($index++, (int) $candidateId, \PDO::PARAM_INT);
+        }
+        $stmt->execute();
+
+        $map = [];
+        foreach (($stmt->fetchAll() ?: []) as $row) {
+            $otherUserId = (int) ($row['other_user_id'] ?? 0);
+            if ($otherUserId > 0) {
+                $map[$otherUserId] = true;
+            }
+        }
+
+        return $map;
+    }
+
+    private function pairValueMap(string $sqlTemplate, int $userId, array $candidateIds, string $valueKey): array
+    {
+        if ($candidateIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($candidateIds), '?'));
+        $sql = sprintf($sqlTemplate, $placeholders, $placeholders);
+        $stmt = $this->db->prepare($sql);
+        $index = 1;
+        $stmt->bindValue($index++, $userId, \PDO::PARAM_INT);
+        $stmt->bindValue($index++, $userId, \PDO::PARAM_INT);
+        $stmt->bindValue($index++, $userId, \PDO::PARAM_INT);
+        foreach ($candidateIds as $candidateId) {
+            $stmt->bindValue($index++, (int) $candidateId, \PDO::PARAM_INT);
+        }
+        foreach ($candidateIds as $candidateId) {
+            $stmt->bindValue($index++, (int) $candidateId, \PDO::PARAM_INT);
+        }
+        $stmt->execute();
+
+        $map = [];
+        foreach (($stmt->fetchAll() ?: []) as $row) {
+            $otherUserId = (int) ($row['other_user_id'] ?? 0);
+            if ($otherUserId <= 0) {
+                continue;
+            }
+
+            $map[$otherUserId] = (int) ($row[$valueKey] ?? 0);
+        }
+
+        return $map;
     }
 
     private function adminDailyTrend(int $windowDays): array

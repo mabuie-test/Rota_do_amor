@@ -308,6 +308,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const safetyLevelSelect = document.querySelector('[data-safe-date-safety-level]');
+  if (safetyLevelSelect) {
+    const ensureEnabledOption = () => {
+      const selectedOption = safetyLevelSelect.options[safetyLevelSelect.selectedIndex];
+      if (selectedOption && !selectedOption.disabled) {
+        return;
+      }
+
+      const firstEnabled = Array.from(safetyLevelSelect.options).find((option) => !option.disabled);
+      if (firstEnabled) {
+        safetyLevelSelect.value = firstEnabled.value;
+      }
+    };
+
+    ensureEnabledOption();
+    safetyLevelSelect.addEventListener('change', ensureEnabledOption);
+  }
+
   document.querySelectorAll('.duel-action-btn').forEach((button) => {
     button.addEventListener('click', async () => {
       button.disabled = true;

@@ -11,12 +11,14 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Services\ConnectionInviteService;
 use App\Services\DailyRouteEventBridge;
+use App\Services\SafeDateService;
 
 final class ConnectionInviteController extends Controller
 {
     public function __construct(
         private readonly ConnectionInviteService $service = new ConnectionInviteService(),
-        private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge()
+        private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge(),
+        private readonly SafeDateService $safeDates = new SafeDateService()
     )
     {
     }
@@ -37,6 +39,7 @@ final class ConnectionInviteController extends Controller
             'invites' => $listing['items'],
             'pagination' => $listing['pagination'],
             'filters' => $filters,
+            'safe_date_eligible_map' => $this->safeDates->eligibleInviteeIdMapForUser($userId),
         ]);
     }
 

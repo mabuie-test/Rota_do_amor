@@ -27,18 +27,31 @@
 </form>
 
 <div class="row g-3">
+  <?php $safeDateEligibleMap = is_array($safe_date_eligible_map ?? null) ? $safe_date_eligible_map : []; ?>
   <?php if (empty($invites)): ?>
     <div class="col-12"><?php $title='Sem convites por enquanto'; $description='Quando alguém demonstrar interesse qualificado, você verá aqui.'; require dirname(__DIR__) . '/partials/empty-state.php'; ?></div>
   <?php endif; ?>
 
   <?php foreach ($invites as $invite): ?>
+    <?php
+      $senderId = (int) ($invite['sender_user_id'] ?? 0);
+      $senderPhoto = (string) ($invite['sender_photo'] ?? '');
+      $canProposeSafeDate = $senderId > 0 && !empty($safeDateEligibleMap[$senderId]);
+    ?>
     <div class="col-lg-6">
       <div class="rd-card h-100 rd-invite-card">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-            <div>
-              <div class="fw-semibold fs-5"><?= e((string) ($invite['sender_name'] ?? 'Perfil')) ?></div>
+            <div class="d-flex gap-2 align-items-center">
+              <?php if ($senderPhoto !== ''): ?>
+                <img src="<?= e(url($senderPhoto)) ?>" alt="foto remetente" class="rd-eligible-card__photo">
+              <?php else: ?>
+                <div class="rd-eligible-card__photo rd-eligible-card__photo--placeholder"><i class="fa-solid fa-user"></i></div>
+              <?php endif; ?>
+              <div>
+              <div class="fw-semibold fs-5"><a href="/member/<?= $senderId ?>" class="text-decoration-none"><?= e((string) ($invite['sender_name'] ?? 'Perfil')) ?></a></div>
               <div class="small text-muted">Compatibilidade no envio: <strong><?= (float) ($invite['compatibility_score_snapshot'] ?? 0) ?>%</strong></div>
+              </div>
             </div>
             <?php if (!empty($invite['is_priority'])): ?><span class="rd-badge badge-premium"><i class="fa-solid fa-crown"></i>Prioritário</span><?php endif; ?>
           </div>
@@ -59,6 +72,13 @@
             Estado: <strong><?= e((string) ($invite['status'] ?? 'pending')) ?></strong>
             · recebido em <?= e((string) ($invite['created_at'] ?? '')) ?>
             <?php if (!empty($invite['responded_at'])): ?> · respondido em <?= e((string) $invite['responded_at']) ?><?php endif; ?>
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <a href="/member/<?= $senderId ?>" class="btn btn-sm btn-rd-soft">Ver perfil</a>
+            <?php if ($canProposeSafeDate): ?>
+              <a href="/dates?invitee_user_id=<?= $senderId ?>" class="btn btn-sm btn-outline-success">Propor Encontro Seguro</a>
+            <?php endif; ?>
           </div>
 
           <?php if (!empty($invite['is_pending'])): ?>
