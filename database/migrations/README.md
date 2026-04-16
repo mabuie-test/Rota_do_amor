@@ -2,13 +2,11 @@
 
 Desde **2026-04-15**, o ficheiro `database/schema.sql` é o snapshot autoritativo para **instalações novas**.
 
-## Como interpretar as migrations existentes
+## Política operacional (curta)
 
-- As migrations em `database/migrations/*.sql` permanecem no repositório como histórico e para upgrades de bases legadas.
-- Para uma instalação limpa, **não** é necessário executar a cadeia histórica de migrations: basta importar `database/schema.sql`.
-- Migrations com lógica de normalização/backfill (ex.: merge de pares antigos em `matches`/`conversations`, ajustes de `rate_limit_key`) continuam úteis apenas para bases já em produção com dados antigos.
-
-## Regra daqui para frente
-
-- Alterações estruturais novas devem atualizar o `database/schema.sql` para manter a base autoritativa consolidada.
-- Se necessário para ambientes legados, uma migration incremental correspondente pode ser adicionada em paralelo.
+- **Instalação nova:** importar apenas `database/schema.sql`.
+- **Base legada existente:** aplicar migrations incrementais necessárias em `database/migrations/*.sql`.
+- Migrations com backfill/correções históricas **não** devem ser executadas numa base nova.
+- Qualquer alteração estrutural futura deve atualizar **em paralelo**:
+  1. `database/schema.sql` (fonte de verdade para novos ambientes)
+  2. migration incremental (apenas quando necessário para upgrade de legados).

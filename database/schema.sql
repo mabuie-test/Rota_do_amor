@@ -1024,6 +1024,7 @@ INSERT INTO site_settings (setting_key, setting_value, value_type, updated_at) V
 ('boost_duration_hours', '24', 'int', NOW()),
 ('email_verification_required', 'true', 'bool', NOW()),
 ('allow_chat_only_after_match', 'true', 'bool', NOW()),
+('invites_expiration_days', '7', 'int', NOW()),
 ('safe_dates_premium_guard_enabled', 'true', 'bool', NOW()),
 ('safe_dates_free_daily_limit', '5', 'int', NOW()),
 ('safe_dates_premium_daily_limit', '10', 'int', NOW()),
@@ -1064,7 +1065,9 @@ ON DUPLICATE KEY UPDATE
   value_type = VALUES(value_type),
   updated_at = VALUES(updated_at);
 
--- Admin inicial (idempotente). Recomenda-se trocar password após o primeiro login.
+-- Admin inicial (idempotente, apenas bootstrap de instalação nova).
+-- Credencial inicial prevista: admin@rotadoamor.mz / Admin@123. Trocar imediatamente após primeiro login.
+-- ON DUPLICATE KEY UPDATE NÃO altera email/password para evitar sobrescrita acidental em reimportações.
 INSERT INTO admins (name, email, password, role, status, created_at, updated_at)
 VALUES (
   'Super Admin',
