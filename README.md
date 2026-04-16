@@ -38,11 +38,9 @@ Plataforma premium de relacionamentos para Moçambique construída com **PHP 8+*
    cp .env.example .env
    ```
 4. Ajuste variáveis no `.env` (DB, Débito API, SMTP e pricing).
-5. Crie e popule a BD (instalação nova já fica alinhada com o estado atual do código):
+5. Crie e popule a BD (instalação nova):
    ```bash
    mysql -u root -p < database/schema.sql
-   mysql -u root -p < database/mozambique_locations.sql
-   mysql -u root -p < database/seed.sql
    ```
 6. **Apenas para instâncias antigas** já existentes antes desta consolidação, aplique migrações incrementais:
    ```bash
@@ -224,9 +222,10 @@ A segunda migração adiciona:
 - metadados e ordenação de mídia em `post_images`;
 - tabela `message_attachments` para anexos de conversa.
 
-## Credenciais admin seed
+## Credenciais admin seed (bootstrap)
 - Email: `admin@rotadoamor.mz`
-- Senha inicial: `Admin@123` (altere imediatamente)
+- Senha inicial: `Admin@123`
+- Política: trocar imediatamente no primeiro acesso; reimportações do schema não sobrescrevem password/email do admin existente.
 
 ## Estrutura resumida
 - `app/Core`: núcleo MVC
@@ -234,7 +233,7 @@ A segunda migração adiciona:
 - `app/Services`: regras de negócio e integrações externas
 - `app/Models`: modelos/entidades
 - `app/Views`: interface web
-- `database/`: schema, seeds e migrações
+- `database/`: schema autoritativo e migrações históricas
 - `scripts/`: automações operacionais
 
 
