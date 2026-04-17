@@ -1,10 +1,11 @@
 <div class="row justify-content-center">
-  <div class="col-xl-9">
-    <div class="rd-card fade-in">
+  <div class="col-xl-10">
+    <div class="rd-card rd-auth-card fade-in">
       <div class="card-body p-4 p-md-5">
+        <span class="rd-kicker mb-2"><i class="fa-solid fa-gem"></i>Onboarding premium</span>
         <h3 class="mb-2"><i class="fa-solid fa-sparkles me-2 text-primary"></i>Criar Conta</h3>
-        <p class="text-muted mb-4">Preencha seus dados para iniciar sua jornada no Rota do Amor.</p>
-        <form method="post" action="<?= e(url('register')) ?>" class="row g-3">
+        <p class="text-muted mb-4">Preencha os dados para iniciar uma jornada relacional com intenção e segurança.</p>
+        <form method="post" action="<?= e(url('register')) ?>" class="row g-3" data-enhanced-submit>
           <?= csrf_field() ?>
           <div class="col-md-6 input-icon-wrap"><i class="fa-regular fa-user"></i><input class="form-control" name="first_name" placeholder="Nome" required></div>
           <div class="col-md-6 input-icon-wrap"><i class="fa-regular fa-user"></i><input class="form-control" name="last_name" placeholder="Apelido" required></div>
@@ -15,7 +16,7 @@
           <div class="col-md-4"><select class="form-select" name="relationship_goal" required><option value="friendship">Amizade</option><option value="dating">Namoro</option><option value="marriage">Casamento</option></select></div>
 
           <div class="col-md-6">
-            <label for="provinceSelect" class="form-label small fw-semibold">Província</label>
+            <label for="provinceSelect" class="form-label small fw-semibold"><i class="fa-solid fa-map-location-dot me-1"></i>Província</label>
             <select class="form-select" name="province_id" id="provinceSelect" required>
               <option value="">Selecione a província</option>
               <?php foreach (($provinces ?? []) as $province): ?>
@@ -24,7 +25,7 @@
             </select>
           </div>
           <div class="col-md-6">
-            <label for="citySelect" class="form-label small fw-semibold">Cidade</label>
+            <label for="citySelect" class="form-label small fw-semibold"><i class="fa-solid fa-location-dot me-1"></i>Cidade</label>
             <select class="form-select" name="city_id" id="citySelect" required disabled>
               <option value="">Selecione a cidade</option>
               <?php foreach (($cities ?? []) as $city): ?>
