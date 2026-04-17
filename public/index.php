@@ -5,20 +5,12 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/vendor/autoload.php';
 require dirname(__DIR__) . '/app/Core/Helpers.php';
 
-$env = dirname(__DIR__) . '/.env';
-if (is_file($env)) {
-    $lines = file($env, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (str_starts_with(trim($line), '#') || !str_contains($line, '=')) {
-            continue;
-        }
-        [$k, $v] = explode('=', $line, 2);
-        $key = trim($k);
-        $value = trim($v);
-        $value = trim($value, "\"'");
-        $_ENV[$key] = $value;
-    }
-}
+use App\Core\App;
+use App\Core\Bootstrap;
 
-$app = new App\Core\App();
+$basePath = dirname(__DIR__);
+Bootstrap::loadEnvironment($basePath);
+Bootstrap::configureTimezone();
+
+$app = new App();
 $app->run();

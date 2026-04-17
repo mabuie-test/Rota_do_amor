@@ -73,7 +73,13 @@ Preços e regras de negócio são carregados por ambiente (sem hardcode operacio
 - `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES`
 - `EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS`
 - `APP_URL` (base pública usada em links transacionais, ex.: `http://127.0.0.1:8000`)
+- `APP_TIMEZONE` (timezone global da aplicação; fallback seguro: `Africa/Maputo`)
 - `UPLOAD_MAX_IMAGE_SIZE` (bytes, default 5242880)
+
+### Timezone global (Maputo)
+- Bootstrap web (`public/index.php`) e scripts CLI (`scripts/bootstrap.php`) aplicam timezone de forma centralizada via `App\Core\Bootstrap::configureTimezone()`.
+- O timezone lê `APP_TIMEZONE` quando definido e valida contra `timezone_identifiers_list()`.
+- Em ausência/valor inválido, o fallback aplicado é sempre `Africa/Maputo` para coerência temporal transversal (dashboard, mensagens, notificações, safe dates, relatórios e logs).
 
 ## Débito API (M-Pesa)
 Configurar:
