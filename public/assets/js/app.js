@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const qs = new URLSearchParams(window.location.search);
+  document.body.classList.add('js-ready');
 
   const showInlineFeedback = (container, message, kind = 'info') => {
     if (!container) return;
@@ -31,6 +32,20 @@ document.addEventListener('DOMContentLoaded', () => {
       button.classList.add('btn-rd-primary');
       setTimeout(() => button.classList.remove('btn-rd-primary'), 500);
     });
+  });
+
+  document.querySelectorAll('[data-enhanced-submit]').forEach((form) => {
+    form.addEventListener('submit', () => {
+      const submitButton = form.querySelector('button[type="submit"], button:not([type])');
+      if (submitButton) {
+        submitButton.classList.add('is-submitting');
+      }
+    });
+  });
+
+  document.querySelectorAll('.rd-card').forEach((card) => {
+    card.addEventListener('mouseenter', () => card.classList.add('is-hovered'));
+    card.addEventListener('mouseleave', () => card.classList.remove('is-hovered'));
   });
 
   const navbar = document.querySelector('.navbar');

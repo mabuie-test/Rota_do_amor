@@ -856,3 +856,237 @@ a, .btn, .form-control, .form-select, .navbar-toggler {
   object-fit: cover;
   border: 1px solid #ead6dd;
 }
+
+/* === Rota do Amor 2.0 rebrand layer === */
+:root {
+  --rd-primary: #6B2145;
+  --rd-secondary: #A53E6A;
+  --rd-accent: #D9B574;
+  --rd-highlight: #3C7FA6;
+  --rd-bg: #F4F0F4;
+  --rd-surface: #FFFFFF;
+  --rd-surface-alt: #F9F5F8;
+  --rd-text: #201824;
+  --rd-muted: #6B6070;
+  --rd-border: #E6DCE3;
+  --rd-success: #1C8F66;
+  --rd-warning: #D1983B;
+  --rd-danger: #B53E58;
+  --rd-shadow: 0 18px 42px rgba(32, 12, 26, 0.12);
+  --rd-shadow-strong: 0 24px 52px rgba(26, 10, 21, 0.19);
+}
+
+body {
+  font-family: 'Manrope', sans-serif;
+  background:
+    radial-gradient(circle at 8% 10%, rgba(165, 62, 106, 0.10), transparent 24%),
+    radial-gradient(circle at 95% 78%, rgba(60, 127, 166, 0.10), transparent 30%),
+    linear-gradient(180deg, #f6f2f6 0%, #f2edf2 100%);
+  color: var(--rd-text);
+}
+
+h1, h2, h3, h4, h5, h6, .rd-serif, .rd-navbar .navbar-brand {
+  font-family: 'Playfair Display', serif;
+  letter-spacing: .01em;
+}
+
+.rd-topbar {
+  background: linear-gradient(90deg, #2a1a29, #4d2440 62%, #6b2145);
+  border-bottom: 1px solid rgba(255,255,255,.12);
+}
+
+.rd-navbar {
+  background: linear-gradient(132deg, #3f1f3a 0%, #6B2145 58%, #8f355b 100%);
+  box-shadow: 0 10px 32px rgba(20, 8, 17, .3);
+}
+
+.rd-navbar .nav-link {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.03);
+}
+
+.rd-navbar .nav-link:hover,
+.rd-navbar .nav-link.active {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.26);
+}
+
+.rd-footer {
+  background: linear-gradient(130deg, #1b121b, #2a1626 40%, #301a2d);
+}
+
+.main-shell {
+  width: min(1280px, calc(100% - 1rem));
+}
+
+.rd-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  font-weight: 700;
+  font-size: .73rem;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: #5f2341;
+  background: linear-gradient(120deg, #f6e9ef, #fdf7e9);
+  border: 1px solid #e6d6de;
+  border-radius: 999px;
+  padding: .35rem .68rem;
+}
+
+.rd-hero-shell {
+  border-radius: 28px;
+  background: linear-gradient(140deg, #54253f 0%, #6B2145 55%, #87526a 100%);
+  color: #f9edf3;
+  box-shadow: var(--rd-shadow-strong);
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+.rd-hero-shell .lead { color: #f5ddea; }
+.rd-hero-shell .btn-outline-light { border-color: rgba(255,255,255,.45); }
+
+.rd-step-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  background: linear-gradient(120deg, #f5e7ed, #fff7e8);
+  color: #6B2145;
+  border: 1px solid #ecd8e1;
+}
+
+.rd-card {
+  border: 1px solid var(--rd-border);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff, var(--rd-surface-alt));
+  box-shadow: var(--rd-shadow);
+}
+
+.rd-card-premium {
+  background: linear-gradient(160deg, #fff, #fbf1f6 55%, #fff6ea);
+}
+
+.rd-auth-card {
+  max-width: 920px;
+  margin-inline: auto;
+}
+
+.btn-rd-primary {
+  background: linear-gradient(120deg, #6B2145, #A53E6A 70%, #bf5d84);
+  box-shadow: 0 10px 26px rgba(107, 33, 69, .3);
+}
+
+.btn-rd-soft {
+  background: #f7ecf2;
+  color: #5f2341;
+  border-color: #e9d4df;
+}
+
+.form-control,
+.form-select {
+  border: 1px solid #ddcfda;
+  background: #fff;
+}
+.form-control:focus, .form-select:focus {
+  border-color: #a53e6a;
+  box-shadow: 0 0 0 .2rem rgba(165, 62, 106, .16);
+}
+
+.rd-page-header__icon {
+  background: linear-gradient(150deg, #f3e8ee, #fff8ea);
+  color: #6B2145;
+}
+
+.rd-page-header__subtitle,
+.rd-supporting-text,
+.rd-meta-text {
+  color: var(--rd-muted);
+}
+
+.rd-chat-bubble--mine {
+  background: linear-gradient(120deg, #5f2341, #8f355b);
+}
+
+.rd-chat-bubble--other {
+  background: #fff;
+  border: 1px solid #e7dae3;
+}
+
+.rd-metric-card {
+  border: 1px solid #e8dce3;
+  background: linear-gradient(180deg, #fff, #f8f2f6);
+}
+
+.rd-metric-card__value {
+  color: #541f3b;
+}
+
+.rd-table-shell .table thead th {
+  background: #f8edf3;
+  color: #5d4454;
+}
+
+.admin-sidebar {
+  background: linear-gradient(180deg, #171119 0%, #1f1420 52%, #261828 100%);
+  border: 1px solid rgba(255,255,255,.08);
+}
+
+.admin-sidebar a.active {
+  background: linear-gradient(120deg, rgba(165,62,106,.36), rgba(78,118,170,.25));
+}
+
+.module-discover .rd-page-header__icon,
+.module-discover .rd-heart-chip {
+  border-color: #f1d9ce;
+  background: linear-gradient(130deg, #fff2eb, #fff8f2);
+  color: #8a3f2a;
+}
+
+.module-messages .rd-chat-shell,
+.module-messages .rd-form-section {
+  border-color: #d9dfec;
+  background: linear-gradient(180deg, #ffffff, #f5f8fc);
+}
+
+.module-intention .rd-card,
+.module-intention .rd-heart-mode-card {
+  background: linear-gradient(165deg, #fff, #f7f1fa 56%, #fef8f2);
+}
+
+.module-safety .rd-page-header__icon,
+.module-safety .rd-badge.badge-active {
+  background: linear-gradient(160deg, #eaf4f8, #f4f9fb);
+  color: #1f5f7f;
+  border-color: #cfe2ea;
+}
+
+.module-diary .rd-card,
+.module-diary .rd-form-section {
+  background: linear-gradient(180deg, #fff, #f9f5fb);
+}
+
+.module-retention .rd-page-header__icon {
+  background: linear-gradient(150deg, #fef0e8, #fff8ea);
+  color: #8a4b2a;
+}
+
+.module-admin .rd-page-header__icon {
+  background: linear-gradient(150deg, #efe8f8, #edf3fc);
+  color: #3e2c66;
+}
+
+@media (max-width: 767px) {
+  .rd-hero-shell { border-radius: 20px; }
+  .rd-page-header__title { font-size: 1.5rem; }
+}
+
+.js-ready .rd-card {
+  transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease;
+}
+
+.js-ready .rd-card.is-hovered {
+  transform: translateY(-3px);
+  border-color: #d5bfd0;
+  box-shadow: 0 24px 50px rgba(34, 10, 25, 0.16);
+}
