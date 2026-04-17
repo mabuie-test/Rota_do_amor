@@ -212,6 +212,16 @@ final class FeedService extends Model
         return $this->availability->activate($userId, $type, $durationMinutes);
     }
 
+    public function activeAvailabilityForUser(int $userId): ?array
+    {
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $map = $this->availability->loadActiveForUsers([$userId]);
+        return $map[$userId] ?? null;
+    }
+
     public function getFeedPrompts(): array
     {
         return $this->prompts->listActivePrompts();
@@ -300,24 +310,15 @@ final class FeedService extends Model
         $offset = ($page - 1) * $perPage;
         $tab = $this->ranking->normalizeTab($tab);
 
-        $conditions = ["p.status='active'"];
-        if ($tab === FeedRankingService::TAB_NEARBY) {
-            $conditions[] = '(u.city_id = vu.city_id OR u.province_id = vu.province_id)';
-        } elseif ($tab === FeedRankingService::TAB_SAME_INTENTION) {
-            $conditions[] = 'viewer_mode.current_intention IS NOT NULL AND author_mode.current_intention = viewer_mode.current_intention';
-        }
-
-        $where = implode(' AND ', $conditions);
+        $scope = $this->buildFeedScope($tab);
+        $where = $scope['where'];
         $orderBy = $this->ranking->orderByForTab($tab);
         $countRow = $this->fetchOne(
             "SELECT COUNT(*) AS total
              FROM posts p
-             JOIN users u ON u.id = p.user_id
-             LEFT JOIN users vu ON vu.id = :viewer_count
-             LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
-             LEFT JOIN user_connection_modes viewer_mode ON viewer_mode.user_id = :viewer_mode_count
+             {$scope['joins']}
              WHERE $where",
-            [':viewer_count' => $userId, ':viewer_mode_count' => $userId]
+            [':viewer_user' => $userId]
         ) ?: ['total' => 0];
         $total = (int) ($countRow['total'] ?? 0);
 
@@ -362,12 +363,10 @@ final class FeedService extends Model
                          (CASE WHEN p.post_mood IS NOT NULL AND p.post_mood <> '' THEN 20 ELSE 0 END)
                          + (CASE WHEN author_mode.relational_pace = viewer_mode.relational_pace THEN 16 ELSE 0 END)
                          + (CASE WHEN p.relational_phase IS NOT NULL AND p.relational_phase <> '' THEN 14 ELSE 0 END)
-                       ) AS vibe_score
+                       ) AS vibe_score,
+                       activity.last_activity_at
                 FROM posts p
-                JOIN users u ON u.id = p.user_id
-                LEFT JOIN users vu ON vu.id = :viewer
-                LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
-                LEFT JOIN user_connection_modes viewer_mode ON viewer_mode.user_id = :viewer_mode
+                {$scope['joins']}
                 LEFT JOIN compatibility_scores cs ON cs.user_id = :viewer_comp AND cs.target_user_id = p.user_id
                 LEFT JOIN (
                     SELECT user_id, MAX(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS is_verified
@@ -377,6 +376,19 @@ final class FeedService extends Model
                 LEFT JOIN (SELECT user_id, COUNT(*) AS interests_count FROM user_interests GROUP BY user_id) ui ON ui.user_id = u.id
                 LEFT JOIN (SELECT user_id, 1 AS has_preferences FROM user_preferences GROUP BY user_id) up ON up.user_id = u.id
                 LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_active_premium FROM premium_features GROUP BY user_id) pf ON pf.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, MAX(activity_at) AS last_activity_at
+                    FROM (
+                        SELECT user_id, MAX(created_at) AS activity_at FROM posts GROUP BY user_id
+                        UNION ALL
+                        SELECT user_id, MAX(created_at) AS activity_at FROM post_comments GROUP BY user_id
+                        UNION ALL
+                        SELECT user_id, MAX(created_at) AS activity_at FROM post_reactions GROUP BY user_id
+                        UNION ALL
+                        SELECT user_id, MAX(created_at) AS activity_at FROM post_likes GROUP BY user_id
+                    ) activity_stream
+                    GROUP BY user_id
+                ) activity ON activity.user_id = u.id
                 LEFT JOIN (SELECT post_id, COUNT(*) AS likes_count FROM post_likes GROUP BY post_id) pl ON pl.post_id = p.id
                 LEFT JOIN (SELECT post_id, COUNT(*) AS comments_count FROM post_comments GROUP BY post_id) pc ON pc.post_id = p.id
                 LEFT JOIN (SELECT post_id, COUNT(*) AS images_count, MIN(image_path) AS first_image_path, MIN(thumbnail_path) AS first_thumbnail_path FROM post_images GROUP BY post_id) pi ON pi.post_id = p.id
@@ -389,8 +401,7 @@ final class FeedService extends Model
                 LIMIT :limit OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':viewer', $userId, \PDO::PARAM_INT);
-        $stmt->bindValue(':viewer_mode', $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(':viewer_user', $userId, \PDO::PARAM_INT);
         $stmt->bindValue(':viewer_comp', $userId, \PDO::PARAM_INT);
         $stmt->bindValue(':viewer_like', $userId, \PDO::PARAM_INT);
         $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
@@ -461,6 +472,8 @@ final class FeedService extends Model
             $hasPreferences = (int) ($item['has_preferences'] ?? 0) === 1;
             $isVerified = (int) ($item['author_verified'] ?? 0) === 1;
             $isPremium = in_array((string) ($item['author_premium'] ?? 'basic'), ['premium', 'boosted', 'verified'], true) || (int) ($item['has_active_premium'] ?? 0) === 1;
+            $lastActivityAt = (string) ($item['last_activity_at'] ?? '');
+            $isRecentlyActive = $lastActivityAt !== '' && strtotime($lastActivityAt) !== false && strtotime($lastActivityAt) >= strtotime('-30 days');
 
             $trustPoints = 0;
             $trustPoints += $hasProfilePhoto ? 22 : 0;
@@ -472,6 +485,7 @@ final class FeedService extends Model
             $trustPoints += $hasRelationshipGoal ? 5 : 0;
             $trustPoints += $isVerified ? 10 : 0;
             $trustPoints += $isPremium ? 2 : 0;
+            $trustPoints += $isRecentlyActive ? 8 : 0;
 
             $item['author_trust_flags'] = [
                 'verified' => $isVerified,
@@ -485,6 +499,7 @@ final class FeedService extends Model
                     'preferences' => $hasPreferences,
                     'location' => $hasLocation,
                     'connection_mode' => $hasConnectionMode,
+                    'recent_activity' => $isRecentlyActive,
                 ],
             ];
 
@@ -517,11 +532,18 @@ final class FeedService extends Model
     {
         $row = $this->fetchOne(
             "SELECT
-                SUM(CASE WHEN cs.score >= 70 THEN 1 ELSE 0 END) AS compatible_people,
-                SUM(CASE WHEN inter.actor_intention IS NOT NULL AND inter.actor_intention = owner_mode.current_intention THEN 1 ELSE 0 END) AS same_intention_people,
-                SUM(CASE WHEN inter.actor_city_id = owner.city_id OR inter.actor_province_id = owner.province_id THEN 1 ELSE 0 END) AS nearby_people
+                COUNT(DISTINCT inter.actor_user_id) AS unique_interactors,
+                COUNT(DISTINCT CASE WHEN inter.event_type = 'like' THEN inter.actor_user_id END) AS likes_people,
+                COUNT(DISTINCT CASE WHEN inter.event_type = 'reaction' THEN inter.actor_user_id END) AS reactions_people,
+                COUNT(DISTINCT CASE WHEN inter.event_type = 'comment' THEN inter.actor_user_id END) AS comments_people,
+                COUNT(DISTINCT CASE WHEN inter.event_type = 'private_interest' THEN inter.actor_user_id END) AS private_interest_people,
+                COUNT(DISTINCT CASE WHEN inter.event_type = 'poll_vote' THEN inter.actor_user_id END) AS poll_votes_people,
+                COUNT(DISTINCT CASE WHEN cs.score >= 70 THEN inter.actor_user_id END) AS compatible_people,
+                COUNT(DISTINCT CASE WHEN inter.actor_intention IS NOT NULL AND inter.actor_intention = owner_mode.current_intention THEN inter.actor_user_id END) AS same_intention_people,
+                COUNT(DISTINCT CASE WHEN inter.actor_city_id = owner.city_id OR inter.actor_province_id = owner.province_id THEN inter.actor_user_id END) AS nearby_people
              FROM (
                  SELECT pr.user_id AS actor_user_id,
+                        'reaction' AS event_type,
                         ucm.current_intention AS actor_intention,
                         u.city_id AS actor_city_id,
                         u.province_id AS actor_province_id
@@ -531,6 +553,7 @@ final class FeedService extends Model
                  WHERE pr.post_id = :post_id
                  UNION
                  SELECT plc.user_id AS actor_user_id,
+                        'like' AS event_type,
                         ucm.current_intention AS actor_intention,
                         u.city_id AS actor_city_id,
                         u.province_id AS actor_province_id
@@ -540,6 +563,7 @@ final class FeedService extends Model
                  WHERE plc.post_id = :post_id_dup
                  UNION
                  SELECT pc.user_id AS actor_user_id,
+                        'comment' AS event_type,
                         ucm.current_intention AS actor_intention,
                         u.city_id AS actor_city_id,
                         u.province_id AS actor_province_id
@@ -549,6 +573,7 @@ final class FeedService extends Model
                  WHERE pc.post_id = :post_id_comments
                  UNION
                  SELECT ppi.sender_user_id AS actor_user_id,
+                        'private_interest' AS event_type,
                         ucm.current_intention AS actor_intention,
                         u.city_id AS actor_city_id,
                         u.province_id AS actor_province_id
@@ -558,6 +583,7 @@ final class FeedService extends Model
                  WHERE ppi.post_id = :post_id_private
                  UNION
                  SELECT ppv.user_id AS actor_user_id,
+                        'poll_vote' AS event_type,
                         ucm.current_intention AS actor_intention,
                         u.city_id AS actor_city_id,
                         u.province_id AS actor_province_id
@@ -583,6 +609,12 @@ final class FeedService extends Model
         ) ?: [];
 
         return [
+            'unique_interactors' => (int) ($row['unique_interactors'] ?? 0),
+            'likes_people' => (int) ($row['likes_people'] ?? 0),
+            'reactions_people' => (int) ($row['reactions_people'] ?? 0),
+            'comments_people' => (int) ($row['comments_people'] ?? 0),
+            'private_interest_people' => (int) ($row['private_interest_people'] ?? 0),
+            'poll_votes_people' => (int) ($row['poll_votes_people'] ?? 0),
             'compatible_people' => (int) ($row['compatible_people'] ?? 0),
             'same_intention_people' => (int) ($row['same_intention_people'] ?? 0),
             'nearby_people' => (int) ($row['nearby_people'] ?? 0),
@@ -597,6 +629,24 @@ final class FeedService extends Model
         }
 
         return $value;
+    }
+
+    /** @return array{joins:string,where:string} */
+    private function buildFeedScope(string $tab): array
+    {
+        $joins = "JOIN users u ON u.id = p.user_id
+                  LEFT JOIN users vu ON vu.id = :viewer_user
+                  LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
+                  LEFT JOIN user_connection_modes viewer_mode ON viewer_mode.user_id = :viewer_user";
+
+        $conditions = ["p.status='active'"];
+        if ($tab === FeedRankingService::TAB_NEARBY) {
+            $conditions[] = '(u.city_id = vu.city_id OR u.province_id = vu.province_id)';
+        } elseif ($tab === FeedRankingService::TAB_SAME_INTENTION) {
+            $conditions[] = 'viewer_mode.current_intention IS NOT NULL AND author_mode.current_intention = viewer_mode.current_intention';
+        }
+
+        return ['joins' => $joins, 'where' => implode(' AND ', $conditions)];
     }
 
     public function purgePostMedia(int $postId): int
@@ -636,7 +686,8 @@ final class FeedService extends Model
                     COALESCE(pi.images_count, 0) AS images_count,
                     pi.first_image_path, pi.first_thumbnail_path,
                     CASE WHEN ul.id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer,
-                    0 AS compatibility_score
+                    0 AS compatibility_score,
+                    activity.last_activity_at
              FROM posts p
              JOIN users u ON u.id = p.user_id
              LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
@@ -644,6 +695,19 @@ final class FeedService extends Model
              LEFT JOIN (SELECT user_id, COUNT(*) AS interests_count FROM user_interests GROUP BY user_id) ui ON ui.user_id = u.id
              LEFT JOIN (SELECT user_id, 1 AS has_preferences FROM user_preferences GROUP BY user_id) up ON up.user_id = u.id
              LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_active_premium FROM premium_features GROUP BY user_id) pf ON pf.user_id = u.id
+             LEFT JOIN (
+                SELECT user_id, MAX(activity_at) AS last_activity_at
+                FROM (
+                    SELECT user_id, MAX(created_at) AS activity_at FROM posts GROUP BY user_id
+                    UNION ALL
+                    SELECT user_id, MAX(created_at) AS activity_at FROM post_comments GROUP BY user_id
+                    UNION ALL
+                    SELECT user_id, MAX(created_at) AS activity_at FROM post_reactions GROUP BY user_id
+                    UNION ALL
+                    SELECT user_id, MAX(created_at) AS activity_at FROM post_likes GROUP BY user_id
+                ) activity_stream
+                GROUP BY user_id
+             ) activity ON activity.user_id = u.id
              LEFT JOIN (SELECT post_id, COUNT(*) AS likes_count FROM post_likes GROUP BY post_id) pl ON pl.post_id = p.id
              LEFT JOIN (SELECT post_id, COUNT(*) AS comments_count FROM post_comments GROUP BY post_id) pc ON pc.post_id = p.id
              LEFT JOIN (SELECT post_id, COUNT(*) AS images_count, MIN(image_path) AS first_image_path, MIN(thumbnail_path) AS first_thumbnail_path FROM post_images GROUP BY post_id) pi ON pi.post_id = p.id
