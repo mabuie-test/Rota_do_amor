@@ -213,3 +213,6 @@ body.rd-lightbox-open { overflow: hidden; touch-action: none; }
   .rd-stat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .rd-media-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+.badge.text-bg-info { color:#10324a !important; }
+.rd-feed-inline-feedback { font-weight:600; }
