@@ -219,9 +219,11 @@ final class FeedController extends Controller
         }
 
         $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_SOCIAL_AVAILABILITY, 'feed', 1);
+        $activeState = $this->service->activeAvailabilityForUser($userId);
         Response::json(['ok' => true, 'message' => 'Estado social ativado por tempo limitado.', 'state' => [
-            'availability_type' => (string) Request::input('availability_type', ''),
+            'availability_type' => (string) ($activeState['availability_type'] ?? Request::input('availability_type', '')),
             'duration_minutes' => (int) Request::input('duration_minutes', 180),
+            'ends_at' => $activeState['ends_at'] ?? null,
         ]]);
     }
 

@@ -45,6 +45,7 @@ $originLabels = [
       <select name="duration_minutes" class="form-select form-select-sm"><option value="120">2h</option><option value="180" selected>3h</option><option value="360">6h</option></select>
     </div>
     <button class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-bolt me-1"></i>Ativar estado social</button>
+    <div class="small mt-1 d-none" data-feed-availability-feedback aria-live="polite"></div>
   </form>
 </section>
 
@@ -80,7 +81,7 @@ $originLabels = [
                 <select class="form-select form-select-sm" name="diary_entry_id">
                   <option value="0">Sem partilha de diário</option>
                   <?php foreach (($shareable_diary_entries ?? []) as $entry): ?>
-                    <option value="<?= (int) ($entry['id'] ?? 0) ?>">
+                    <option value="<?= (int) ($entry['id'] ?? 0) ?>" data-preview="<?= e((string) ($entry['preview'] ?? '')) ?>" data-created-at="<?= e((string) ($entry['created_at'] ?? '')) ?>" data-mood="<?= e((string) ($entry['mood'] ?? '')) ?>">
                       #<?= (int) ($entry['id'] ?? 0) ?> · <?= e((string) (($entry['title'] ?? '') !== '' ? $entry['title'] : 'Entrada sem título')) ?>
                     </option>
                   <?php endforeach; ?>
@@ -102,6 +103,7 @@ $originLabels = [
               </div>
             </div>
             <small class="text-muted d-block mt-1">Ao escolher uma entrada, o post será marcado como “diário partilhado”.</small>
+            <div class="small text-muted mt-1 d-none" data-diary-entry-preview></div>
           </div>
           <input class="form-control form-control-sm" type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple>
           <small class="text-muted d-block">Até 4 imagens por publicação.</small>
@@ -117,7 +119,7 @@ $originLabels = [
   <?php $postId = (int) ($post['id'] ?? 0); $authorName = (string) ($post['author_name'] ?? ('Utilizador #' . (int) $post['user_id'])); $authorInitial = strtoupper(substr(trim($authorName), 0, 1)); ?>
   <article class="rd-card rd-feed-post <?= $selectedPostId === $postId ? 'rd-post-highlight' : '' ?>" id="post-<?= $postId ?>">
     <div class="card-body">
-      <header class="d-flex justify-content-between gap-2 mb-2"><div class="rd-feed-post__author"><div class="rd-feed-post__avatar"><?= e($authorInitial !== '' ? $authorInitial : 'U') ?></div><div><a class="text-decoration-none fw-semibold" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>"><?= e($authorName) ?></a><div class="rd-feed-post__meta"><?php if ((int) ($post['author_online'] ?? 0) === 1): ?><span class="badge text-bg-success">online</span><?php endif; ?><?php if ((int) ($post['author_verified'] ?? 0) === 1): ?><span class="badge text-bg-primary">verificado</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['premium'])): ?><span class="badge text-bg-warning">premium</span><?php endif; ?><?php if (!empty($post['author_availability']['availability_type'])): ?><span class="badge text-bg-info rd-badge-availability"><?= e(str_replace('_', ' ', (string) $post['author_availability']['availability_type'])) ?></span><?php endif; ?><?php if (!empty($post['author_trust_flags']['profile_complete'])): ?><span class="badge text-bg-light">perfil completo</span><?php endif; ?><?php if (isset($post['author_trust_flags']['trust_score'])): ?><span class="badge text-bg-light">trust <?= (int) ($post['author_trust_flags']['trust_score'] ?? 0) ?></span><?php endif; ?></div></div></div><small class="text-muted text-nowrap"><?= e((string) $post['created_at']) ?></small></header>
+      <header class="d-flex justify-content-between gap-2 mb-2"><div class="rd-feed-post__author"><div class="rd-feed-post__avatar"><?= e($authorInitial !== '' ? $authorInitial : 'U') ?></div><div><a class="text-decoration-none fw-semibold" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>"><?= e($authorName) ?></a><div class="rd-feed-post__meta"><?php if ((int) ($post['author_online'] ?? 0) === 1): ?><span class="badge text-bg-success">online</span><?php endif; ?><?php if ((int) ($post['author_verified'] ?? 0) === 1): ?><span class="badge text-bg-primary">verificado</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['premium'])): ?><span class="badge text-bg-warning">premium</span><?php endif; ?><?php if (!empty($post['author_availability']['availability_type'])): ?><span class="badge text-bg-info rd-badge-availability"><?= e(str_replace('_', ' ', (string) $post['author_availability']['availability_type'])) ?></span><?php endif; ?><?php if (!empty($post['author_trust_flags']['profile_complete'])): ?><span class="badge text-bg-light">perfil completo</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['signals']['recent_activity'])): ?><span class="badge text-bg-light">ativo recentemente</span><?php endif; ?><?php if (isset($post['author_trust_flags']['trust_score'])): ?><span class="badge text-bg-light">trust <?= (int) ($post['author_trust_flags']['trust_score'] ?? 0) ?></span><?php endif; ?></div></div></div><small class="text-muted text-nowrap"><?= e((string) $post['created_at']) ?></small></header>
       <?php $originType = (string) ($post['origin_type'] ?? 'normal'); $originMeta = $originLabels[$originType] ?? $originLabels['normal']; ?>
       <div class="rd-feed-origin mb-2"><span class="badge rounded-pill text-bg-light"><i class="fa-solid <?= e((string) ($originMeta['icon'] ?? 'fa-pen')) ?> me-1"></i><?= e((string) ($originMeta['label'] ?? 'Post')) ?></span><?php if (in_array($originType, ['match_collab', 'story_shared'], true)): ?><small class="text-muted ms-2">Origem reservada para fase futura.</small><?php endif; ?></div>
 
@@ -161,7 +163,7 @@ $originLabels = [
         <?php endforeach; ?>
       </div>
 
-      <?php if (!empty($post['owner_interaction_summary']) && (int) ($post['user_id'] ?? 0) === $viewerId): ?><div class="rd-owner-insights mb-2 small">👥 <?= (int) ($post['owner_interaction_summary']['compatible_people'] ?? 0) ?> pessoas compatíveis interagiram · 🎯 <?= (int) ($post['owner_interaction_summary']['same_intention_people'] ?? 0) ?> com a tua intenção · 📍 <?= (int) ($post['owner_interaction_summary']['nearby_people'] ?? 0) ?> próximas de ti.</div><?php endif; ?>
+      <?php if (!empty($post['owner_interaction_summary']) && (int) ($post['user_id'] ?? 0) === $viewerId): ?><div class="rd-owner-insights mb-2 small">👥 <?= (int) ($post['owner_interaction_summary']['unique_interactors'] ?? 0) ?> pessoas únicas interagiram · ❤️ <?= (int) ($post['owner_interaction_summary']['likes_people'] ?? 0) ?> likes · ✨ <?= (int) ($post['owner_interaction_summary']['reactions_people'] ?? 0) ?> reações · 💬 <?= (int) ($post['owner_interaction_summary']['comments_people'] ?? 0) ?> comentários · 🕊️ <?= (int) ($post['owner_interaction_summary']['private_interest_people'] ?? 0) ?> interesses · 📊 <?= (int) ($post['owner_interaction_summary']['poll_votes_people'] ?? 0) ?> votos · 🎯 <?= (int) ($post['owner_interaction_summary']['same_intention_people'] ?? 0) ?> mesma intenção · 📍 <?= (int) ($post['owner_interaction_summary']['nearby_people'] ?? 0) ?> perto · 🤝 <?= (int) ($post['owner_interaction_summary']['compatible_people'] ?? 0) ?> compatíveis.</div><?php endif; ?>
 
       <div class="small d-none rd-feed-inline-feedback mb-2" data-feed-feedback data-post-id="<?= $postId ?>" aria-live="polite"></div>
 
@@ -175,7 +177,7 @@ $originLabels = [
       <?php if (!empty($post['comments'])): ?>
         <div class="rd-feed-comment-box small mt-2 d-grid gap-2 rd-comment-thread" data-comment-thread data-post-id="<?= $postId ?>">
           <?php foreach (($post['comments'] ?? []) as $comment): $commentId = (int) ($comment['id'] ?? 0); $isTargetComment = $selectedCommentId === $commentId; ?>
-            <div id="comment-<?= $commentId ?>" class="rd-feed-comment-item <?= $isTargetComment ? 'rd-comment-highlight' : '' ?>">
+            <div id="comment-<?= $commentId ?>" class="rd-feed-comment-item <?= $isTargetComment ? 'rd-comment-highlight' : '' ?>" data-comment-parent="<?= $commentId ?>">
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div><a href="/member/<?= (int) ($comment['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($comment['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($comment['comment_text'] ?? '')) ?></div>
                 <button type="button" class="btn btn-link btn-sm p-0" data-reply-toggle data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">Responder</button>
@@ -190,13 +192,15 @@ $originLabels = [
                 </div>
               </form>
               <?php if (!empty($comment['replies'])): ?>
-                <div class="rd-feed-replies mt-2 d-grid gap-2">
+                <?php $replyCount = count((array) ($comment['replies'] ?? [])); ?>
+                <div class="rd-feed-replies mt-2 d-grid gap-2" data-replies-wrapper="<?= $commentId ?>">
                   <?php foreach (($comment['replies'] ?? []) as $reply): $replyId = (int) ($reply['id'] ?? 0); ?>
-                    <div id="comment-<?= $replyId ?>" class="rd-feed-comment-item <?= $selectedCommentId === $replyId ? 'rd-comment-highlight' : '' ?>">
+                    <div id="comment-<?= $replyId ?>" class="rd-feed-comment-item <?= $selectedCommentId === $replyId ? 'rd-comment-highlight' : '' ?> <?= $replyCount > 2 && $selectedCommentId !== $replyId ? 'd-none' : '' ?>" data-reply-item="<?= $commentId ?>">
                       <a href="/member/<?= (int) ($reply['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($reply['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($reply['comment_text'] ?? '')) ?>
                     </div>
                   <?php endforeach; ?>
                 </div>
+                <?php if ($replyCount > 2): ?><button type="button" class="btn btn-link btn-sm p-0" data-toggle-replies data-parent-id="<?= $commentId ?>">Ver replies</button><?php endif; ?>
               <?php endif; ?>
             </div>
           <?php endforeach; ?>
