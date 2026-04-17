@@ -29,14 +29,41 @@ final class App
 
             $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $_SERVER['REQUEST_URI'] ?? '/');
         } catch (Throwable $exception) {
-            error_log('[RotaDoAmor] ' . $exception->getMessage());
+            $reference = bin2hex(random_bytes(6));
+            error_log(sprintf(
+                '[RotaDoAmor][%s] %s in %s:%d',
+                $reference,
+                $exception->getMessage(),
+                $exception->getFile(),
+                $exception->getLine()
+            ));
 
             if (Request::expectsJson()) {
-                Response::json(['ok' => false, 'message' => 'Erro interno do servidor.'], 500);
+                Response::json([
+                    'ok' => false,
+                    'message' => $this->buildRuntimeMessage($exception, $reference),
+                    'error_ref' => $reference,
+                ], 500);
             }
 
             http_response_code(500);
-            echo 'Erro interno do servidor. Tente novamente mais tarde.';
+            echo $this->buildRuntimeMessage($exception, $reference);
         }
+    }
+
+    private function buildRuntimeMessage(Throwable $exception, string $reference): string
+    {
+        if ($this->shouldExposeTechnicalDetails()) {
+            return sprintf('Erro interno [%s]: %s', $reference, $exception->getMessage());
+        }
+
+        return sprintf('Erro interno do servidor. Tente novamente mais tarde. Ref: %s', $reference);
+    }
+
+    private function shouldExposeTechnicalDetails(): bool
+    {
+        $debug = filter_var((string) Config::env('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN);
+        $env = mb_strtolower(trim((string) Config::env('APP_ENV', 'production')));
+        return $debug || in_array($env, ['local', 'development', 'dev', 'testing', 'test'], true);
     }
 }

@@ -732,19 +732,6 @@ CREATE TABLE IF NOT EXISTS user_social_availability (
   INDEX idx_user_social_availability_status_end (status, ends_at)
 );
 
-CREATE TABLE IF NOT EXISTS post_diary_shares (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  post_id BIGINT NOT NULL,
-  diary_entry_id BIGINT NOT NULL,
-  share_mode ENUM('publico','so_matches','so_interessados','anonimo') NOT NULL DEFAULT 'publico',
-  is_anonymous TINYINT(1) NOT NULL DEFAULT 0,
-  created_at DATETIME NOT NULL,
-  CONSTRAINT fk_post_diary_shares_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
-  CONSTRAINT fk_post_diary_shares_diary FOREIGN KEY (diary_entry_id) REFERENCES diary_entries(id) ON DELETE CASCADE,
-  UNIQUE KEY uq_post_diary_share (post_id),
-  INDEX idx_post_diary_shares_diary (diary_entry_id, created_at)
-);
-
 CREATE TABLE IF NOT EXISTS favorites (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   user_id BIGINT NOT NULL,
@@ -976,6 +963,22 @@ CREATE TABLE IF NOT EXISTS diary_entries (
   INDEX idx_diary_visibility (visibility),
   INDEX idx_diary_user_deleted_created (user_id, deleted_at, created_at),
   INDEX idx_diary_deleted_created (deleted_at, created_at)
+);
+
+-- Dependência de FK: post_diary_shares referencia diary_entries(id).
+-- Para importação limpa em MySQL/MariaDB/phpMyAdmin, esta tabela deve existir
+-- antes da criação de post_diary_shares.
+CREATE TABLE IF NOT EXISTS post_diary_shares (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  post_id BIGINT NOT NULL,
+  diary_entry_id BIGINT NOT NULL,
+  share_mode ENUM('publico','so_matches','so_interessados','anonimo') NOT NULL DEFAULT 'publico',
+  is_anonymous TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  CONSTRAINT fk_post_diary_shares_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_post_diary_shares_diary FOREIGN KEY (diary_entry_id) REFERENCES diary_entries(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_post_diary_share (post_id),
+  INDEX idx_post_diary_shares_diary (diary_entry_id, created_at)
 );
 
 CREATE TABLE IF NOT EXISTS banners (
