@@ -1,4 +1,4 @@
-<h3 class="mb-3"><i class="fa-solid fa-comments me-2"></i>Mensagens</h3>
+<div class="rd-page-header"><div><h3 class="rd-page-header__title"><span class="rd-page-header__icon"><i class="fa-solid fa-comments"></i></span>Mensagens</h3><p class="rd-page-header__subtitle">Conversas em tempo real com contexto relacional e segurança integrada.</p></div></div>
 <?php
 $activeConversationId = (int) ($active_conversation_id ?? 0);
 $viewerId = (int) ($viewer_id ?? 0);
@@ -11,7 +11,7 @@ $otherStatusLabel = (int) ($context['other_online_status'] ?? 0) === 1 ? 'Online
 $safeDateMeta = safe_date_capability_meta($safeDateCapabilities, 'messages');
 ?>
 <div class="row g-3">
-  <div class="col-lg-4"><div class="rd-card"><div class="card-body"><h6>Conversas</h6>
+  <div class="col-lg-4"><div class="rd-card"><div class="card-body"><div class="rd-card-header"><div><h6 class="rd-card-header__title"><i class="fa-solid fa-inbox"></i>Conversas</h6><p class="rd-card-header__subtitle">Lista de threads e estado de leitura.</p></div></div>
     <form method="get" class="mb-2"><input class="form-control form-control-sm" name="q" value="<?= e((string) ($search ?? '')) ?>" placeholder="Pesquisar conversa"></form>
     <?php if (!empty($conversations)): foreach ($conversations as $conversation): ?>
       <?php $isActive = (int) $conversation['id'] === $activeConversationId; ?>
@@ -27,7 +27,7 @@ $safeDateMeta = safe_date_capability_meta($safeDateCapabilities, 'messages');
 
   <div class="col-lg-8"><div class="rd-card"><div class="card-body">
     <?php if (!empty($context)): ?>
-      <div class="small text-muted mb-2 p-2 border rounded bg-light-subtle">
+      <div class="rd-form-section small text-muted mb-2">
         <strong><a href="/member/<?= (int) $otherId ?>" class="text-decoration-none"><?= e($otherName) ?></a></strong> · <?= e($otherStatusLabel) ?>
       </div>
       <div class="d-flex flex-wrap gap-2 mb-2">

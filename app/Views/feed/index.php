@@ -4,8 +4,8 @@ $viewerId = (int) ($viewer_id ?? 0);
 $selectedPostId = (int) ($selected_post_id ?? 0);
 $selectedCommentId = (int) ($selected_comment_id ?? 0);
 ?>
-<div class="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
-  <h3 class="mb-0"><i class="fa-solid fa-sparkles me-2"></i>Feed Social</h3>
+<div class="rd-page-header">
+  <div><h3 class="rd-page-header__title"><span class="rd-page-header__icon"><i class="fa-solid fa-sparkles"></i></span>Feed Social</h3><p class="rd-page-header__subtitle">Publicações da comunidade com interação e contexto de comentários.</p></div>
   <button class="btn btn-rd-primary" data-bs-toggle="modal" data-bs-target="#createPostModal"><i class="fa-solid fa-pen-to-square me-1"></i>Criar publicação</button>
 </div>
 <button class="btn btn-rd-primary rd-feed-floating-cta" data-bs-toggle="modal" data-bs-target="#createPostModal" title="Criar publicação">

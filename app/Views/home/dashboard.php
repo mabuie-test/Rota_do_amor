@@ -1,5 +1,5 @@
 <?php $d = $dashboard ?? []; $signals = $d['profile_signals'] ?? []; $verification = $d['verification_progress'] ?? []; $retention = $d['retention_context'] ?? []; $boostImpact = $d['boost_impact'] ?? []; $premium = $d['premium_context'] ?? []; $heartMode = $d['heart_mode'] ?? []; ?>
-<h3 class="mb-3">Dashboard</h3>
+<div class="rd-page-header"><div><h3 class="rd-page-header__title"><span class="rd-page-header__icon"><i class="fa-solid fa-gauge-high"></i></span>Dashboard</h3><p class="rd-page-header__subtitle">Painel executivo pessoal com foco diário, progresso e sinais relacionais.</p></div></div>
 <?php $nextSafeDate = $d['next_safe_date'] ?? []; ?>
 <?php if (!empty($nextSafeDate)): ?>
 <div class="alert alert-info py-2 px-3 mb-3">
@@ -41,10 +41,10 @@
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Estado da Conta</div><div class="value"><?= e((string) ($d['account_status'] ?? 'pending')) ?></div></div></div></div>
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Subscrição</div><div class="value"><?= !empty($d['subscription_active']) ? 'Activa' : 'Inactiva' ?></div><small><?= (int) ($d['days_remaining'] ?? 0) ?> dias restantes</small></div></div></div>
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Mensagens não lidas</div><div class="value"><?= (int) ($d['unread_messages'] ?? 0) ?></div></div></div></div>
-  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted">Total de Matches</div><div class="value"><?= (int) ($d['total_matches'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted"><i class="fa-solid fa-id-badge me-1"></i>Estado da Conta</div><div class="value"><?= e((string) ($d['account_status'] ?? 'pending')) ?></div></div></div></div>
+  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted"><i class="fa-solid fa-crown me-1"></i>Subscrição</div><div class="value"><?= !empty($d['subscription_active']) ? 'Activa' : 'Inactiva' ?></div><small><?= (int) ($d['days_remaining'] ?? 0) ?> dias restantes</small></div></div></div>
+  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted"><i class="fa-solid fa-envelope me-1"></i>Mensagens não lidas</div><div class="value"><?= (int) ($d['unread_messages'] ?? 0) ?></div></div></div></div>
+  <div class="col-md-3"><div class="rd-card rd-kpi"><div class="card-body"><div class="small text-muted"><i class="fa-solid fa-heart me-1"></i>Total de Matches</div><div class="value"><?= (int) ($d['total_matches'] ?? 0) ?></div></div></div></div>
 </div>
 
 <div class="row g-3 mb-3 mt-1">
