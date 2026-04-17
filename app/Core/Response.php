@@ -23,12 +23,19 @@ final class Response
     public static function abort(int $status, string $message): never
     {
         $safeMessage = $message;
-        if ($status >= 500 && !filter_var((string) Config::env('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN)) {
-            $safeMessage = 'Erro interno do servidor. Tente novamente mais tarde.';
+        $reference = null;
+        if ($status >= 500) {
+            $reference = bin2hex(random_bytes(6));
+            if (!self::shouldExposeTechnicalDetails()) {
+                $safeMessage = sprintf('Erro interno do servidor. Tente novamente mais tarde. Ref: %s', $reference);
+            } else {
+                $safeMessage = sprintf('Erro interno [%s]: %s', $reference, $message);
+            }
         }
 
         error_log(sprintf(
-            '[response.abort] status=%d uri=%s ip=%s message=%s',
+            '[response.abort]%s status=%d uri=%s ip=%s message=%s',
+            $reference !== null ? '[' . $reference . ']' : '',
             $status,
             (string) ($_SERVER['REQUEST_URI'] ?? '/'),
             (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'),
@@ -42,5 +49,12 @@ final class Response
         http_response_code($status);
         echo $safeMessage;
         exit;
+    }
+
+    private static function shouldExposeTechnicalDetails(): bool
+    {
+        $debug = filter_var((string) Config::env('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN);
+        $env = mb_strtolower(trim((string) Config::env('APP_ENV', 'production')));
+        return $debug || in_array($env, ['local', 'development', 'dev', 'testing', 'test'], true);
     }
 }
