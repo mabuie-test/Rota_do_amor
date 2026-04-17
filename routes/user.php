@@ -59,6 +59,11 @@ $router->add('POST', '/feed/post', [FeedController::class, 'post'], $coreAccess)
 $router->add('POST', '/feed/delete', [FeedController::class, 'delete'], $coreAccess);
 $router->add('POST', '/feed/like', [FeedController::class, 'like'], $coreAccess);
 $router->add('POST', '/feed/comment', [FeedController::class, 'comment'], $coreAccess);
+$router->add('POST', '/feed/react', [FeedController::class, 'react'], $coreAccess);
+$router->add('POST', '/feed/poll/vote', [FeedController::class, 'votePoll'], $coreAccess);
+$router->add('GET', '/feed/poll/state', [FeedController::class, 'pollState'], $coreAccess);
+$router->add('POST', '/feed/private-interest', [FeedController::class, 'privateInterest'], $coreAccess);
+$router->add('POST', '/feed/availability', [FeedController::class, 'activateAvailability'], $coreAccess);
 
 $router->add('GET', '/visitors', [VisitorsController::class, 'index'], $coreAccess);
 $router->add('GET', '/visitors/summary', [VisitorsController::class, 'summary'], $coreAccess);

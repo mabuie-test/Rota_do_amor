@@ -169,3 +169,12 @@
   .rd-feed-comment-box .d-flex.gap-2 { flex-direction: column; }
   .rd-feed-comment-box .btn { width: 100%; }
 }
+
+.rd-feed-tabs { display:flex; gap:.5rem; overflow:auto; padding-bottom:.2rem; }
+.rd-feed-tab { padding:.4rem .8rem; border-radius:999px; border:1px solid #dbe0f0; text-decoration:none; color:#36425b; background:#fff; white-space:nowrap; }
+.rd-feed-tab.is-active { background:#5b6cf6; color:#fff; border-color:#5b6cf6; }
+.rd-feed-relational-signals { display:flex; flex-wrap:wrap; gap:.35rem; }
+.rd-feed-reactions { display:flex; flex-wrap:wrap; gap:.35rem; }
+.rd-poll-card { border:1px solid #dbe0f0; border-radius:.85rem; padding:.75rem; background:#fafbff; }
+.rd-owner-insights { background:linear-gradient(120deg,#f7f9ff,#f3f7ff); border:1px dashed #cdd6ff; border-radius:.75rem; padding:.55rem .7rem; color:#465176; }
+.rd-prompt-box,.rd-poll-box,.rd-prompt-answer { border:1px solid #e4e8f5; border-radius:.75rem; padding:.55rem; background:#fbfcff; }

@@ -14,6 +14,13 @@ final class DailyRouteEventBridge
     public const EVENT_FEED_LIKE = 'feed_like';
     public const EVENT_FEED_COMMENT = 'feed_comment';
     public const EVENT_FEED_POST = 'feed_post';
+    public const EVENT_FEED_REACTION = 'feed_reaction';
+    public const EVENT_FEED_POLL_CREATED = 'feed_poll_created';
+    public const EVENT_FEED_POLL_VOTED = 'feed_poll_voted';
+    public const EVENT_FEED_PRIVATE_INTEREST = 'feed_private_interest';
+    public const EVENT_FEED_PROMPT_POST = 'feed_prompt_post';
+    public const EVENT_FEED_DIARY_SHARED = 'feed_diary_shared';
+    public const EVENT_FEED_SOCIAL_AVAILABILITY = 'feed_social_availability';
     public const EVENT_PROFILE_UPDATED = 'profile_updated';
     public const EVENT_PROFILE_INTERESTS_UPDATED = 'profile_interests_updated';
     public const EVENT_PROFILE_PREFERENCES_UPDATED = 'profile_preferences_updated';
@@ -63,6 +70,13 @@ final class DailyRouteEventBridge
             self::EVENT_FEED_LIKE,
             self::EVENT_FEED_COMMENT,
             self::EVENT_FEED_POST,
+            self::EVENT_FEED_REACTION,
+            self::EVENT_FEED_POLL_CREATED,
+            self::EVENT_FEED_POLL_VOTED,
+            self::EVENT_FEED_PRIVATE_INTEREST,
+            self::EVENT_FEED_PROMPT_POST,
+            self::EVENT_FEED_DIARY_SHARED,
+            self::EVENT_FEED_SOCIAL_AVAILABILITY,
             self::EVENT_PROFILE_UPDATED,
             self::EVENT_PROFILE_INTERESTS_UPDATED,
             self::EVENT_PROFILE_PREFERENCES_UPDATED,
