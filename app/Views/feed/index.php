@@ -22,7 +22,7 @@ $selectedCommentId = (int) ($selected_comment_id ?? 0);
   </div>
 </section>
 
-<button class="btn btn-rd-primary rd-feed-floating-cta" data-bs-toggle="modal" data-bs-target="#createPostModal" title="Criar publicação" aria-label="Criar publicação">
+<button class="btn btn-rd-primary rd-feed-floating-cta" data-feed-fab data-bs-toggle="modal" data-bs-target="#createPostModal" title="Criar publicação" aria-label="Criar publicação">
   <i class="fa-solid fa-plus"></i>
 </button>
 
@@ -74,9 +74,16 @@ $selectedCommentId = (int) ($selected_comment_id ?? 0);
       <?php if (!empty($post['images'])): ?>
         <div class="row g-2 mb-2">
           <?php foreach (($post['images'] ?? []) as $imageIndex => $image): ?>
+            <?php
+              $fullImagePath = trim((string) ($image['image_path'] ?? ''));
+              if ($fullImagePath === '') {
+                  continue;
+              }
+              $thumbPath = trim((string) (($image['thumbnail_path'] ?? '') !== '' ? $image['thumbnail_path'] : $fullImagePath));
+            ?>
             <div class="col-6 col-md-3">
-              <a href="<?= e(url((string) ($image['image_path'] ?? ''))) ?>" data-lightbox-group="post-<?= $postId ?>" data-lightbox-index="<?= (int) $imageIndex ?>" class="text-decoration-none">
-                <img src="<?= e(url((string) (($image['thumbnail_path'] ?? '') !== '' ? $image['thumbnail_path'] : ($image['image_path'] ?? '')))) ?>" class="img-fluid rounded border" alt="imagem do post">
+              <a href="<?= e(url($fullImagePath)) ?>" data-lightbox-group="post-<?= $postId ?>" data-lightbox-index="<?= (int) $imageIndex ?>" class="text-decoration-none">
+                <img src="<?= e(url($thumbPath)) ?>" class="img-fluid rounded border" alt="imagem do post">
               </a>
             </div>
           <?php endforeach; ?>
