@@ -1,11 +1,11 @@
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h3 class="mb-0"><i class="fa-solid fa-compass me-2"></i>Descobrir Pessoas</h3>
+<div class="rd-page-header">
+  <div><h3 class="rd-page-header__title"><span class="rd-page-header__icon"><i class="fa-solid fa-compass"></i></span>Descobrir Pessoas</h3><p class="rd-page-header__subtitle">Sugestões com intenção, ritmo e compatibilidade contextual.</p></div>
   <div class="d-flex gap-2">
     <a class="btn btn-sm btn-rd-soft" href="/invites/received"><i class="fa-solid fa-envelope-open-heart me-1"></i>Convites Recebidos</a>
     <a class="btn btn-sm btn-rd-soft" href="/invites/sent"><i class="fa-solid fa-paper-plane me-1"></i>Convites Enviados</a>
   </div>
 </div>
-<form method="get" class="d-flex gap-2 align-items-center flex-wrap mb-3">
+<form method="get" class="rd-form-section d-flex gap-2 align-items-center flex-wrap mb-3">
   <input class="form-control form-control-sm" style="width:96px" type="number" name="age_min" placeholder="Idade min" value="<?= e((string) ($filters['age_min'] ?? '')) ?>">
   <input class="form-control form-control-sm" style="width:96px" type="number" name="age_max" placeholder="Idade max" value="<?= e((string) ($filters['age_max'] ?? '')) ?>">
   <select class="form-select form-select-sm" name="relationship_goal">
@@ -14,7 +14,7 @@
       <option value="<?= e($key) ?>" <?= (($filters['relationship_goal'] ?? '') === $key) ? 'selected' : '' ?>><?= e($label) ?></option>
     <?php endforeach; ?>
   </select>
-  <label class="small"><input type="checkbox" name="verified_only" value="1" <?= !empty($filters['verified_only']) ? 'checked' : '' ?>> Verificado</label>
+  <label class="small rd-supporting-text"><i class="fa-solid fa-circle-check me-1"></i><input type="checkbox" name="verified_only" value="1" <?= !empty($filters['verified_only']) ? 'checked' : '' ?>> Verificado</label>
   <button class="btn btn-sm btn-rd-soft"><i class="fa-solid fa-sliders me-2"></i>Filtrar</button>
 </form>
 

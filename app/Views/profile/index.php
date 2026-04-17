@@ -10,7 +10,7 @@ $signals = $completion_signals ?? [];
 $profilePhotoPath = trim((string) ($profile['profile_photo_path'] ?? ''));
 $profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['last_name'] ?? '')));
 ?>
-<h3 class="mb-3">Meu Perfil</h3>
+<div class="rd-page-header"><div><h3 class="rd-page-header__title"><span class="rd-page-header__icon"><i class="fa-solid fa-user-pen"></i></span>Meu Perfil</h3><p class="rd-page-header__subtitle">Gestão de identidade, preferências, modo relacional e ativos visuais.</p></div></div>
 <?php if (!empty($profile)): ?>
 <div class="rd-card rd-profile-card">
   <div class="card-body">
@@ -60,7 +60,7 @@ $profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['
 </div>
 
 <div class="rd-card mt-3"><div class="card-body">
-  <h5 class="mb-3">Dados principais</h5>
+  <h5 class="mb-3"><i class="fa-solid fa-id-card me-1"></i>Dados principais</h5>
   <form method="post" action="/profile/update" class="row g-3"><?= csrf_field() ?>
     <div class="col-12"><label class="form-label">Bio</label><textarea class="form-control" rows="4" name="bio" maxlength="1200"><?= e((string) ($profile['bio'] ?? '')) ?></textarea></div>
     <div class="col-md-6"><label class="form-label">Profissão</label><input class="form-control" name="profession" value="<?= e((string) ($profile['profession'] ?? '')) ?>"></div>
@@ -71,7 +71,7 @@ $profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['
 
 <div class="row g-3 mt-1">
   <div class="col-lg-6"><div class="rd-card h-100"><div class="card-body">
-    <h5 class="mb-3 rd-section-title">Interesses</h5>
+    <h5 class="mb-3 rd-section-title"><i class="fa-solid fa-star me-1"></i>Interesses</h5>
     <p class="small text-muted">Adicione pelo menos 3 interesses, separados por vírgula, ponto e vírgula ou nova linha.</p>
     <form method="post" action="/profile/interests"><?= csrf_field() ?>
       <textarea class="form-control mb-2" rows="4" name="interests" placeholder="Ex.: viagens, leitura, desporto"><?= e(implode(', ', $interestNames)) ?></textarea>
@@ -80,7 +80,7 @@ $profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['
   </div></div></div>
 
   <div class="col-lg-6"><div class="rd-card h-100"><div class="card-body">
-    <h5 class="mb-3 rd-section-title">Preferências de descoberta</h5>
+    <h5 class="mb-3 rd-section-title"><i class="fa-solid fa-sliders me-1"></i>Preferências de descoberta</h5>
     <form method="post" action="/profile/preferences" class="row g-2"><?= csrf_field() ?>
       <div class="col-md-6"><label class="form-label small">Interessado em</label><select class="form-select" name="interested_in"><option value="all" <?= (($preferences['interested_in'] ?? 'all') === 'all') ? 'selected' : '' ?>>Todos</option><option value="male" <?= (($preferences['interested_in'] ?? '') === 'male') ? 'selected' : '' ?>>Homens</option><option value="female" <?= (($preferences['interested_in'] ?? '') === 'female') ? 'selected' : '' ?>>Mulheres</option></select></div>
       <div class="col-md-3"><label class="form-label small">Idade min</label><input type="number" class="form-control" min="18" max="90" name="age_min" value="<?= (int) ($preferences['age_min'] ?? 18) ?>"></div>
@@ -94,7 +94,7 @@ $profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['
 </div>
 
 <div class="rd-card mt-3"><div class="card-body">
-  <h5 class="mb-3 rd-section-title">Fotos do perfil</h5>
+  <h5 class="mb-3 rd-section-title"><i class="fa-solid fa-camera me-1"></i>Fotos do perfil</h5>
   <div class="row g-3 mb-3">
     <div class="col-md-6">
       <form method="post" action="/profile/photo" enctype="multipart/form-data" class="rd-upload-drop"><?= csrf_field() ?>
