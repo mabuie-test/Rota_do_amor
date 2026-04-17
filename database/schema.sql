@@ -101,81 +101,6 @@ JOIN (
   SELECT 'Niassa', 'Marrupa'
 ) c ON c.province_name = p.name;
 
--- Seed mínimo de localização executado cedo para evitar instalações parciais sem províncias/cidades.
-INSERT IGNORE INTO provinces (name) VALUES
-('Cabo Delgado'),
-('Gaza'),
-('Inhambane'),
-('Manica'),
-('Maputo Cidade'),
-('Maputo Província'),
-('Nampula'),
-('Niassa'),
-('Sofala'),
-('Tete'),
-('Zambézia');
-
-INSERT IGNORE INTO cities (province_id, name)
-SELECT p.id, c.city_name
-FROM provinces p
-JOIN (
-  SELECT 'Maputo Cidade' AS province_name, 'Maputo' AS city_name UNION ALL
-  SELECT 'Maputo Cidade', 'KaMpfumo' UNION ALL
-  SELECT 'Maputo Cidade', 'KaMavota' UNION ALL
-  SELECT 'Maputo Cidade', 'KaMubukwana' UNION ALL
-  SELECT 'Maputo Cidade', 'KaTembe' UNION ALL
-  SELECT 'Maputo Província', 'Matola' UNION ALL
-  SELECT 'Maputo Província', 'Boane' UNION ALL
-  SELECT 'Maputo Província', 'Marracuene' UNION ALL
-  SELECT 'Maputo Província', 'Moamba' UNION ALL
-  SELECT 'Maputo Província', 'Namaacha' UNION ALL
-  SELECT 'Maputo Província', 'Matutuíne' UNION ALL
-  SELECT 'Maputo Província', 'Manhiça' UNION ALL
-  SELECT 'Maputo Província', 'Magude' UNION ALL
-  SELECT 'Gaza', 'Xai-Xai' UNION ALL
-  SELECT 'Gaza', 'Chókwè' UNION ALL
-  SELECT 'Gaza', 'Chibuto' UNION ALL
-  SELECT 'Gaza', 'Macia' UNION ALL
-  SELECT 'Gaza', 'Bilene' UNION ALL
-  SELECT 'Inhambane', 'Inhambane' UNION ALL
-  SELECT 'Inhambane', 'Maxixe' UNION ALL
-  SELECT 'Inhambane', 'Vilankulo' UNION ALL
-  SELECT 'Inhambane', 'Massinga' UNION ALL
-  SELECT 'Inhambane', 'Jangamo' UNION ALL
-  SELECT 'Sofala', 'Beira' UNION ALL
-  SELECT 'Sofala', 'Dondo' UNION ALL
-  SELECT 'Sofala', 'Nhamatanda' UNION ALL
-  SELECT 'Sofala', 'Gorongosa' UNION ALL
-  SELECT 'Sofala', 'Buzi' UNION ALL
-  SELECT 'Manica', 'Chimoio' UNION ALL
-  SELECT 'Manica', 'Manica' UNION ALL
-  SELECT 'Manica', 'Gondola' UNION ALL
-  SELECT 'Manica', 'Sussundenga' UNION ALL
-  SELECT 'Tete', 'Tete' UNION ALL
-  SELECT 'Tete', 'Moatize' UNION ALL
-  SELECT 'Tete', 'Ulongué' UNION ALL
-  SELECT 'Tete', 'Angónia' UNION ALL
-  SELECT 'Zambézia', 'Quelimane' UNION ALL
-  SELECT 'Zambézia', 'Mocuba' UNION ALL
-  SELECT 'Zambézia', 'Gurué' UNION ALL
-  SELECT 'Zambézia', 'Milange' UNION ALL
-  SELECT 'Zambézia', 'Mocubela' UNION ALL
-  SELECT 'Nampula', 'Nampula' UNION ALL
-  SELECT 'Nampula', 'Nacala' UNION ALL
-  SELECT 'Nampula', 'Ilha de Moçambique' UNION ALL
-  SELECT 'Nampula', 'Nacala-a-Velha' UNION ALL
-  SELECT 'Nampula', 'Monapo' UNION ALL
-  SELECT 'Cabo Delgado', 'Pemba' UNION ALL
-  SELECT 'Cabo Delgado', 'Montepuez' UNION ALL
-  SELECT 'Cabo Delgado', 'Mocímboa da Praia' UNION ALL
-  SELECT 'Cabo Delgado', 'Mueda' UNION ALL
-  SELECT 'Niassa', 'Lichinga' UNION ALL
-  SELECT 'Niassa', 'Cuamba' UNION ALL
-  SELECT 'Niassa', 'Mandimba' UNION ALL
-  SELECT 'Niassa', 'Marrupa'
-) c ON c.province_name = p.name;
-
-
 -- 3) UTILIZADORES E IDENTIDADE
 
 CREATE TABLE IF NOT EXISTS users (
@@ -695,6 +620,7 @@ CREATE TABLE IF NOT EXISTS post_comments (
   CONSTRAINT fk_post_comments_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_post_comments_parent FOREIGN KEY (parent_comment_id) REFERENCES post_comments(id) ON DELETE CASCADE,
   INDEX idx_post_comments_post_created (post_id, created_at),
+  INDEX idx_post_comments_post_user (post_id, user_id, created_at),
   INDEX idx_post_comments_parent_created (parent_comment_id, created_at)
 );
 
@@ -710,7 +636,8 @@ CREATE TABLE IF NOT EXISTS post_reactions (
   CONSTRAINT fk_post_reactions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE KEY uq_post_reaction (post_id, user_id),
   INDEX idx_post_reactions_type_created (reaction_type, created_at),
-  INDEX idx_post_reactions_post_type (post_id, reaction_type)
+  INDEX idx_post_reactions_post_type (post_id, reaction_type),
+  INDEX idx_post_reactions_user_post (user_id, post_id)
 );
 
 CREATE TABLE IF NOT EXISTS feed_prompts (
@@ -770,7 +697,8 @@ CREATE TABLE IF NOT EXISTS post_poll_votes (
   CONSTRAINT fk_post_poll_votes_option FOREIGN KEY (option_id) REFERENCES post_poll_options(id) ON DELETE CASCADE,
   CONSTRAINT fk_post_poll_votes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE KEY uq_post_poll_vote_user (poll_id, user_id),
-  INDEX idx_post_poll_votes_option (option_id, created_at)
+  INDEX idx_post_poll_votes_option (option_id, created_at),
+  INDEX idx_post_poll_votes_user_poll (user_id, poll_id)
 );
 
 CREATE TABLE IF NOT EXISTS post_private_interests (

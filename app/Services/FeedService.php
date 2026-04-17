@@ -298,6 +298,7 @@ final class FeedService extends Model
             'comment' => [
                 'id' => $createdCommentId,
                 'author_name' => (string) ($author['author_name'] ?? 'Tu'),
+                'user_id' => $userId,
                 'comment_text' => $normalized,
             ],
         ];
@@ -332,7 +333,9 @@ final class FeedService extends Model
                        u.city_id AS author_city_id,
                        u.province_id AS author_province_id,
                        u.relationship_goal AS author_relationship_goal,
+                    u.created_at AS author_created_at,
                        COALESCE(ui.interests_count, 0) AS interests_count,
+                    COALESCE(uph.photos_count, 0) AS author_photos_count,
                        COALESCE(up.has_preferences, 0) AS has_preferences,
                        COALESCE(pf.has_active_premium, 0) AS has_active_premium,
                        IFNULL(iv.is_verified, 0) AS author_verified,
@@ -374,6 +377,7 @@ final class FeedService extends Model
                     GROUP BY user_id
                 ) iv ON iv.user_id = u.id
                 LEFT JOIN (SELECT user_id, COUNT(*) AS interests_count FROM user_interests GROUP BY user_id) ui ON ui.user_id = u.id
+                LEFT JOIN (SELECT user_id, COUNT(*) AS photos_count FROM user_photos GROUP BY user_id) uph ON uph.user_id = u.id
                 LEFT JOIN (SELECT user_id, 1 AS has_preferences FROM user_preferences GROUP BY user_id) up ON up.user_id = u.id
                 LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_active_premium FROM premium_features GROUP BY user_id) pf ON pf.user_id = u.id
                 LEFT JOIN (
@@ -448,6 +452,12 @@ final class FeedService extends Model
         $authorIds = array_values(array_unique(array_map(static fn(array $row): int => (int) ($row['user_id'] ?? 0), $items)));
         $availability = $this->availability->loadActiveForUsers($authorIds);
 
+        $ownerPostIds = array_values(array_map(
+            static fn(array $row): int => (int) ($row['id'] ?? 0),
+            array_filter($items, static fn(array $row): bool => (int) ($row['user_id'] ?? 0) === $userId)
+        ));
+        $ownerSummaries = $this->loadOwnerInteractionSummaries($ownerPostIds, $userId);
+
         foreach ($items as &$item) {
             $postId = (int) $item['id'];
             $authorId = (int) ($item['user_id'] ?? 0);
@@ -464,7 +474,9 @@ final class FeedService extends Model
             $item['diary_share'] = $diaryShares[$postId] ?? null;
             $item['author_availability'] = $availability[$authorId] ?? null;
             $interestsCount = (int) ($item['interests_count'] ?? 0);
+            $photosCount = (int) ($item['author_photos_count'] ?? 0);
             $hasProfilePhoto = !empty($item['author_photo']);
+            $hasGallery = $photosCount >= 2;
             $hasBio = trim((string) ($item['author_bio'] ?? '')) !== '';
             $hasLocation = (int) ($item['author_city_id'] ?? 0) > 0 && (int) ($item['author_province_id'] ?? 0) > 0;
             $hasConnectionMode = trim((string) ($item['author_intention'] ?? '')) !== '' || trim((string) ($item['author_relational_pace'] ?? '')) !== '';
@@ -474,37 +486,43 @@ final class FeedService extends Model
             $isPremium = in_array((string) ($item['author_premium'] ?? 'basic'), ['premium', 'boosted', 'verified'], true) || (int) ($item['has_active_premium'] ?? 0) === 1;
             $lastActivityAt = (string) ($item['last_activity_at'] ?? '');
             $isRecentlyActive = $lastActivityAt !== '' && strtotime($lastActivityAt) !== false && strtotime($lastActivityAt) >= strtotime('-30 days');
+            $createdAt = (string) ($item['author_created_at'] ?? '');
+            $isMatureAccount = $createdAt !== '' && strtotime($createdAt) !== false && strtotime($createdAt) <= strtotime('-30 days');
 
             $trustPoints = 0;
-            $trustPoints += $hasProfilePhoto ? 22 : 0;
-            $trustPoints += $hasBio ? 12 : 0;
-            $trustPoints += $interestsCount >= 3 ? 15 : ($interestsCount > 0 ? 8 : 0);
-            $trustPoints += $hasPreferences ? 12 : 0;
-            $trustPoints += $hasLocation ? 12 : 0;
-            $trustPoints += $hasConnectionMode ? 10 : 0;
-            $trustPoints += $hasRelationshipGoal ? 5 : 0;
-            $trustPoints += $isVerified ? 10 : 0;
-            $trustPoints += $isPremium ? 2 : 0;
-            $trustPoints += $isRecentlyActive ? 8 : 0;
+            $trustPoints += $isVerified ? 24 : 0;
+            $trustPoints += $hasProfilePhoto ? 14 : 0;
+            $trustPoints += $hasGallery ? 10 : 0;
+            $trustPoints += $hasBio ? 8 : 0;
+            $trustPoints += $interestsCount >= 3 ? 10 : ($interestsCount > 0 ? 5 : 0);
+            $trustPoints += $hasPreferences ? 8 : 0;
+            $trustPoints += $hasLocation ? 8 : 0;
+            $trustPoints += $hasConnectionMode ? 6 : 0;
+            $trustPoints += $hasRelationshipGoal ? 4 : 0;
+            $trustPoints += $isRecentlyActive ? 5 : 0;
+            $trustPoints += $isMatureAccount ? 8 : 0;
+            $trustPoints += $isPremium ? 3 : 0;
 
             $item['author_trust_flags'] = [
                 'verified' => $isVerified,
-                'profile_complete' => $trustPoints >= 55,
+                'profile_complete' => $hasProfilePhoto && $hasBio && $hasLocation && $hasConnectionMode,
                 'premium' => $isPremium,
                 'trust_score' => max(0, min(100, $trustPoints)),
                 'signals' => [
                     'photo' => $hasProfilePhoto,
+                    'gallery' => $hasGallery,
                     'bio' => $hasBio,
                     'interests' => $interestsCount > 0,
                     'preferences' => $hasPreferences,
                     'location' => $hasLocation,
                     'connection_mode' => $hasConnectionMode,
                     'recent_activity' => $isRecentlyActive,
+                    'account_maturity' => $isMatureAccount,
                 ],
             ];
 
             if ((int) ($item['user_id'] ?? 0) === $userId) {
-                $item['owner_interaction_summary'] = $this->buildOwnerInteractionSummary($postId, $userId);
+                $item['owner_interaction_summary'] = $ownerSummaries[$postId] ?? $this->emptyOwnerSummary();
             }
         }
         unset($item);
@@ -528,10 +546,19 @@ final class FeedService extends Model
         ];
     }
 
-    private function buildOwnerInteractionSummary(int $postId, int $ownerId): array
+    /** @param list<int> $postIds */
+    private function loadOwnerInteractionSummaries(array $postIds, int $ownerId): array
     {
-        $row = $this->fetchOne(
+        $postIds = array_values(array_unique(array_filter($postIds, static fn(int $id): bool => $id > 0)));
+        if ($postIds === [] || $ownerId <= 0) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+
+        $rowset = $this->db->prepare(
             "SELECT
+                inter.post_id,
                 COUNT(DISTINCT inter.actor_user_id) AS unique_interactors,
                 COUNT(DISTINCT CASE WHEN inter.event_type = 'like' THEN inter.actor_user_id END) AS likes_people,
                 COUNT(DISTINCT CASE WHEN inter.event_type = 'reaction' THEN inter.actor_user_id END) AS reactions_people,
@@ -542,82 +569,84 @@ final class FeedService extends Model
                 COUNT(DISTINCT CASE WHEN inter.actor_intention IS NOT NULL AND inter.actor_intention = owner_mode.current_intention THEN inter.actor_user_id END) AS same_intention_people,
                 COUNT(DISTINCT CASE WHEN inter.actor_city_id = owner.city_id OR inter.actor_province_id = owner.province_id THEN inter.actor_user_id END) AS nearby_people
              FROM (
-                 SELECT pr.user_id AS actor_user_id,
-                        'reaction' AS event_type,
-                        ucm.current_intention AS actor_intention,
-                        u.city_id AS actor_city_id,
-                        u.province_id AS actor_province_id
+                 SELECT pr.post_id, pr.user_id AS actor_user_id, 'reaction' AS event_type,
+                        ucm.current_intention AS actor_intention, u.city_id AS actor_city_id, u.province_id AS actor_province_id
                  FROM post_reactions pr
                  JOIN users u ON u.id = pr.user_id
                  LEFT JOIN user_connection_modes ucm ON ucm.user_id = pr.user_id
-                 WHERE pr.post_id = :post_id
-                 UNION
-                 SELECT plc.user_id AS actor_user_id,
-                        'like' AS event_type,
-                        ucm.current_intention AS actor_intention,
-                        u.city_id AS actor_city_id,
-                        u.province_id AS actor_province_id
+                 WHERE pr.post_id IN ($placeholders)
+                 UNION ALL
+                 SELECT plc.post_id, plc.user_id AS actor_user_id, 'like' AS event_type,
+                        ucm.current_intention AS actor_intention, u.city_id AS actor_city_id, u.province_id AS actor_province_id
                  FROM post_likes plc
                  JOIN users u ON u.id = plc.user_id
                  LEFT JOIN user_connection_modes ucm ON ucm.user_id = plc.user_id
-                 WHERE plc.post_id = :post_id_dup
-                 UNION
-                 SELECT pc.user_id AS actor_user_id,
-                        'comment' AS event_type,
-                        ucm.current_intention AS actor_intention,
-                        u.city_id AS actor_city_id,
-                        u.province_id AS actor_province_id
+                 WHERE plc.post_id IN ($placeholders)
+                 UNION ALL
+                 SELECT pc.post_id, pc.user_id AS actor_user_id, 'comment' AS event_type,
+                        ucm.current_intention AS actor_intention, u.city_id AS actor_city_id, u.province_id AS actor_province_id
                  FROM post_comments pc
                  JOIN users u ON u.id = pc.user_id
                  LEFT JOIN user_connection_modes ucm ON ucm.user_id = pc.user_id
-                 WHERE pc.post_id = :post_id_comments
-                 UNION
-                 SELECT ppi.sender_user_id AS actor_user_id,
-                        'private_interest' AS event_type,
-                        ucm.current_intention AS actor_intention,
-                        u.city_id AS actor_city_id,
-                        u.province_id AS actor_province_id
+                 WHERE pc.post_id IN ($placeholders)
+                 UNION ALL
+                 SELECT ppi.post_id, ppi.sender_user_id AS actor_user_id, 'private_interest' AS event_type,
+                        ucm.current_intention AS actor_intention, u.city_id AS actor_city_id, u.province_id AS actor_province_id
                  FROM post_private_interests ppi
                  JOIN users u ON u.id = ppi.sender_user_id
                  LEFT JOIN user_connection_modes ucm ON ucm.user_id = ppi.sender_user_id
-                 WHERE ppi.post_id = :post_id_private
-                 UNION
-                 SELECT ppv.user_id AS actor_user_id,
-                        'poll_vote' AS event_type,
-                        ucm.current_intention AS actor_intention,
-                        u.city_id AS actor_city_id,
-                        u.province_id AS actor_province_id
+                 WHERE ppi.post_id IN ($placeholders)
+                 UNION ALL
+                 SELECT poll.post_id, ppv.user_id AS actor_user_id, 'poll_vote' AS event_type,
+                        ucm.current_intention AS actor_intention, u.city_id AS actor_city_id, u.province_id AS actor_province_id
                  FROM post_polls poll
                  JOIN post_poll_votes ppv ON ppv.poll_id = poll.id
                  JOIN users u ON u.id = ppv.user_id
                  LEFT JOIN user_connection_modes ucm ON ucm.user_id = ppv.user_id
-                 WHERE poll.post_id = :post_id_poll_votes
+                 WHERE poll.post_id IN ($placeholders)
              ) inter
-             LEFT JOIN compatibility_scores cs ON cs.user_id = :owner_id AND cs.target_user_id = inter.actor_user_id
-             LEFT JOIN user_connection_modes owner_mode ON owner_mode.user_id = :owner_mode
-             JOIN users owner ON owner.id = :owner_user",
-            [
-                ':post_id' => $postId,
-                ':post_id_dup' => $postId,
-                ':post_id_comments' => $postId,
-                ':post_id_private' => $postId,
-                ':post_id_poll_votes' => $postId,
-                ':owner_id' => $ownerId,
-                ':owner_mode' => $ownerId,
-                ':owner_user' => $ownerId,
-            ]
-        ) ?: [];
+             LEFT JOIN compatibility_scores cs ON cs.user_id = ? AND cs.target_user_id = inter.actor_user_id
+             LEFT JOIN user_connection_modes owner_mode ON owner_mode.user_id = ?
+             JOIN users owner ON owner.id = ?
+             GROUP BY inter.post_id"
+        );
+        $rowset->execute(array_merge($postIds, $postIds, $postIds, $postIds, $postIds, [$ownerId, $ownerId, $ownerId]));
 
+        $map = array_fill_keys($postIds, $this->emptyOwnerSummary());
+        foreach ($rowset->fetchAll() as $row) {
+            $postId = (int) ($row['post_id'] ?? 0);
+            if ($postId <= 0) {
+                continue;
+            }
+
+            $map[$postId] = [
+                'unique_interactors' => (int) ($row['unique_interactors'] ?? 0),
+                'likes_people' => (int) ($row['likes_people'] ?? 0),
+                'reactions_people' => (int) ($row['reactions_people'] ?? 0),
+                'comments_people' => (int) ($row['comments_people'] ?? 0),
+                'private_interest_people' => (int) ($row['private_interest_people'] ?? 0),
+                'poll_votes_people' => (int) ($row['poll_votes_people'] ?? 0),
+                'compatible_people' => (int) ($row['compatible_people'] ?? 0),
+                'same_intention_people' => (int) ($row['same_intention_people'] ?? 0),
+                'nearby_people' => (int) ($row['nearby_people'] ?? 0),
+            ];
+        }
+
+        return $map;
+    }
+
+    private function emptyOwnerSummary(): array
+    {
         return [
-            'unique_interactors' => (int) ($row['unique_interactors'] ?? 0),
-            'likes_people' => (int) ($row['likes_people'] ?? 0),
-            'reactions_people' => (int) ($row['reactions_people'] ?? 0),
-            'comments_people' => (int) ($row['comments_people'] ?? 0),
-            'private_interest_people' => (int) ($row['private_interest_people'] ?? 0),
-            'poll_votes_people' => (int) ($row['poll_votes_people'] ?? 0),
-            'compatible_people' => (int) ($row['compatible_people'] ?? 0),
-            'same_intention_people' => (int) ($row['same_intention_people'] ?? 0),
-            'nearby_people' => (int) ($row['nearby_people'] ?? 0),
+            'unique_interactors' => 0,
+            'likes_people' => 0,
+            'reactions_people' => 0,
+            'comments_people' => 0,
+            'private_interest_people' => 0,
+            'poll_votes_people' => 0,
+            'compatible_people' => 0,
+            'same_intention_people' => 0,
+            'nearby_people' => 0,
         ];
     }
 
@@ -642,6 +671,8 @@ final class FeedService extends Model
         $conditions = ["p.status='active'"];
         if ($tab === FeedRankingService::TAB_NEARBY) {
             $conditions[] = '(u.city_id = vu.city_id OR u.province_id = vu.province_id)';
+        } elseif ($tab === FeedRankingService::TAB_SAME_VIBE) {
+            $conditions[] = "(p.post_mood IS NOT NULL AND p.post_mood <> '') OR (author_mode.relational_pace IS NOT NULL AND author_mode.relational_pace = viewer_mode.relational_pace)";
         } elseif ($tab === FeedRankingService::TAB_SAME_INTENTION) {
             $conditions[] = 'viewer_mode.current_intention IS NOT NULL AND author_mode.current_intention = viewer_mode.current_intention';
         }
@@ -675,8 +706,10 @@ final class FeedService extends Model
                     u.bio AS author_bio, u.premium_status AS author_premium,
                     u.city_id AS author_city_id, u.province_id AS author_province_id,
                     u.relationship_goal AS author_relationship_goal,
+                    u.created_at AS author_created_at,
                     IFNULL(iv.is_verified, 0) AS author_verified,
                     COALESCE(ui.interests_count, 0) AS interests_count,
+                    COALESCE(uph.photos_count, 0) AS author_photos_count,
                     COALESCE(up.has_preferences, 0) AS has_preferences,
                     COALESCE(pf.has_active_premium, 0) AS has_active_premium,
                     author_mode.current_intention AS author_intention,
@@ -693,6 +726,7 @@ final class FeedService extends Model
              LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
              LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS is_verified FROM identity_verifications GROUP BY user_id) iv ON iv.user_id = u.id
              LEFT JOIN (SELECT user_id, COUNT(*) AS interests_count FROM user_interests GROUP BY user_id) ui ON ui.user_id = u.id
+             LEFT JOIN (SELECT user_id, COUNT(*) AS photos_count FROM user_photos GROUP BY user_id) uph ON uph.user_id = u.id
              LEFT JOIN (SELECT user_id, 1 AS has_preferences FROM user_preferences GROUP BY user_id) up ON up.user_id = u.id
              LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_active_premium FROM premium_features GROUP BY user_id) pf ON pf.user_id = u.id
              LEFT JOIN (

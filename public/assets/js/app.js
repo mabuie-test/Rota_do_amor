@@ -184,10 +184,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const parentId = btn.getAttribute('data-parent-id');
     const form = document.getElementById(`reply-form-${postId}-${parentId}`);
     if (!form) return;
+    const willExpand = form.classList.contains('d-none');
     form.classList.toggle('d-none');
-    if (!form.classList.contains('d-none')) {
+    btn.textContent = willExpand ? (btn.getAttribute('data-expanded-label') || 'Ocultar') : (btn.getAttribute('data-collapsed-label') || 'Responder');
+    if (willExpand) {
       form.querySelector('input[name="comment"]')?.focus();
     }
+  });
+
+  document.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-reply-cancel]');
+    if (!btn) return;
+    const postId = btn.getAttribute('data-post-id');
+    const parentId = btn.getAttribute('data-parent-id');
+    const form = document.getElementById(`reply-form-${postId}-${parentId}`);
+    if (!form) return;
+    form.classList.add('d-none');
+    const input = form.querySelector('input[name="comment"]');
+    if (input) input.value = '';
+    const toggleBtn = document.querySelector(`[data-reply-toggle][data-post-id="${CSS.escape(String(postId))}"][data-parent-id="${CSS.escape(String(parentId))}"]`);
+    if (toggleBtn) toggleBtn.textContent = toggleBtn.getAttribute('data-collapsed-label') || 'Responder';
   });
 
   if (qs.get('comment')) {
@@ -313,20 +329,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const feedFeedbackForPost = (postId) => document.querySelector(`[data-feed-feedback][data-post-id="${CSS.escape(String(postId))}"]`);
   const feedRoot = document.querySelector('.rd-feed-shell');
-  const resolveCsrfToken = (scope = null) => {
-    const metaToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    if (metaToken) return metaToken;
-    const rootToken = feedRoot?.getAttribute('data-csrf-token') || '';
-    if (rootToken) return rootToken;
-    return scope?.querySelector?.('input[name="_token"]')?.value || '';
-  };
+  const csrf = (() => {
+    let cachedToken = '';
+    const fromMeta = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const fromFeedRoot = () => feedRoot?.getAttribute('data-csrf-token') || '';
+    const fromScope = (scope) => scope?.closest?.('form')?.querySelector?.('input[name="_token"]')?.value
+      || scope?.querySelector?.('input[name="_token"]')?.value
+      || '';
+
+    return {
+      token(scope = null) {
+        if (cachedToken) return cachedToken;
+        cachedToken = fromMeta() || fromFeedRoot() || fromScope(scope) || '';
+        return cachedToken;
+      }
+    };
+  })();
+
   const postAsForm = async (url, payload, token = '') => fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
     body: new URLSearchParams(token ? { ...payload, _token: token } : payload),
   });
   const feedRequest = async (url, payload, scope = null, fallbackError = 'Não foi possível processar a ação.') => {
-    const token = resolveCsrfToken(scope);
+    const token = csrf.token(scope);
     const response = await postAsForm(url, payload, token);
     const payloadData = await parseJsonSafe(response);
     if (!response.ok || !payloadData.ok) {
@@ -372,7 +398,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  document.querySelectorAll('[data-feed-comment-form]').forEach((form) => {
+  const bindFeedCommentForm = (form) => {
+    if (!form || form.dataset.feedCommentBound === '1') return;
+    form.dataset.feedCommentBound = '1';
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const postId = form.querySelector('input[name="post_id"]')?.value || form.getAttribute('data-post-id') || '0';
@@ -392,9 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      if (submitButton) {
-        submitButton.disabled = true;
-      }
+      if (submitButton) submitButton.disabled = true;
 
       try {
         const payload = await feedRequest('/feed/comment', { post_id: String(postId), parent_comment_id: String(parentCommentId), comment }, form, 'Não foi possível enviar comentário.');
@@ -402,9 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showInlineFeedback(feedback, payload.message || 'Comentário enviado.', 'success');
         commentInput.value = '';
         const commentsCountNode = document.querySelector(`[data-post-comments-count="${CSS.escape(String(postId))}"]`);
-        if (commentsCountNode) {
-          commentsCountNode.textContent = String(Number(commentsCountNode.textContent || '0') + 1);
-        }
+        if (commentsCountNode) commentsCountNode.textContent = String(Number(commentsCountNode.textContent || '0') + 1);
 
         const targetParentId = Number(parentCommentId || 0);
         const thread = document.querySelector(`[data-comment-thread][data-post-id="${CSS.escape(String(postId))}"]`);
@@ -424,7 +448,8 @@ document.addEventListener('DOMContentLoaded', () => {
               const replyNode = document.createElement('div');
               replyNode.className = 'rd-feed-comment-item rd-comment-highlight';
               if (createdId > 0) replyNode.id = `comment-${createdId}`;
-              replyNode.innerHTML = `<a href="#" class="fw-semibold text-decoration-none">${author}</a>: ${text}`;
+              replyNode.setAttribute('data-reply-item', String(targetParentId));
+              replyNode.innerHTML = `<a href="/member/${Number(payload.comment?.user_id || 0)}" class="fw-semibold text-decoration-none">${author}</a>: ${text}`;
               repliesWrap.appendChild(replyNode);
             }
           } else {
@@ -433,22 +458,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if (createdId > 0) node.id = `comment-${createdId}`;
             node.innerHTML = `
               <div class="d-flex justify-content-between align-items-start gap-2">
-                <div><a href="#" class="fw-semibold text-decoration-none">${author}</a>: ${text}</div>
-                <button type="button" class="btn btn-link btn-sm p-0" data-reply-toggle data-post-id="${postId}" data-parent-id="${createdId || 0}">Responder</button>
+                <div><a href="/member/${Number(payload.comment?.user_id || 0)}" class="fw-semibold text-decoration-none">${author}</a>: ${text}</div>
+                <button type="button" class="btn btn-link btn-sm p-0" data-reply-toggle data-post-id="${postId}" data-parent-id="${createdId || 0}" data-expanded-label="Ocultar" data-collapsed-label="Responder">Responder</button>
               </div>
+              <form method="post" action="/feed/comment" class="mt-2 d-none" id="reply-form-${postId}-${createdId || 0}" data-feed-comment-form data-comment-kind="reply" data-post-id="${postId}" data-parent-id="${createdId || 0}">
+                <input type="hidden" name="post_id" value="${postId}">
+                <input type="hidden" name="parent_comment_id" value="${createdId || 0}">
+                <div class="d-flex gap-2">
+                  <input class="form-control form-control-sm" name="comment" maxlength="600" placeholder="Responder ao comentário..." required>
+                  <button class="btn btn-sm btn-rd-primary">Responder</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-reply-cancel data-post-id="${postId}" data-parent-id="${createdId || 0}">Cancelar</button>
+                </div>
+              </form>
             `;
             thread.prepend(node);
+            bindFeedCommentForm(node.querySelector('[data-feed-comment-form]'));
           }
         }
       } catch (error) {
         showInlineFeedback(feedback, error.message || 'Falha ao enviar comentário.', 'error');
       } finally {
-        if (submitButton) {
-          submitButton.disabled = false;
-        }
+        if (submitButton) submitButton.disabled = false;
       }
     });
-  });
+  };
+
+  document.querySelectorAll('[data-feed-comment-form]').forEach((form) => bindFeedCommentForm(form));
 
 
   document.querySelectorAll('[data-feed-reaction]').forEach((button) => {
@@ -535,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = await feedRequest('/feed/private-interest', { post_id: String(postId), interest_type: type, message_optional: msg }, form, 'Falha ao enviar interesse.');
         showInlineFeedback(feedback, payload.message || 'Interesse enviado.', 'success');
         const countEl = document.querySelector(`[data-post-private-interest-count="${CSS.escape(String(postId))}"]`);
-        if (countEl) countEl.textContent = String(Number(countEl.textContent || '0') + 1);
+        if (countEl && (payload.is_new === true || typeof payload.is_new === 'undefined')) countEl.textContent = String(Number(countEl.textContent || '0') + 1);
         form.reset();
       } catch (error) {
         showInlineFeedback(feedback, error.message || 'Falha ao enviar interesse.', 'error');
@@ -560,11 +595,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         showInlineFeedback(feedback, payload.message || 'Estado social ativado.', 'success');
         const badgeText = String(payload.state?.availability_type || availabilityType).replaceAll('_', ' ');
-        document.querySelectorAll('.rd-feed-post__meta').forEach((metaWrap) => {
-          const ownedPostCard = metaWrap.closest('.rd-feed-post');
-          if (!ownedPostCard) return;
-          const deleteForm = ownedPostCard.querySelector('form[action="/feed/delete"]');
-          if (!deleteForm) return;
+        const viewerId = Number(document.body.getAttribute('data-auth-user-id') || '0');
+        document.querySelectorAll('.rd-feed-post[data-author-id]').forEach((postCard) => {
+          const authorId = Number(postCard.getAttribute('data-author-id') || '0');
+          if (viewerId > 0 && authorId !== viewerId) return;
+          const metaWrap = postCard.querySelector('.rd-feed-post__meta');
+          if (!metaWrap) return;
           let badge = metaWrap.querySelector('.rd-badge-availability');
           if (!badge) {
             badge = document.createElement('span');
@@ -593,7 +629,8 @@ document.addEventListener('DOMContentLoaded', () => {
           item.classList.add('d-none');
         }
       });
-      button.textContent = shouldExpand ? 'Ocultar replies' : 'Ver replies';
+      const total = Number(button.getAttribute('data-total-replies') || '0');
+      button.textContent = shouldExpand ? 'Ocultar replies' : `Ver ${total || replies.length} replies`;
     });
   });
 

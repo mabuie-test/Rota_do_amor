@@ -37,6 +37,11 @@ final class PostPrivateInterestService extends Model
         }
 
         $safeMessage = trim((string) $message);
+        $existing = $this->fetchOne('SELECT id FROM post_private_interests WHERE post_id=:post_id AND sender_user_id=:sender LIMIT 1', [
+            ':post_id' => $postId,
+            ':sender' => $senderId,
+        ]) ?: [];
+
         if ($safeMessage !== '' && mb_strlen($safeMessage) > 240) {
             return ['success' => false, 'message' => 'Mensagem opcional excede o limite.', 'error_code' => 'message_too_long'];
         }
@@ -60,7 +65,7 @@ final class PostPrivateInterestService extends Model
             ['post_id' => $postId, 'actor_user_id' => $senderId, 'interest_type' => $interestType]
         );
 
-        return ['success' => true, 'message' => 'Interesse privado enviado.', 'post_id' => $postId];
+        return ['success' => true, 'message' => 'Interesse privado enviado.', 'post_id' => $postId, 'is_new' => $existing === []];
     }
 
     /** @param list<int> $postIds */
