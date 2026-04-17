@@ -10,9 +10,12 @@ use App\Core\Flash;
 use App\Core\Request;
 use App\Core\Response;
 use App\Services\DailyRouteEventBridge;
+use App\Services\FeedReactionService;
 use App\Services\FeedService;
+use App\Services\PostPrivateInterestService;
 use App\Services\RateLimiterService;
 use App\Services\UploadService;
+use App\Services\UserSocialAvailabilityService;
 use RuntimeException;
 
 final class FeedController extends Controller
@@ -22,8 +25,7 @@ final class FeedController extends Controller
         private readonly RateLimiterService $rateLimiter = new RateLimiterService(),
         private readonly UploadService $uploads = new UploadService(),
         private readonly DailyRouteEventBridge $dailyRoutes = new DailyRouteEventBridge()
-    )
-    {
+    ) {
     }
 
     public function index(): void
@@ -33,8 +35,9 @@ final class FeedController extends Controller
         $selectedPostId = max(0, (int) Request::input('post', 0));
         $selectedCommentId = max(0, (int) Request::input('comment', 0));
         $expandSelected = (string) Request::input('show_comments', '') === 'all' || $selectedCommentId > 0;
+        $tab = (string) Request::input('tab', 'for_you');
 
-        $feed = $this->service->getFeedForUser($viewerId, $page, 15, $selectedPostId, $selectedCommentId, $expandSelected);
+        $feed = $this->service->getFeedForUser($viewerId, $page, 15, $selectedPostId, $selectedCommentId, $expandSelected, $tab);
         $this->view('feed/index', [
             'title' => 'Feed',
             'feed' => $feed['items'],
@@ -42,6 +45,12 @@ final class FeedController extends Controller
             'viewer_id' => $viewerId,
             'selected_post_id' => $selectedPostId,
             'selected_comment_id' => $selectedCommentId,
+            'feed_tabs' => $feed['tabs'] ?? [],
+            'selected_tab' => $feed['selected_tab'] ?? 'for_you',
+            'prompts' => $this->service->getFeedPrompts(),
+            'reaction_types' => FeedReactionService::TYPES,
+            'interest_types' => PostPrivateInterestService::TYPES,
+            'availability_types' => UserSocialAvailabilityService::TYPES,
         ]);
     }
 
@@ -70,10 +79,44 @@ final class FeedController extends Controller
                 }
             }
 
-            $id = $this->service->createPost($userId, (string) Request::input('content', ''), $storedImages);
+            $meta = [
+                'post_mood' => (string) Request::input('post_mood', ''),
+                'relational_phase' => (string) Request::input('relational_phase', ''),
+                'origin_type' => (string) Request::input('origin_type', 'normal'),
+                'prompt_id' => (int) Request::input('prompt_id', 0),
+                'prompt_answer_text' => (string) Request::input('prompt_answer_text', ''),
+                'diary_entry_id' => (int) Request::input('diary_entry_id', 0),
+                'diary_share_mode' => (string) Request::input('diary_share_mode', 'publico'),
+                'diary_is_anonymous' => (int) Request::input('diary_is_anonymous', 0) === 1,
+            ];
+
+            if ((int) Request::input('has_poll', 0) === 1) {
+                $meta['poll'] = [
+                    'question' => (string) Request::input('poll_question', ''),
+                    'options' => [
+                        (string) Request::input('poll_option_1', ''),
+                        (string) Request::input('poll_option_2', ''),
+                        (string) Request::input('poll_option_3', ''),
+                        (string) Request::input('poll_option_4', ''),
+                    ],
+                    'ends_at' => Request::input('poll_ends_at') ?: null,
+                ];
+            }
+
+            $id = $this->service->createPost($userId, (string) Request::input('content', ''), $storedImages, $meta);
             if ($id > 0) {
                 $this->rateLimiter->hitSuccess('feed_post', $key, $userId, ['images_count' => count($storedImages)]);
                 $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_POST, 'feed', 1);
+                if ((int) ($meta['prompt_id'] ?? 0) > 0) {
+                    $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_PROMPT_POST, 'feed', 1);
+                }
+                if (isset($meta['poll'])) {
+                    $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_POLL_CREATED, 'feed', 1);
+                }
+                if ((int) ($meta['diary_entry_id'] ?? 0) > 0) {
+                    $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_DIARY_SHARED, 'feed', 1);
+                }
+
                 if (Request::expectsJson()) {
                     $this->jsonOutcome(true, 'Publicação criada com sucesso.', 'feed_post_created', ['images_count' => count($storedImages)], $id, $id, null, ['post_id' => $id]);
                 }
@@ -104,6 +147,78 @@ final class FeedController extends Controller
             Flash::set('error', $exception->getMessage());
             Response::redirect('/feed');
         }
+    }
+
+    public function react(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $postId = (int) Request::input('post_id', 0);
+        $reactionType = (string) Request::input('reaction_type', '');
+        $result = $this->service->toggleReaction($postId, $userId, $reactionType);
+
+        if (!($result['success'] ?? false)) {
+            Response::json(['ok' => false] + $result, 422);
+        }
+
+        if (($result['action'] ?? '') !== 'reaction_removed') {
+            $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_REACTION, 'feed', 1);
+        }
+
+        Response::json(['ok' => true] + $result);
+    }
+
+    public function votePoll(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $pollId = (int) Request::input('poll_id', 0);
+        $optionId = (int) Request::input('option_id', 0);
+        $result = $this->service->votePoll($pollId, $optionId, $userId);
+
+        if (!($result['success'] ?? false)) {
+            Response::json(['ok' => false] + $result, 422);
+        }
+
+        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_POLL_VOTED, 'feed', 1);
+        Response::json(['ok' => true] + $result);
+    }
+
+
+    public function pollState(): void
+    {
+        $pollId = (int) Request::input('poll_id', 0);
+        $viewerId = Auth::id() ?? 0;
+        $state = $this->service->pollState($pollId, $viewerId);
+        if ($state === []) {
+            Response::json(['ok' => false, 'message' => 'Enquete não encontrada.'], 404);
+        }
+
+        Response::json(['ok' => true, 'poll' => $state]);
+    }
+
+    public function privateInterest(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $result = $this->service->sendPrivateInterest((int) Request::input('post_id', 0), $userId, (string) Request::input('interest_type', ''), (string) Request::input('message_optional', ''));
+
+        if (!($result['success'] ?? false)) {
+            Response::json(['ok' => false] + $result, 422);
+        }
+
+        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_PRIVATE_INTEREST, 'feed', 1);
+        Response::json(['ok' => true] + $result);
+    }
+
+    public function activateAvailability(): void
+    {
+        $userId = Auth::id() ?? 0;
+        $ok = $this->service->activateSocialAvailability($userId, (string) Request::input('availability_type', ''), (int) Request::input('duration_minutes', 180));
+
+        if (!$ok) {
+            Response::json(['ok' => false, 'message' => 'Não foi possível ativar disponibilidade.'], 422);
+        }
+
+        $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_SOCIAL_AVAILABILITY, 'feed', 1);
+        Response::json(['ok' => true, 'message' => 'Estado social ativado por tempo limitado.']);
     }
 
     public function like(): void

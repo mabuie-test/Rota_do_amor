@@ -409,6 +409,93 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+
+  document.querySelectorAll('[data-feed-reaction]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const postId = button.getAttribute('data-post-id') || '0';
+      const reactionType = button.getAttribute('data-reaction-type') || '';
+      const token = document.querySelector('input[name="_token"]')?.value || '';
+      const feedback = feedFeedbackForPost(postId);
+      button.disabled = true;
+      try {
+        const response = await fetch('/feed/react', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: new URLSearchParams({ post_id: String(postId), reaction_type: reactionType, _token: token })
+        });
+        const payload = await parseJsonSafe(response);
+        if (!response.ok || !payload.ok) throw new Error(payload.message || 'Falha ao reagir.');
+        showInlineFeedback(feedback, payload.message || 'Reação atualizada.', 'success');
+        window.setTimeout(() => window.location.reload(), 180);
+      } catch (error) {
+        showInlineFeedback(feedback, error.message || 'Falha ao reagir.', 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-feed-poll-vote]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const pollId = button.getAttribute('data-poll-id') || '0';
+      const optionId = button.getAttribute('data-option-id') || '0';
+      const token = document.querySelector('input[name="_token"]')?.value || '';
+      button.disabled = true;
+      try {
+        const response = await fetch('/feed/poll/vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: new URLSearchParams({ poll_id: String(pollId), option_id: String(optionId), _token: token })
+        });
+        const payload = await parseJsonSafe(response);
+        if (!response.ok || !payload.ok) throw new Error(payload.message || 'Falha ao votar.');
+        window.setTimeout(() => window.location.reload(), 180);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-feed-private-interest-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const postId = form.querySelector('input[name="post_id"]')?.value || '0';
+      const type = form.querySelector('select[name="interest_type"]')?.value || '';
+      const msg = form.querySelector('input[name="message_optional"]')?.value || '';
+      const token = form.querySelector('input[name="_token"]')?.value || '';
+      const feedback = feedFeedbackForPost(postId);
+      try {
+        const response = await fetch('/feed/private-interest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: new URLSearchParams({ post_id: String(postId), interest_type: type, message_optional: msg, _token: token })
+        });
+        const payload = await parseJsonSafe(response);
+        if (!response.ok || !payload.ok) throw new Error(payload.message || 'Falha ao enviar interesse.');
+        showInlineFeedback(feedback, payload.message || 'Interesse enviado.', 'success');
+      } catch (error) {
+        showInlineFeedback(feedback, error.message || 'Falha ao enviar interesse.', 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-feed-availability-form]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const token = form.querySelector('input[name="_token"]')?.value || '';
+      const availabilityType = form.querySelector('select[name="availability_type"]')?.value || '';
+      const duration = form.querySelector('select[name="duration_minutes"]')?.value || '180';
+      try {
+        await fetch('/feed/availability', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: new URLSearchParams({ availability_type: availabilityType, duration_minutes: duration, _token: token })
+        });
+        window.setTimeout(() => window.location.reload(), 180);
+      } catch (_error) {}
+    });
+  });
+
   const safetyLevelSelect = document.querySelector('[data-safe-date-safety-level]');
   if (safetyLevelSelect) {
     const ensureEnabledOption = () => {
