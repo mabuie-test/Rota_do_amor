@@ -14,62 +14,107 @@
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
 </head>
 <?php
+use App\Core\Auth;
 use App\Core\Flash;
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $unreadNotifications = (int) ($layout_unread_notifications ?? 0);
 $isAdminArea = str_starts_with($path, '/admin') && $path !== '/admin/login';
-$moduleClass = 'module-generic';
-if (str_starts_with($path, '/discover') || str_starts_with($path, '/swipe')) { $moduleClass = 'module-discover'; }
-elseif (str_starts_with($path, '/messages')) { $moduleClass = 'module-messages'; }
-elseif (str_starts_with($path, '/invites')) { $moduleClass = 'module-intention'; }
-elseif (str_starts_with($path, '/dates')) { $moduleClass = 'module-safety'; }
-elseif (str_starts_with($path, '/diary')) { $moduleClass = 'module-diary'; }
-elseif (str_starts_with($path, '/feed') || str_starts_with($path, '/stories') || str_starts_with($path, '/visitors') || str_starts_with($path, '/compatibility-duel') || str_starts_with($path, '/daily-route')) { $moduleClass = 'module-retention'; }
-elseif ($isAdminArea) { $moduleClass = 'module-admin'; }
+$isAuthenticated = Auth::check();
+$experienceClass = $isAdminArea ? 'rd-experience-admin' : ($isAuthenticated ? 'rd-experience-app' : 'rd-experience-public');
 
-$navItems = [
-    '/dashboard' => ['label' => 'Dashboard', 'icon' => 'fa-house'],
-    '/discover' => ['label' => 'Descobrir', 'icon' => 'fa-compass'],
-    '/swipe' => ['label' => 'Swipe', 'icon' => 'fa-bolt'],
-    '/matches' => ['label' => 'Matches', 'icon' => 'fa-stars'],
-    '/messages' => ['label' => 'Mensagens', 'icon' => 'fa-comments'],
-    '/dates' => ['label' => 'Encontro Seguro', 'icon' => 'fa-shield-heart'],
-    '/invites/received' => ['label' => 'Gostaram de Mim', 'icon' => 'fa-envelope-open-heart'],
-    '/feed' => ['label' => 'Feed', 'icon' => 'fa-sparkles'],
-    '/stories/anonymous' => ['label' => 'Histórias', 'icon' => 'fa-feather-pointed'],
-    '/visitors' => ['label' => 'Visitantes', 'icon' => 'fa-eye'],
-    '/compatibility-duel' => ['label' => 'Duelo', 'icon' => 'fa-people-arrows'],
-    '/notifications' => ['label' => 'Notificações', 'icon' => 'fa-circle-check'],
-    '/diary' => ['label' => 'Diário', 'icon' => 'fa-book-heart'],
-    '/profile' => ['label' => 'Perfil', 'icon' => 'fa-heart-pulse'],
+$publicNavItems = [
+    '/' => ['label' => 'Início', 'icon' => 'fa-house'],
+    '/plans' => ['label' => 'Planos', 'icon' => 'fa-gem'],
+    '/about' => ['label' => 'Sobre', 'icon' => 'fa-circle-info'],
+    '/safety' => ['label' => 'Segurança', 'icon' => 'fa-shield-heart'],
+    '/login' => ['label' => 'Entrar', 'icon' => 'fa-right-to-bracket'],
+    '/register' => ['label' => 'Registar', 'icon' => 'fa-user-plus'],
 ];
+
+$appNavItems = [
+    '/dashboard' => ['label' => 'Dashboard', 'icon' => 'fa-house', 'group' => 'Core'],
+    '/discover' => ['label' => 'Descobrir', 'icon' => 'fa-compass', 'group' => 'Conexões'],
+    '/swipe' => ['label' => 'Swipe', 'icon' => 'fa-bolt', 'group' => 'Conexões'],
+    '/matches' => ['label' => 'Matches', 'icon' => 'fa-stars', 'group' => 'Conexões'],
+    '/messages' => ['label' => 'Mensagens', 'icon' => 'fa-comments', 'group' => 'Social'],
+    '/feed' => ['label' => 'Feed', 'icon' => 'fa-sparkles', 'group' => 'Social'],
+    '/stories/anonymous' => ['label' => 'Histórias', 'icon' => 'fa-feather-pointed', 'group' => 'Social'],
+    '/notifications' => ['label' => 'Notificações', 'icon' => 'fa-bell', 'group' => 'Social'],
+    '/dates' => ['label' => 'Encontro Seguro', 'icon' => 'fa-shield-heart', 'group' => 'Segurança'],
+    '/invites/received' => ['label' => 'Gostaram de Mim', 'icon' => 'fa-envelope-open-heart', 'group' => 'Segurança'],
+    '/visitors' => ['label' => 'Visitantes', 'icon' => 'fa-eye', 'group' => 'Segurança'],
+    '/compatibility-duel' => ['label' => 'Duelo', 'icon' => 'fa-people-arrows', 'group' => 'Engajamento'],
+    '/diary' => ['label' => 'Diário', 'icon' => 'fa-book-heart', 'group' => 'Engajamento'],
+    '/profile' => ['label' => 'Perfil', 'icon' => 'fa-user-pen', 'group' => 'Conta'],
+];
+
+$showShellSidebar = $isAuthenticated || $isAdminArea;
 ?>
-<body class="<?= e($moduleClass) ?> <?= $isAdminArea ? 'is-admin-area' : '' ?>">
+<body class="<?= e($experienceClass) ?>">
 <a href="#main-content" class="rd-skip-link">Ir para conteúdo principal</a>
+
 <div class="rd-topbar py-2">
-  <div class="container d-flex justify-content-between align-items-center small gap-2 flex-wrap">
-    <span><i class="fa-solid fa-route me-2"></i>Rota do Amor 2.0 · jornada relacional premium para Moçambique urbano.</span>
-    <a href="<?= e(url('plans')) ?>" class="text-decoration-none text-white fw-semibold"><i class="fa-solid fa-gem me-1"></i>Planos & benefícios</a>
+  <div class="container d-flex justify-content-between align-items-center gap-2 flex-wrap">
+    <span><i class="fa-solid fa-route me-2"></i>Rota do Amor · design system premium e experiência mobile-first.</span>
+    <a href="<?= e(url('plans')) ?>" class="text-decoration-none fw-semibold"><i class="fa-solid fa-gem me-1"></i>Planos & benefícios</a>
   </div>
 </div>
 
-<nav class="navbar navbar-expand-lg navbar-dark rd-navbar sticky-top">
-  <div class="container py-2">
-    <a class="navbar-brand" href="<?= e(url()) ?>"><i class="fa-solid fa-compass-drafting me-2"></i>Rota do Amor</a>
-    <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
-    <div class="collapse navbar-collapse" id="mainNav">
-      <div class="navbar-nav ms-auto gap-1 rd-nav-grid">
-        <?php foreach ($navItems as $href => $item): ?>
-          <?php $active = str_starts_with($path, $href) ? 'active' : ''; ?>
-          <a class="nav-link <?= e($active) ?>" href="<?= e(url($href)) ?>"><i class="fa-solid <?= e($item['icon']) ?> me-1"></i><?= e($item['label']) ?><?php if ($href === '/notifications' && $unreadNotifications > 0): ?><span class="badge text-bg-light ms-1"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span><?php endif; ?></a>
+<header class="rd-header">
+  <div class="container rd-header__bar">
+    <div class="d-flex align-items-center gap-2">
+      <?php if ($showShellSidebar): ?>
+        <button class="btn btn-sm btn-outline-secondary d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#rdMobileSidebar" aria-label="Abrir menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+      <?php endif; ?>
+      <a class="rd-brand" href="<?= e(url()) ?>">
+        <span class="rd-brand__logo"><i class="fa-solid fa-heart"></i></span>
+        <span>Rota do Amor</span>
+      </a>
+    </div>
+
+    <?php if (!$showShellSidebar): ?>
+      <nav class="rd-public-nav" aria-label="Navegação pública">
+        <?php foreach ($publicNavItems as $href => $item): ?>
+          <?php $active = $href === '/' ? $path === '/' : str_starts_with($path, $href); ?>
+          <a class="nav-link <?= $active ? 'active' : '' ?>" href="<?= e(url($href)) ?>">
+            <i class="fa-solid <?= e($item['icon']) ?> me-1 rd-icon-sm"></i><?= e($item['label']) ?>
+          </a>
         <?php endforeach; ?>
+      </nav>
+    <?php else: ?>
+      <div class="d-flex align-items-center gap-2">
+        <?php if (!$isAdminArea): ?>
+          <a class="btn btn-sm btn-rd-soft d-none d-md-inline-flex" href="<?= e(url('/profile')) ?>"><i class="fa-solid fa-user me-1"></i>Minha conta</a>
+        <?php endif; ?>
+        <form method="post" action="<?= e(url('/logout')) ?>" class="m-0">
+          <?= csrf_field() ?>
+          <button class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-right-from-bracket me-1"></i>Sair</button>
+        </form>
       </div>
+    <?php endif; ?>
+  </div>
+</header>
+
+<?php if ($showShellSidebar): ?>
+  <div class="offcanvas offcanvas-start" tabindex="-1" id="rdMobileSidebar" aria-labelledby="rdMobileSidebarLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="rdMobileSidebarLabel">Menu</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
+    </div>
+    <div class="offcanvas-body">
+      <?php if ($isAdminArea): ?>
+        <?php require dirname(__DIR__) . '/partials/admin-sidebar.php'; ?>
+      <?php else: ?>
+        <?php require dirname(__DIR__) . '/partials/app-sidebar.php'; ?>
+      <?php endif; ?>
     </div>
   </div>
-</nav>
+<?php endif; ?>
 
-<main class="container main-shell py-4 py-md-5" id="main-content">
+<main class="container main-shell" id="main-content">
   <?php if ($message = Flash::get('success')): ?>
     <?php $type = 'success'; require dirname(__DIR__) . '/partials/alert.php'; ?>
   <?php endif; ?>
@@ -79,25 +124,28 @@ $navItems = [
   <?php if ($message = Flash::get('warning')): ?>
     <?php $type = 'warning'; require dirname(__DIR__) . '/partials/alert.php'; ?>
   <?php endif; ?>
-  <?php if ($isAdminArea): ?>
-    <div class="admin-layout">
-      <?php require dirname(__DIR__) . '/partials/admin-sidebar.php'; ?>
-      <section class="admin-content fade-in">
-        <?php require $file; ?>
-      </section>
+
+  <?php if ($showShellSidebar): ?>
+    <div class="rd-shell">
+      <div class="d-none d-lg-block">
+        <?php if ($isAdminArea): ?>
+          <?php require dirname(__DIR__) . '/partials/admin-sidebar.php'; ?>
+        <?php else: ?>
+          <?php require dirname(__DIR__) . '/partials/app-sidebar.php'; ?>
+        <?php endif; ?>
+      </div>
+      <section class="rd-content fade-in"><?php require $file; ?></section>
     </div>
   <?php else: ?>
-    <section class="fade-in">
-      <?php require $file; ?>
-    </section>
+    <section class="fade-in"><?php require $file; ?></section>
   <?php endif; ?>
 </main>
 
-<footer class="rd-footer py-5 mt-5">
+<footer class="rd-footer py-5 mt-4">
   <div class="container d-flex flex-column flex-md-row justify-content-between gap-3">
     <div>
       <strong class="d-block mb-1"><i class="fa-solid fa-heart me-2"></i>Rota do Amor</strong>
-      <small>Uma plataforma de intenção relacional, confiança e sofisticação emocional para Moçambique.</small>
+      <small>Plataforma social premium com design sistémico, navegação lateral moderna e base visual unificada.</small>
     </div>
     <div class="d-flex gap-3 align-items-center flex-wrap">
       <a href="<?= e(url('plans')) ?>" class="text-decoration-none text-light">Planos</a>

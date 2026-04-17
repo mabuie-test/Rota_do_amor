@@ -1,0 +1,9 @@
+.rd-experience-admin .main-shell { max-width: 1520px; }
+.rd-experience-admin .rd-sidebar {
+  background: linear-gradient(180deg, #121723, #101522);
+}
+.rd-experience-admin .rd-page-header__icon {
+  background: rgba(79, 70, 229, .12);
+  color: var(--color-info);
+}
+.rd-experience-admin .rd-card { border-color: #d7dbef; }
