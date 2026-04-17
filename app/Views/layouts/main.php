@@ -6,12 +6,29 @@
     <title><?= e($title ?? 'Rota do Amor') ?></title>
     <meta name="description" content="Rota do Amor: plataforma premium para conexões reais em Moçambique.">
     <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+    <meta name="color-scheme" content="light">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    >
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    >
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
+
+    <noscript>
+      <style>.rd-feed-floating-cta{display:none!important;}</style>
+    </noscript>
 </head>
 <?php
 use App\Core\Auth;
@@ -161,7 +178,12 @@ $sidebarView = $isAdminArea ? dirname(__DIR__) . '/partials/admin-sidebar.php' :
   </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="<?= e(asset('js/app.js')) ?>"></script>
+<script
+  src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+  integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+  crossorigin="anonymous"
+  defer
+></script>
+<script src="<?= e(asset('js/app.js')) ?>" defer></script>
 </body>
 </html>
