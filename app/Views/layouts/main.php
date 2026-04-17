@@ -36,8 +36,9 @@ $navItems = [
     '/profile' => ['label' => 'Perfil', 'icon' => 'fa-heart-pulse'],
 ];
 ?>
+<a href="#main-content" class="rd-skip-link">Ir para conteúdo principal</a>
 <div class="rd-topbar py-2">
-  <div class="container d-flex justify-content-between align-items-center small gap-2">
+  <div class="container d-flex justify-content-between align-items-center small gap-2 flex-wrap">
     <span><i class="fa-solid fa-crown me-2"></i>Rede premium para relações com intenção, ritmo e confiança.</span>
     <a href="<?= e(url('plans')) ?>" class="text-decoration-none text-white fw-semibold"><i class="fa-solid fa-stars me-1"></i>Ver planos</a>
   </div>
@@ -48,7 +49,7 @@ $navItems = [
     <a class="navbar-brand" href="<?= e(url()) ?>"><i class="fa-solid fa-heart me-2"></i>Rota do Amor</a>
     <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="mainNav">
-      <div class="navbar-nav ms-auto gap-1">
+      <div class="navbar-nav ms-auto gap-1 rd-nav-grid">
         <?php foreach ($navItems as $href => $item): ?>
           <?php $active = str_starts_with($path, $href) ? 'active' : ''; ?>
           <a class="nav-link <?= e($active) ?>" href="<?= e(url($href)) ?>"><i class="fa-solid <?= e($item['icon']) ?> me-1"></i><?= e($item['label']) ?><?php if ($href === '/notifications' && $unreadNotifications > 0): ?><span class="badge text-bg-light ms-1"><?= $unreadNotifications > 99 ? '99+' : $unreadNotifications ?></span><?php endif; ?></a>
@@ -58,7 +59,7 @@ $navItems = [
   </div>
 </nav>
 
-<div class="container main-shell py-4 py-md-5">
+<main class="container main-shell py-4 py-md-5" id="main-content">
   <?php if ($message = Flash::get('success')): ?>
     <?php $type = 'success'; require dirname(__DIR__) . '/partials/alert.php'; ?>
   <?php endif; ?>
@@ -71,14 +72,16 @@ $navItems = [
   <?php if (str_starts_with($path, '/admin') && $path !== '/admin/login'): ?>
     <div class="admin-layout">
       <?php require dirname(__DIR__) . '/partials/admin-sidebar.php'; ?>
-      <div class="admin-content">
+      <section class="admin-content fade-in">
         <?php require $file; ?>
-      </div>
+      </section>
     </div>
   <?php else: ?>
-    <?php require $file; ?>
+    <section class="fade-in">
+      <?php require $file; ?>
+    </section>
   <?php endif; ?>
-</div>
+</main>
 
 <footer class="rd-footer py-5 mt-5">
   <div class="container d-flex flex-column flex-md-row justify-content-between gap-3">

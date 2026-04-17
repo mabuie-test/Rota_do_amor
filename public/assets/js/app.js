@@ -430,4 +430,29 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+
+  const submitButtons = document.querySelectorAll('form button[type="submit"], form button:not([type])');
+  submitButtons.forEach((button) => {
+    const form = button.closest('form');
+    if (!form || form.hasAttribute('data-no-enhance-submit') || form.hasAttribute('data-feed-like-form') || form.hasAttribute('data-feed-comment-form') || form.id === 'chat-form') return;
+
+    button.setAttribute('data-enhanced-submit', '1');
+    form.addEventListener('submit', () => {
+      if (button.disabled) return;
+      button.classList.add('is-submitting');
+      button.disabled = true;
+      const originalText = button.dataset.originalLabel || button.textContent || '';
+      button.dataset.originalLabel = originalText;
+      if (!button.querySelector('i')) {
+        button.textContent = `${originalText.trim()}...`;
+      }
+    });
+  });
+
+  document.querySelectorAll('.rd-card, .rd-list-item, .rd-soft-panel').forEach((node, index) => {
+    node.style.animationDelay = `${Math.min(index * 20, 180)}ms`;
+    node.classList.add('fade-in');
+  });
+
 });
