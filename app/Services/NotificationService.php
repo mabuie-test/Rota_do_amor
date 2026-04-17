@@ -164,6 +164,8 @@ final class NotificationService extends Model
             'message_received' => '/messages',
             'feed_like_received' => '/feed',
             'feed_comment_received' => '/feed',
+            'feed_reaction_received' => '/feed',
+            'feed_private_interest_received' => '/feed',
             'visitors_hub_update' => '/visitors',
             'visitor_profile' => '/visitors',
             'profile_visit' => '/visitors',
