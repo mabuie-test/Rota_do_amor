@@ -1,0 +1,15 @@
+.rd-experience-app .rd-header { background: rgba(246,247,251,.92); }
+.rd-experience-app .main-shell { max-width: 1440px; }
+.rd-experience-app .rd-content > section { width: 100%; }
+.rd-profile-card .avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+}
+.rd-comment-thread { border-color: var(--color-border) !important; background: #f8f9ff !important; }
+.rd-comment-highlight { background: #fff4d6; border-radius: .4rem; padding: .1rem .25rem; }

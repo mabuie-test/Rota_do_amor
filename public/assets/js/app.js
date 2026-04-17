@@ -2,6 +2,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const qs = new URLSearchParams(window.location.search);
   document.body.classList.add('js-ready');
 
+  document.querySelectorAll('#rdMobileSidebar .rd-sidebar__link').forEach((link) => {
+    link.addEventListener('click', () => {
+      const sidebar = document.getElementById('rdMobileSidebar');
+      if (!sidebar || typeof bootstrap === 'undefined') return;
+      const instance = bootstrap.Offcanvas.getInstance(sidebar) || new bootstrap.Offcanvas(sidebar);
+      instance.hide();
+    });
+  });
+
   const showInlineFeedback = (container, message, kind = 'info') => {
     if (!container) return;
     container.classList.remove('d-none', 'text-success', 'text-danger', 'text-muted');

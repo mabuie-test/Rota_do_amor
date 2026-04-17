@@ -1,0 +1,12 @@
+.rd-icon-sm { font-size: .85rem; }
+.rd-icon-md { font-size: 1rem; }
+.rd-icon-lg { font-size: 1.2rem; }
+
+.rd-visually-muted { color: var(--color-muted) !important; }
+.rd-surface { background: var(--color-surface); }
+.rd-surface-alt { background: var(--color-surface-alt); }
+
+@media (max-width: 767px) {
+  .rd-page-header { margin-bottom: var(--space-3); }
+  .rd-page-header__title { font-size: 1.35rem; }
+}
