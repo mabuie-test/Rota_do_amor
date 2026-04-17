@@ -7,12 +7,16 @@ body {
   background: radial-gradient(circle at 15% 10%, rgba(139, 30, 69, .08), transparent 30%), var(--color-bg);
   line-height: 1.55;
 }
+body.rd-mobile-nav-open { overflow: hidden; }
+
 a { color: var(--color-primary); }
 a:hover { color: color-mix(in srgb, var(--color-primary) 80%, black); }
+
 h1, h2, h3, h4, h5, h6, .rd-serif {
   font-family: var(--font-heading);
   letter-spacing: .01em;
-  color: #1a1f2b;
+  color: var(--color-text-strong);
+  line-height: 1.2;
 }
 h1 { font-size: clamp(2rem, 3.8vw, 3rem); }
 h2 { font-size: clamp(1.75rem, 3.2vw, 2.45rem); }
@@ -21,7 +25,7 @@ h4 { font-size: clamp(1.25rem, 2vw, 1.5rem); }
 h5 { font-size: 1.125rem; }
 h6 { font-size: 1rem; }
 small, .small, .rd-caption { font-size: .82rem; color: var(--color-muted); }
-label, .rd-label { font-size: .86rem; font-weight: 600; }
+label, .rd-label { font-size: .86rem; font-weight: 600; color: color-mix(in srgb, var(--color-text) 88%, black); }
 
 .rd-skip-link {
   position: absolute;

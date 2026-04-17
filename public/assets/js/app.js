@@ -2,13 +2,49 @@ document.addEventListener('DOMContentLoaded', () => {
   const qs = new URLSearchParams(window.location.search);
   document.body.classList.add('js-ready');
 
-  document.querySelectorAll('#rdMobileSidebar .rd-sidebar__link').forEach((link) => {
-    link.addEventListener('click', () => {
-      const sidebar = document.getElementById('rdMobileSidebar');
-      if (!sidebar || typeof bootstrap === 'undefined') return;
-      const instance = bootstrap.Offcanvas.getInstance(sidebar) || new bootstrap.Offcanvas(sidebar);
-      instance.hide();
-    });
+  const mobileNav = document.getElementById('rdMobileNav');
+  const mobileNavToggle = document.querySelector('[data-rd-sidebar-toggle]');
+  const mobileNavCloseTriggers = document.querySelectorAll('[data-rd-sidebar-close], #rdMobileNav .rd-sidebar__link');
+  let lastFocusedElement = null;
+
+  const closeMobileNav = () => {
+    if (!mobileNav || mobileNav.hasAttribute('hidden')) return;
+    mobileNav.classList.remove('is-open');
+    mobileNav.setAttribute('hidden', 'hidden');
+    document.body.classList.remove('rd-mobile-nav-open');
+    mobileNavToggle?.setAttribute('aria-expanded', 'false');
+    if (lastFocusedElement instanceof HTMLElement) {
+      lastFocusedElement.focus();
+    }
+  };
+
+  const openMobileNav = () => {
+    if (!mobileNav) return;
+    lastFocusedElement = document.activeElement;
+    mobileNav.removeAttribute('hidden');
+    requestAnimationFrame(() => mobileNav.classList.add('is-open'));
+    document.body.classList.add('rd-mobile-nav-open');
+    mobileNavToggle?.setAttribute('aria-expanded', 'true');
+    mobileNav.querySelector('.rd-sidebar__link, button, [href]')?.focus();
+  };
+
+  mobileNavToggle?.addEventListener('click', () => {
+    if (mobileNav?.hasAttribute('hidden')) {
+      openMobileNav();
+      return;
+    }
+
+    closeMobileNav();
+  });
+
+  mobileNavCloseTriggers.forEach((trigger) => {
+    trigger.addEventListener('click', closeMobileNav);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeMobileNav();
+    }
   });
 
   const showInlineFeedback = (container, message, kind = 'info') => {
