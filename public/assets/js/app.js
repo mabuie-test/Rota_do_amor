@@ -200,15 +200,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const lightboxLinks = Array.from(document.querySelectorAll('[data-lightbox-group]'));
   if (lightboxLinks.length > 0) {
-    const overlay = document.createElement('div');
-    overlay.className = 'rd-lightbox';
-    overlay.innerHTML = `
-      <button class="rd-lightbox__close" type="button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
-      <button class="rd-lightbox__nav rd-lightbox__nav--prev" type="button" aria-label="Anterior"><i class="fa-solid fa-chevron-left"></i></button>
-      <img class="rd-lightbox__img" alt="imagem ampliada">
-      <button class="rd-lightbox__nav rd-lightbox__nav--next" type="button" aria-label="Seguinte"><i class="fa-solid fa-chevron-right"></i></button>
-    `;
-    document.body.appendChild(overlay);
+    const getLinkSource = (link) => {
+      const href = (link.getAttribute('href') || '').trim();
+      if (!href || href === '#') {
+        return '';
+      }
+      return href;
+    };
+
+    const isOpen = (overlay) => overlay.classList.contains('is-open');
+    let overlay = document.querySelector('.rd-lightbox');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'rd-lightbox';
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.innerHTML = `
+        <button class="rd-lightbox__close" type="button" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+        <button class="rd-lightbox__nav rd-lightbox__nav--prev" type="button" aria-label="Anterior"><i class="fa-solid fa-chevron-left"></i></button>
+        <img class="rd-lightbox__img" alt="imagem ampliada">
+        <button class="rd-lightbox__nav rd-lightbox__nav--next" type="button" aria-label="Seguinte"><i class="fa-solid fa-chevron-right"></i></button>
+      `;
+      document.body.appendChild(overlay);
+    }
 
     const img = overlay.querySelector('.rd-lightbox__img');
     const closeBtn = overlay.querySelector('.rd-lightbox__close');
@@ -219,19 +232,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const render = () => {
       const link = currentGroup[currentIndex];
-      if (!link || !img) return;
-      img.src = link.getAttribute('href') || '';
+      const source = link ? getLinkSource(link) : '';
+      if (!img || source === '') {
+        close();
+        return;
+      }
+
+      img.src = source;
+      prevBtn?.toggleAttribute('hidden', currentGroup.length <= 1);
+      nextBtn?.toggleAttribute('hidden', currentGroup.length <= 1);
     };
 
+    function close() {
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('rd-lightbox-open');
+      document.querySelectorAll('[data-feed-fab]').forEach((fab) => fab.classList.remove('is-hidden-by-lightbox'));
+      if (img) {
+        img.removeAttribute('src');
+      }
+      currentGroup = [];
+      currentIndex = 0;
+    }
+
     const open = (link) => {
-      const groupName = link.getAttribute('data-lightbox-group');
-      currentGroup = lightboxLinks.filter((item) => item.getAttribute('data-lightbox-group') === groupName);
+      const source = getLinkSource(link);
+      const groupName = (link.getAttribute('data-lightbox-group') || '').trim();
+      if (!source || !groupName) {
+        return;
+      }
+
+      currentGroup = lightboxLinks.filter((item) => item.getAttribute('data-lightbox-group') === groupName && getLinkSource(item) !== '');
       currentIndex = Math.max(0, currentGroup.indexOf(link));
       render();
       overlay.classList.add('is-open');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('rd-lightbox-open');
+      document.querySelectorAll('[data-feed-fab]').forEach((fab) => fab.classList.add('is-hidden-by-lightbox'));
     };
 
-    const close = () => overlay.classList.remove('is-open');
     const next = () => {
       if (!currentGroup.length) return;
       currentIndex = (currentIndex + 1) % currentGroup.length;
@@ -245,6 +284,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     lightboxLinks.forEach((link) => {
       link.addEventListener('click', (event) => {
+        const source = getLinkSource(link);
+        if (source === '') return;
         event.preventDefault();
         open(link);
       });
@@ -257,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (event.target === overlay) close();
     });
     document.addEventListener('keydown', (event) => {
-      if (!overlay.classList.contains('is-open')) return;
+      if (!isOpen(overlay)) return;
       if (event.key === 'Escape') close();
       if (event.key === 'ArrowRight') next();
       if (event.key === 'ArrowLeft') prev();

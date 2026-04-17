@@ -141,6 +141,15 @@
 .rd-feed-comment-item { padding-bottom: .45rem; border-bottom: 1px dashed #dbe0f0; }
 .rd-feed-comment-item:last-child { border-bottom: 0; padding-bottom: 0; }
 .rd-feed-replies { margin-left: .75rem; padding-left: .75rem; border-left: 2px solid #e1e5f4; }
+.rd-feed-floating-cta {
+  transition: opacity var(--motion-fast), transform var(--motion-fast), visibility 0s linear 0s;
+}
+.rd-feed-floating-cta.is-hidden-by-lightbox {
+  opacity: 0;
+  transform: translateY(.4rem) scale(.96);
+  pointer-events: none;
+  visibility: hidden;
+}
 
 @media (max-width: 767px) {
   .rd-experience-app .main-shell { padding-top: .95rem; }
