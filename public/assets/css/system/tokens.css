@@ -3,14 +3,19 @@
   --font-heading: 'Playfair Display', Georgia, serif;
 
   --color-primary: #8b1e45;
+  --color-primary-strong: #751739;
   --color-secondary: #5d2a86;
   --color-accent: #f2b95d;
+
   --color-bg: #f6f7fb;
   --color-surface: #ffffff;
   --color-surface-alt: #f2f3fa;
   --color-text: #1f2430;
+  --color-text-strong: #131826;
   --color-muted: #6b7280;
   --color-border: #dde1ef;
+  --color-border-strong: #c9d0e6;
+
   --color-success: #198754;
   --color-warning: #d48a1a;
   --color-danger: #d6334c;

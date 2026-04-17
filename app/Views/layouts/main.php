@@ -50,6 +50,7 @@ $appNavItems = [
 ];
 
 $showShellSidebar = $isAuthenticated || $isAdminArea;
+$sidebarView = $isAdminArea ? dirname(__DIR__) . '/partials/admin-sidebar.php' : dirname(__DIR__) . '/partials/app-sidebar.php';
 ?>
 <body class="<?= e($experienceClass) ?>">
 <a href="#main-content" class="rd-skip-link">Ir para conteúdo principal</a>
@@ -65,7 +66,15 @@ $showShellSidebar = $isAuthenticated || $isAdminArea;
   <div class="container rd-header__bar">
     <div class="d-flex align-items-center gap-2">
       <?php if ($showShellSidebar): ?>
-        <button class="btn btn-sm btn-outline-secondary d-lg-none" data-bs-toggle="offcanvas" data-bs-target="#rdMobileSidebar" aria-label="Abrir menu">
+        <button
+          class="rd-shell-toggle d-lg-none"
+          type="button"
+          id="rdSidebarToggle"
+          data-rd-sidebar-toggle
+          aria-controls="rdMobileNav"
+          aria-expanded="false"
+          aria-label="Abrir menu principal"
+        >
           <i class="fa-solid fa-bars"></i>
         </button>
       <?php endif; ?>
@@ -99,18 +108,17 @@ $showShellSidebar = $isAuthenticated || $isAdminArea;
 </header>
 
 <?php if ($showShellSidebar): ?>
-  <div class="offcanvas offcanvas-start" tabindex="-1" id="rdMobileSidebar" aria-labelledby="rdMobileSidebarLabel">
-    <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="rdMobileSidebarLabel">Menu</h5>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Fechar"></button>
-    </div>
-    <div class="offcanvas-body">
-      <?php if ($isAdminArea): ?>
-        <?php require dirname(__DIR__) . '/partials/admin-sidebar.php'; ?>
-      <?php else: ?>
-        <?php require dirname(__DIR__) . '/partials/app-sidebar.php'; ?>
-      <?php endif; ?>
-    </div>
+  <div class="rd-mobile-nav" id="rdMobileNav" hidden>
+    <div class="rd-mobile-nav__backdrop" data-rd-sidebar-close></div>
+    <aside class="rd-mobile-nav__panel" aria-label="Menu lateral" aria-modal="true" role="dialog">
+      <div class="rd-mobile-nav__header">
+        <h5 class="rd-mobile-nav__title mb-0">Menu</h5>
+        <button type="button" class="btn-close" aria-label="Fechar" data-rd-sidebar-close></button>
+      </div>
+      <div class="rd-mobile-nav__content">
+        <?php $sidebarMode = 'mobile'; require $sidebarView; ?>
+      </div>
+    </aside>
   </div>
 <?php endif; ?>
 
@@ -127,12 +135,8 @@ $showShellSidebar = $isAuthenticated || $isAdminArea;
 
   <?php if ($showShellSidebar): ?>
     <div class="rd-shell">
-      <div class="d-none d-lg-block">
-        <?php if ($isAdminArea): ?>
-          <?php require dirname(__DIR__) . '/partials/admin-sidebar.php'; ?>
-        <?php else: ?>
-          <?php require dirname(__DIR__) . '/partials/app-sidebar.php'; ?>
-        <?php endif; ?>
+      <div class="rd-shell__sidebar d-none d-lg-block">
+        <?php $sidebarMode = 'desktop'; require $sidebarView; ?>
       </div>
       <section class="rd-content fade-in"><?php require $file; ?></section>
     </div>
