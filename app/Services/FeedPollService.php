@@ -61,38 +61,12 @@ final class FeedPollService extends Model
 
     public function pollState(int $pollId, int $viewerId): array
     {
-        $poll = $this->fetchOne('SELECT id, post_id, question, status, ends_at FROM post_polls WHERE id=:id LIMIT 1', [':id' => $pollId]) ?: [];
-        if ($poll === []) {
+        if ($pollId <= 0) {
             return [];
         }
 
-        $options = $this->fetchAllRows('SELECT o.id, o.option_text, o.sort_order, COUNT(v.id) AS votes FROM post_poll_options o LEFT JOIN post_poll_votes v ON v.option_id=o.id WHERE o.poll_id=:poll_id GROUP BY o.id,o.option_text,o.sort_order ORDER BY o.sort_order ASC, o.id ASC', [':poll_id' => $pollId]);
-        $totalVotes = 0;
-        foreach ($options as $opt) {
-            $totalVotes += (int) ($opt['votes'] ?? 0);
-        }
-
-        $viewer = $this->fetchOne('SELECT option_id FROM post_poll_votes WHERE poll_id=:poll_id AND user_id=:user_id LIMIT 1', [':poll_id' => $pollId, ':user_id' => $viewerId]);
-        $viewerOptionId = (int) ($viewer['option_id'] ?? 0);
-
-        return [
-            'id' => (int) $poll['id'],
-            'post_id' => (int) ($poll['post_id'] ?? 0),
-            'question' => (string) ($poll['question'] ?? ''),
-            'status' => (string) ($poll['status'] ?? 'active'),
-            'ends_at' => $poll['ends_at'] ?? null,
-            'total_votes' => $totalVotes,
-            'viewer_option_id' => $viewerOptionId,
-            'options' => array_map(static function (array $row) use ($totalVotes): array {
-                $votes = (int) ($row['votes'] ?? 0);
-                return [
-                    'id' => (int) ($row['id'] ?? 0),
-                    'option_text' => (string) ($row['option_text'] ?? ''),
-                    'votes' => $votes,
-                    'percentage' => $totalVotes > 0 ? (int) round(($votes / $totalVotes) * 100) : 0,
-                ];
-            }, $options),
-        ];
+        $byId = $this->loadPollStatesByPollIds([$pollId], $viewerId);
+        return $byId[$pollId] ?? [];
     }
 
     /** @param list<int> $postIds */
@@ -103,16 +77,111 @@ final class FeedPollService extends Model
         }
 
         $ph = implode(',', array_fill(0, count($postIds), '?'));
-        $stmt = $this->db->prepare("SELECT id FROM post_polls WHERE post_id IN ($ph)");
+        $stmt = $this->db->prepare("SELECT id, post_id FROM post_polls WHERE post_id IN ($ph)");
         $stmt->execute($postIds);
+        $pollRows = $stmt->fetchAll();
+        if ($pollRows === []) {
+            return [];
+        }
+
+        $pollIds = array_values(array_unique(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $pollRows)));
+        $statesByPollId = $this->loadPollStatesByPollIds($pollIds, $viewerId);
+
         $map = [];
-        foreach ($stmt->fetchAll() as $row) {
-            $state = $this->pollState((int) ($row['id'] ?? 0), $viewerId);
-            if ($state !== []) {
-                $map[(int) ($state['post_id'] ?? 0)] = $state;
+        foreach ($pollRows as $row) {
+            $pollId = (int) ($row['id'] ?? 0);
+            $postId = (int) ($row['post_id'] ?? 0);
+            if ($pollId <= 0 || $postId <= 0) {
+                continue;
+            }
+
+            if (isset($statesByPollId[$pollId])) {
+                $map[$postId] = $statesByPollId[$pollId];
             }
         }
 
         return $map;
+    }
+
+    /** @param list<int> $pollIds */
+    private function loadPollStatesByPollIds(array $pollIds, int $viewerId): array
+    {
+        if ($pollIds === []) {
+            return [];
+        }
+
+        $pollIds = array_values(array_unique(array_filter($pollIds, static fn(int $id): bool => $id > 0)));
+        if ($pollIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($pollIds), '?'));
+
+        $pollStmt = $this->db->prepare("SELECT id, post_id, question, status, ends_at FROM post_polls WHERE id IN ($placeholders)");
+        $pollStmt->execute($pollIds);
+        $pollRows = $pollStmt->fetchAll();
+        if ($pollRows === []) {
+            return [];
+        }
+
+        $optionStmt = $this->db->prepare(
+            "SELECT o.id, o.poll_id, o.option_text, o.sort_order, COUNT(v.id) AS votes
+             FROM post_poll_options o
+             LEFT JOIN post_poll_votes v ON v.option_id = o.id
+             WHERE o.poll_id IN ($placeholders)
+             GROUP BY o.id, o.poll_id, o.option_text, o.sort_order
+             ORDER BY o.poll_id ASC, o.sort_order ASC, o.id ASC"
+        );
+        $optionStmt->execute($pollIds);
+
+        $viewerParams = $pollIds;
+        $viewerParams[] = $viewerId;
+        $viewerStmt = $this->db->prepare("SELECT poll_id, option_id FROM post_poll_votes WHERE poll_id IN ($placeholders) AND user_id = ?");
+        $viewerStmt->execute($viewerParams);
+
+        $optionsByPoll = [];
+        $totalVotesByPoll = [];
+        foreach ($optionStmt->fetchAll() as $row) {
+            $pollId = (int) ($row['poll_id'] ?? 0);
+            $votes = (int) ($row['votes'] ?? 0);
+            $totalVotesByPoll[$pollId] = (int) ($totalVotesByPoll[$pollId] ?? 0) + $votes;
+            $optionsByPoll[$pollId][] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'option_text' => (string) ($row['option_text'] ?? ''),
+                'votes' => $votes,
+            ];
+        }
+
+        $viewerOptionByPoll = [];
+        foreach ($viewerStmt->fetchAll() as $row) {
+            $viewerOptionByPoll[(int) ($row['poll_id'] ?? 0)] = (int) ($row['option_id'] ?? 0);
+        }
+
+        $states = [];
+        foreach ($pollRows as $poll) {
+            $pollId = (int) ($poll['id'] ?? 0);
+            $totalVotes = (int) ($totalVotesByPoll[$pollId] ?? 0);
+            $options = array_map(static function (array $row) use ($totalVotes): array {
+                return [
+                    'id' => (int) ($row['id'] ?? 0),
+                    'option_text' => (string) ($row['option_text'] ?? ''),
+                    'votes' => (int) ($row['votes'] ?? 0),
+                    'percentage' => $totalVotes > 0 ? (int) round((((int) ($row['votes'] ?? 0)) / $totalVotes) * 100) : 0,
+                ];
+            }, $optionsByPoll[$pollId] ?? []);
+
+            $states[$pollId] = [
+                'id' => $pollId,
+                'post_id' => (int) ($poll['post_id'] ?? 0),
+                'question' => (string) ($poll['question'] ?? ''),
+                'status' => (string) ($poll['status'] ?? 'active'),
+                'ends_at' => $poll['ends_at'] ?? null,
+                'total_votes' => $totalVotes,
+                'viewer_option_id' => (int) ($viewerOptionByPoll[$pollId] ?? 0),
+                'options' => $options,
+            ];
+        }
+
+        return $states;
     }
 }

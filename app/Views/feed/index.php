@@ -4,6 +4,15 @@ $viewerId = (int) ($viewer_id ?? 0);
 $selectedPostId = (int) ($selected_post_id ?? 0);
 $selectedCommentId = (int) ($selected_comment_id ?? 0);
 $selectedTab = (string) ($selected_tab ?? 'for_you');
+$csrfToken = csrf_token();
+$originLabels = [
+  'normal' => ['label' => 'Post', 'icon' => 'fa-pen'],
+  'prompt_guided' => ['label' => 'Prompt', 'icon' => 'fa-wand-magic-sparkles'],
+  'poll' => ['label' => 'Enquete', 'icon' => 'fa-square-poll-vertical'],
+  'diary_shared' => ['label' => 'Diário partilhado', 'icon' => 'fa-book-open-heart'],
+  'match_collab' => ['label' => 'Fase 2', 'icon' => 'fa-flask'],
+  'story_shared' => ['label' => 'Fase 2', 'icon' => 'fa-flask'],
+];
 ?>
 <div class="rd-page-header">
   <div>
@@ -44,7 +53,7 @@ $selectedTab = (string) ($selected_tab ?? 'for_you');
     <div class="modal-content rd-card">
       <div class="modal-header border-0 pb-0"><h5 class="modal-title"><i class="fa-solid fa-feather me-2"></i>Nova publicação relacional</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button></div>
       <div class="modal-body pt-2">
-        <form method="post" action="/feed/post" enctype="multipart/form-data" class="d-grid gap-2">
+        <form method="post" action="/feed/post" enctype="multipart/form-data" class="d-grid gap-2" data-feed-create-post-form>
           <?= csrf_field() ?>
           <textarea class="form-control" name="content" maxlength="2000" rows="4" placeholder="Escrever livremente..."></textarea>
           <div class="row g-2">
@@ -61,6 +70,39 @@ $selectedTab = (string) ($selected_tab ?? 'for_you');
             <input class="form-control form-control-sm mt-1" name="poll_question" maxlength="255" placeholder="Pergunta da enquete">
             <div class="row g-1 mt-1"><div class="col-6"><input class="form-control form-control-sm" name="poll_option_1" placeholder="Opção 1"></div><div class="col-6"><input class="form-control form-control-sm" name="poll_option_2" placeholder="Opção 2"></div><div class="col-6"><input class="form-control form-control-sm" name="poll_option_3" placeholder="Opção 3 (opcional)"></div><div class="col-6"><input class="form-control form-control-sm" name="poll_option_4" placeholder="Opção 4 (opcional)"></div></div>
           </div>
+          <div class="rd-prompt-box">
+            <div class="d-flex justify-content-between align-items-center gap-2">
+              <label class="form-label small mb-0">Partilhar uma entrada do diário</label>
+              <span class="badge text-bg-light">Origem editorial</span>
+            </div>
+            <div class="row g-2 mt-1">
+              <div class="col-12 col-md-6">
+                <select class="form-select form-select-sm" name="diary_entry_id">
+                  <option value="0">Sem partilha de diário</option>
+                  <?php foreach (($shareable_diary_entries ?? []) as $entry): ?>
+                    <option value="<?= (int) ($entry['id'] ?? 0) ?>">
+                      #<?= (int) ($entry['id'] ?? 0) ?> · <?= e((string) (($entry['title'] ?? '') !== '' ? $entry['title'] : 'Entrada sem título')) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-6 col-md-3">
+                <select class="form-select form-select-sm" name="diary_share_mode">
+                  <option value="publico">Público</option>
+                  <option value="so_matches">Só matches</option>
+                  <option value="so_interessados">Só interessados</option>
+                  <option value="anonimo">Anónimo</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-3 d-flex align-items-center">
+                <label class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="diary_is_anonymous" value="1">
+                  <span class="form-check-label">Publicar anónimo</span>
+                </label>
+              </div>
+            </div>
+            <small class="text-muted d-block mt-1">Ao escolher uma entrada, o post será marcado como “diário partilhado”.</small>
+          </div>
           <input class="form-control form-control-sm" type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple>
           <small class="text-muted d-block">Até 4 imagens por publicação.</small>
           <div class="d-flex justify-content-end"><button class="btn btn-rd-primary">Publicar</button></div>
@@ -70,33 +112,47 @@ $selectedTab = (string) ($selected_tab ?? 'for_you');
   </div>
 </div>
 
-<div class="rd-feed-shell">
+<div class="rd-feed-shell" data-csrf-token="<?= e($csrfToken) ?>">
 <?php if (!empty($feed)): foreach (($feed ?? []) as $post): ?>
   <?php $postId = (int) ($post['id'] ?? 0); $authorName = (string) ($post['author_name'] ?? ('Utilizador #' . (int) $post['user_id'])); $authorInitial = strtoupper(substr(trim($authorName), 0, 1)); ?>
   <article class="rd-card rd-feed-post <?= $selectedPostId === $postId ? 'rd-post-highlight' : '' ?>" id="post-<?= $postId ?>">
     <div class="card-body">
-      <header class="d-flex justify-content-between gap-2 mb-2"><div class="rd-feed-post__author"><div class="rd-feed-post__avatar"><?= e($authorInitial !== '' ? $authorInitial : 'U') ?></div><div><a class="text-decoration-none fw-semibold" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>"><?= e($authorName) ?></a><div class="rd-feed-post__meta"><?php if ((int) ($post['author_online'] ?? 0) === 1): ?><span class="badge text-bg-success">online</span><?php endif; ?><?php if ((int) ($post['author_verified'] ?? 0) === 1): ?><span class="badge text-bg-primary">verificado</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['premium'])): ?><span class="badge text-bg-warning">premium</span><?php endif; ?><?php if (!empty($post['author_availability']['availability_type'])): ?><span class="badge text-bg-info"><?= e(str_replace('_', ' ', (string) $post['author_availability']['availability_type'])) ?></span><?php endif; ?></div></div></div><small class="text-muted text-nowrap"><?= e((string) $post['created_at']) ?></small></header>
+      <header class="d-flex justify-content-between gap-2 mb-2"><div class="rd-feed-post__author"><div class="rd-feed-post__avatar"><?= e($authorInitial !== '' ? $authorInitial : 'U') ?></div><div><a class="text-decoration-none fw-semibold" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>"><?= e($authorName) ?></a><div class="rd-feed-post__meta"><?php if ((int) ($post['author_online'] ?? 0) === 1): ?><span class="badge text-bg-success">online</span><?php endif; ?><?php if ((int) ($post['author_verified'] ?? 0) === 1): ?><span class="badge text-bg-primary">verificado</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['premium'])): ?><span class="badge text-bg-warning">premium</span><?php endif; ?><?php if (!empty($post['author_availability']['availability_type'])): ?><span class="badge text-bg-info rd-badge-availability"><?= e(str_replace('_', ' ', (string) $post['author_availability']['availability_type'])) ?></span><?php endif; ?><?php if (!empty($post['author_trust_flags']['profile_complete'])): ?><span class="badge text-bg-light">perfil completo</span><?php endif; ?><?php if (isset($post['author_trust_flags']['trust_score'])): ?><span class="badge text-bg-light">trust <?= (int) ($post['author_trust_flags']['trust_score'] ?? 0) ?></span><?php endif; ?></div></div></div><small class="text-muted text-nowrap"><?= e((string) $post['created_at']) ?></small></header>
+      <?php $originType = (string) ($post['origin_type'] ?? 'normal'); $originMeta = $originLabels[$originType] ?? $originLabels['normal']; ?>
+      <div class="rd-feed-origin mb-2"><span class="badge rounded-pill text-bg-light"><i class="fa-solid <?= e((string) ($originMeta['icon'] ?? 'fa-pen')) ?> me-1"></i><?= e((string) ($originMeta['label'] ?? 'Post')) ?></span><?php if (in_array($originType, ['match_collab', 'story_shared'], true)): ?><small class="text-muted ms-2">Origem reservada para fase futura.</small><?php endif; ?></div>
 
       <div class="rd-feed-relational-signals mb-2"><?php if (!empty($post['post_mood'])): ?><span class="badge rounded-pill text-bg-light">Mood: <?= e(str_replace('_', ' ', (string) $post['post_mood'])) ?></span><?php endif; ?><?php if (!empty($post['relational_phase'])): ?><span class="badge rounded-pill text-bg-light">Fase: <?= e(str_replace('_', ' ', (string) $post['relational_phase'])) ?></span><?php endif; ?><span class="badge rounded-pill text-bg-light">Compatibilidade <?= (int) round((float) ($post['compatibility_score'] ?? 0)) ?>%</span><?php if ((int) ($post['same_intention'] ?? 0) === 1): ?><span class="badge rounded-pill text-bg-success">Mesma intenção</span><?php endif; ?><?php if ((int) ($post['same_pace'] ?? 0) === 1): ?><span class="badge rounded-pill text-bg-secondary">Ritmo semelhante</span><?php endif; ?></div>
 
       <?php if (!empty($post['prompt_answer'])): ?><div class="rd-prompt-answer mb-2"><small class="text-muted d-block">Prompt: <?= e((string) ($post['prompt_answer']['prompt_snapshot'] ?? '')) ?></small><p class="mb-0"><?= e((string) ($post['prompt_answer']['answer_text'] ?? '')) ?></p></div><?php endif; ?>
+      <?php if (!empty($post['diary_share'])): ?>
+        <div class="rd-diary-share mb-2">
+          <div class="d-flex justify-content-between align-items-center gap-2">
+            <strong><i class="fa-solid fa-book-heart me-1"></i>Diário partilhado</strong>
+            <span class="badge text-bg-light"><?= e(str_replace('_', ' ', (string) ($post['diary_share']['share_mode'] ?? 'publico'))) ?></span>
+          </div>
+          <?php if (!empty($post['diary_share']['title'])): ?><div class="small fw-semibold mt-1"><?= e((string) ($post['diary_share']['title'] ?? '')) ?></div><?php endif; ?>
+          <?php if (!empty($post['diary_share']['mood'])): ?><div class="small text-muted">Mood do diário: <?= e((string) ($post['diary_share']['mood'] ?? '')) ?></div><?php endif; ?>
+          <?php if (!empty($post['diary_share']['preview'])): ?><p class="mb-0 small mt-1"><?= e((string) ($post['diary_share']['preview'] ?? '')) ?></p><?php endif; ?>
+        </div>
+      <?php endif; ?>
       <?php if (!empty($post['content'])): ?><p class="rd-feed-post__body mb-2"><?= e((string) ($post['content'] ?? '')) ?></p><?php endif; ?>
 
       <?php if (!empty($post['poll'])): ?>
-        <section class="rd-poll-card mb-2" data-poll-id="<?= (int) ($post['poll']['id'] ?? 0) ?>">
+        <section class="rd-poll-card mb-2" data-poll-id="<?= (int) ($post['poll']['id'] ?? 0) ?>" data-post-id="<?= $postId ?>">
           <strong class="d-block mb-1"><?= e((string) ($post['poll']['question'] ?? '')) ?></strong>
           <div class="d-grid gap-1">
             <?php foreach (($post['poll']['options'] ?? []) as $pollOption): ?>
               <?php $isVoted = (int) ($post['poll']['viewer_option_id'] ?? 0) === (int) ($pollOption['id'] ?? 0); ?>
-              <button type="button" class="btn btn-sm <?= $isVoted ? 'btn-primary' : 'btn-outline-primary' ?> text-start" data-feed-poll-vote data-poll-id="<?= (int) ($post['poll']['id'] ?? 0) ?>" data-option-id="<?= (int) ($pollOption['id'] ?? 0) ?>"><?= e((string) ($pollOption['option_text'] ?? '')) ?> <span class="float-end"><?= (int) ($pollOption['percentage'] ?? 0) ?>%</span></button>
+              <button type="button" class="btn btn-sm <?= $isVoted ? 'btn-primary' : 'btn-outline-primary' ?> text-start" data-feed-poll-vote data-poll-id="<?= (int) ($post['poll']['id'] ?? 0) ?>" data-option-id="<?= (int) ($pollOption['id'] ?? 0) ?>"><span><?= e((string) ($pollOption['option_text'] ?? '')) ?></span> <span class="float-end"><span data-poll-option-percentage><?= (int) ($pollOption['percentage'] ?? 0) ?></span>%</span></button>
             <?php endforeach; ?>
           </div>
+          <small class="text-muted d-block mt-1">Total de votos: <span data-poll-total-votes><?= (int) ($post['poll']['total_votes'] ?? 0) ?></span></small>
         </section>
       <?php endif; ?>
 
       <?php if (!empty($post['images'])): ?><div class="row g-2 mb-2"><?php foreach (($post['images'] ?? []) as $imageIndex => $image): $fullImagePath = trim((string) ($image['image_path'] ?? '')); if ($fullImagePath === '') { continue; } $thumbPath = trim((string) (($image['thumbnail_path'] ?? '') !== '' ? $image['thumbnail_path'] : $fullImagePath)); ?><div class="col-6 col-md-3"><a href="<?= e(url($fullImagePath)) ?>" data-lightbox-group="post-<?= $postId ?>" data-lightbox-index="<?= (int) $imageIndex ?>" class="text-decoration-none"><img src="<?= e(url($thumbPath)) ?>" class="img-fluid rounded border" alt="imagem do post"></a></div><?php endforeach; ?></div><?php endif; ?>
 
-      <div class="rd-feed-post__stats small text-muted mb-2">❤️ <span data-like-count data-post-like-count="<?= $postId ?>"><?= (int) ($post['likes_count'] ?? 0) ?></span><span class="mx-1">·</span>💬 <?= (int) ($post['comments_count'] ?? 0) ?><span class="mx-1">·</span>✨ <?= array_sum((array) ($post['reactions'] ?? [])) ?><span class="mx-1">·</span>🕊️ <?= (int) ($post['private_interest_count'] ?? 0) ?></div>
+      <div class="rd-feed-post__stats small text-muted mb-2">❤️ <span data-like-count data-post-like-count="<?= $postId ?>"><?= (int) ($post['likes_count'] ?? 0) ?></span><span class="mx-1">·</span>💬 <span data-post-comments-count="<?= $postId ?>"><?= (int) ($post['comments_count'] ?? 0) ?></span><span class="mx-1">·</span>✨ <span data-post-reactions-total="<?= $postId ?>"><?= array_sum((array) ($post['reactions'] ?? [])) ?></span><span class="mx-1">·</span>🕊️ <span data-post-private-interest-count="<?= $postId ?>"><?= (int) ($post['private_interest_count'] ?? 0) ?></span></div>
 
       <div class="rd-feed-reactions mb-2" data-post-id="<?= $postId ?>">
         <?php foreach (($reaction_types ?? []) as $reactionType): ?>
@@ -116,7 +172,37 @@ $selectedTab = (string) ($selected_tab ?? 'for_you');
         <?php if ((int) ($post['user_id'] ?? 0) === $viewerId): ?><form method="post" action="/feed/delete"><?= csrf_field() ?><input type="hidden" name="post_id" value="<?= $postId ?>"><button class="btn btn-sm btn-outline-dark">Apagar</button></form><?php endif; ?>
       </div>
 
-      <?php if (!empty($post['comments'])): ?><div class="rd-feed-comment-box small mt-2 d-grid gap-2 rd-comment-thread"><?php foreach (($post['comments'] ?? []) as $comment): $commentId = (int) ($comment['id'] ?? 0); $isTargetComment = $selectedCommentId === $commentId; ?><div id="comment-<?= $commentId ?>" class="rd-feed-comment-item <?= $isTargetComment ? 'rd-comment-highlight' : '' ?>"><div><a href="/member/<?= (int) ($comment['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($comment['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($comment['comment_text'] ?? '')) ?></div></div><?php endforeach; ?></div><?php endif; ?>
+      <?php if (!empty($post['comments'])): ?>
+        <div class="rd-feed-comment-box small mt-2 d-grid gap-2 rd-comment-thread" data-comment-thread data-post-id="<?= $postId ?>">
+          <?php foreach (($post['comments'] ?? []) as $comment): $commentId = (int) ($comment['id'] ?? 0); $isTargetComment = $selectedCommentId === $commentId; ?>
+            <div id="comment-<?= $commentId ?>" class="rd-feed-comment-item <?= $isTargetComment ? 'rd-comment-highlight' : '' ?>">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div><a href="/member/<?= (int) ($comment['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($comment['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($comment['comment_text'] ?? '')) ?></div>
+                <button type="button" class="btn btn-link btn-sm p-0" data-reply-toggle data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">Responder</button>
+              </div>
+              <form method="post" action="/feed/comment" class="mt-2 d-none" id="reply-form-<?= $postId ?>-<?= $commentId ?>" data-feed-comment-form data-comment-kind="reply" data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">
+                <?= csrf_field() ?>
+                <input type="hidden" name="post_id" value="<?= $postId ?>">
+                <input type="hidden" name="parent_comment_id" value="<?= $commentId ?>">
+                <div class="d-flex gap-2">
+                  <input class="form-control form-control-sm" name="comment" maxlength="600" placeholder="Responder ao comentário..." required>
+                  <button class="btn btn-sm btn-rd-primary">Responder</button>
+                </div>
+              </form>
+              <?php if (!empty($comment['replies'])): ?>
+                <div class="rd-feed-replies mt-2 d-grid gap-2">
+                  <?php foreach (($comment['replies'] ?? []) as $reply): $replyId = (int) ($reply['id'] ?? 0); ?>
+                    <div id="comment-<?= $replyId ?>" class="rd-feed-comment-item <?= $selectedCommentId === $replyId ? 'rd-comment-highlight' : '' ?>">
+                      <a href="/member/<?= (int) ($reply['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($reply['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($reply['comment_text'] ?? '')) ?>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              <?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+          <?php if (!empty($post['comments_has_more'])): ?><a class="btn btn-sm btn-outline-secondary" href="/feed?post=<?= $postId ?>&show_comments=all&tab=<?= e($selectedTab) ?>#post-<?= $postId ?>">Ver mais comentários</a><?php endif; ?>
+        </div>
+      <?php endif; ?>
     </div>
   </article>
 <?php endforeach; else: $title='Feed vazio'; $description='Ainda não há publicações ativas para mostrar.'; require dirname(__DIR__).'/partials/empty-state.php'; endif; ?>
