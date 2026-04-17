@@ -61,6 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return {};
     }
   };
+  const escapeHtml = (value) => {
+    const div = document.createElement('div');
+    div.textContent = String(value ?? '');
+    return div.innerHTML;
+  };
 
   const scrollToElement = (selector) => {
     const element = document.querySelector(selector);
@@ -172,17 +177,17 @@ document.addEventListener('DOMContentLoaded', () => {
     renderStrength();
   }
 
-  document.querySelectorAll('[data-reply-toggle]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const postId = btn.getAttribute('data-post-id');
-      const parentId = btn.getAttribute('data-parent-id');
-      const form = document.getElementById(`reply-form-${postId}-${parentId}`);
-      if (!form) return;
-      form.classList.toggle('d-none');
-      if (!form.classList.contains('d-none')) {
-        form.querySelector('input[name="comment"]')?.focus();
-      }
-    });
+  document.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-reply-toggle]');
+    if (!btn) return;
+    const postId = btn.getAttribute('data-post-id');
+    const parentId = btn.getAttribute('data-parent-id');
+    const form = document.getElementById(`reply-form-${postId}-${parentId}`);
+    if (!form) return;
+    form.classList.toggle('d-none');
+    if (!form.classList.contains('d-none')) {
+      form.querySelector('input[name="comment"]')?.focus();
+    }
   });
 
   if (qs.get('comment')) {
@@ -307,13 +312,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   const feedFeedbackForPost = (postId) => document.querySelector(`[data-feed-feedback][data-post-id="${CSS.escape(String(postId))}"]`);
+  const feedRoot = document.querySelector('.rd-feed-shell');
+  const getCsrfToken = (scope = null) => {
+    const scopedToken = scope?.querySelector?.('input[name="_token"]')?.value;
+    if (scopedToken) return scopedToken;
+    const rootToken = feedRoot?.getAttribute('data-csrf-token') || '';
+    if (rootToken) return rootToken;
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  };
+  const postAsForm = async (url, payload, token = '') => fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+    body: new URLSearchParams(token ? { ...payload, _token: token } : payload),
+  });
 
   document.querySelectorAll('[data-feed-like-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const button = form.querySelector('[data-feed-like-button]');
       const postId = form.querySelector('input[name="post_id"]')?.value || '0';
-      const token = form.querySelector('input[name="_token"]')?.value || '';
+      const token = getCsrfToken(form);
       const feedback = feedFeedbackForPost(postId);
       if (!button) {
         form.submit();
@@ -322,11 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       button.disabled = true;
       try {
-        const response = await fetch('/feed/like', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'},
-          body: new URLSearchParams({post_id: String(postId), _token: token})
-        });
+        const response = await postAsForm('/feed/like', { post_id: String(postId) }, token);
         const payload = await parseJsonSafe(response);
         if (!response.ok || !payload.ok) {
           throw new Error(payload.message || 'Não foi possível atualizar like.');
@@ -359,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const postId = form.querySelector('input[name="post_id"]')?.value || form.getAttribute('data-post-id') || '0';
       const parentCommentId = form.querySelector('input[name="parent_comment_id"]')?.value || '0';
       const commentInput = form.querySelector('input[name="comment"]');
-      const token = form.querySelector('input[name="_token"]')?.value || '';
+      const token = getCsrfToken(form);
       const feedback = feedFeedbackForPost(postId);
       const submitButton = form.querySelector('button[type="submit"], button:not([type])');
 
@@ -379,26 +393,53 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       try {
-        const response = await fetch('/feed/comment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-          body: new URLSearchParams({ post_id: String(postId), parent_comment_id: String(parentCommentId), comment, _token: token })
-        });
+        const response = await postAsForm('/feed/comment', { post_id: String(postId), parent_comment_id: String(parentCommentId), comment }, token);
         const payload = await parseJsonSafe(response);
         if (!response.ok || !payload.ok) {
           throw new Error(payload.message || 'Não foi possível enviar comentário.');
         }
 
         showInlineFeedback(feedback, payload.message || 'Comentário enviado.', 'success');
-        const createdCommentId = Number(payload.created_id || 0);
-        const destinationPostId = Number(payload.post_id || payload.target_id || postId || 0);
-        const destination = new URL('/feed', window.location.origin);
-        destination.searchParams.set('post', String(destinationPostId));
-        if (createdCommentId > 0) {
-          destination.searchParams.set('comment', String(createdCommentId));
+        commentInput.value = '';
+        const commentsCountNode = document.querySelector(`[data-post-comments-count="${CSS.escape(String(postId))}"]`);
+        if (commentsCountNode) {
+          commentsCountNode.textContent = String(Number(commentsCountNode.textContent || '0') + 1);
         }
-        destination.hash = `post-${destinationPostId}`;
-        setTimeout(() => { window.location.assign(destination.toString()); }, 220);
+
+        const targetParentId = Number(parentCommentId || 0);
+        const thread = document.querySelector(`[data-comment-thread][data-post-id="${CSS.escape(String(postId))}"]`);
+        if (thread) {
+          const author = escapeHtml(payload.comment?.author_name || 'Tu');
+          const text = escapeHtml(payload.comment?.comment_text || comment);
+          const createdId = Number(payload.created_id || 0);
+          if (targetParentId > 0) {
+            const parentNode = thread.querySelector(`#comment-${CSS.escape(String(targetParentId))}`);
+            if (parentNode) {
+              let repliesWrap = parentNode.querySelector('.rd-feed-replies');
+              if (!repliesWrap) {
+                repliesWrap = document.createElement('div');
+                repliesWrap.className = 'rd-feed-replies mt-2 d-grid gap-2';
+                parentNode.appendChild(repliesWrap);
+              }
+              const replyNode = document.createElement('div');
+              replyNode.className = 'rd-feed-comment-item rd-comment-highlight';
+              if (createdId > 0) replyNode.id = `comment-${createdId}`;
+              replyNode.innerHTML = `<a href="#" class="fw-semibold text-decoration-none">${author}</a>: ${text}`;
+              repliesWrap.appendChild(replyNode);
+            }
+          } else {
+            const node = document.createElement('div');
+            node.className = 'rd-feed-comment-item rd-comment-highlight';
+            if (createdId > 0) node.id = `comment-${createdId}`;
+            node.innerHTML = `
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div><a href="#" class="fw-semibold text-decoration-none">${author}</a>: ${text}</div>
+                <button type="button" class="btn btn-link btn-sm p-0" data-reply-toggle data-post-id="${postId}" data-parent-id="${createdId || 0}">Responder</button>
+              </div>
+            `;
+            thread.prepend(node);
+          }
+        }
       } catch (error) {
         showInlineFeedback(feedback, error.message || 'Falha ao enviar comentário.', 'error');
       } finally {
@@ -414,19 +455,34 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', async () => {
       const postId = button.getAttribute('data-post-id') || '0';
       const reactionType = button.getAttribute('data-reaction-type') || '';
-      const token = document.querySelector('input[name="_token"]')?.value || '';
+      const token = getCsrfToken();
       const feedback = feedFeedbackForPost(postId);
       button.disabled = true;
       try {
-        const response = await fetch('/feed/react', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-          body: new URLSearchParams({ post_id: String(postId), reaction_type: reactionType, _token: token })
-        });
+        const response = await postAsForm('/feed/react', { post_id: String(postId), reaction_type: reactionType }, token);
         const payload = await parseJsonSafe(response);
         if (!response.ok || !payload.ok) throw new Error(payload.message || 'Falha ao reagir.');
         showInlineFeedback(feedback, payload.message || 'Reação atualizada.', 'success');
-        window.setTimeout(() => window.location.reload(), 180);
+
+        const viewerReaction = String(payload.viewer_reaction || '');
+        const reactions = payload.reaction_counts || {};
+        const wrapper = button.closest('.rd-feed-reactions');
+        if (wrapper) {
+          wrapper.querySelectorAll('[data-feed-reaction]').forEach((reactionBtn) => {
+            const type = reactionBtn.getAttribute('data-reaction-type') || '';
+            const active = viewerReaction !== '' && type === viewerReaction;
+            reactionBtn.classList.toggle('btn-primary', active);
+            reactionBtn.classList.toggle('btn-outline-secondary', !active);
+            const badge = reactionBtn.querySelector('.badge');
+            if (badge && Object.prototype.hasOwnProperty.call(reactions, type)) {
+              badge.textContent = String(Number(reactions[type] || 0));
+            }
+          });
+        }
+
+        const totalReactions = Object.values(reactions).reduce((acc, value) => acc + Number(value || 0), 0);
+        const reactionTotalEl = document.querySelector(`[data-post-reactions-total="${CSS.escape(String(postId))}"]`);
+        if (reactionTotalEl) reactionTotalEl.textContent = String(totalReactions);
       } catch (error) {
         showInlineFeedback(feedback, error.message || 'Falha ao reagir.', 'error');
       } finally {
@@ -439,17 +495,33 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', async () => {
       const pollId = button.getAttribute('data-poll-id') || '0';
       const optionId = button.getAttribute('data-option-id') || '0';
-      const token = document.querySelector('input[name="_token"]')?.value || '';
+      const token = getCsrfToken();
+      const pollCard = button.closest('[data-poll-id]');
+      const postId = pollCard?.getAttribute('data-post-id') || '0';
+      const feedback = feedFeedbackForPost(postId);
       button.disabled = true;
       try {
-        const response = await fetch('/feed/poll/vote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-          body: new URLSearchParams({ poll_id: String(pollId), option_id: String(optionId), _token: token })
-        });
+        const response = await postAsForm('/feed/poll/vote', { poll_id: String(pollId), option_id: String(optionId) }, token);
         const payload = await parseJsonSafe(response);
         if (!response.ok || !payload.ok) throw new Error(payload.message || 'Falha ao votar.');
-        window.setTimeout(() => window.location.reload(), 180);
+        showInlineFeedback(feedback, payload.message || 'Voto registado.', 'success');
+        const poll = payload.poll || {};
+        if (pollCard) {
+          const viewerOptionId = Number(poll.viewer_option_id || 0);
+          pollCard.querySelectorAll('[data-feed-poll-vote]').forEach((pollButton) => {
+            const thisOptionId = Number(pollButton.getAttribute('data-option-id') || '0');
+            const state = (poll.options || []).find((opt) => Number(opt.id || 0) === thisOptionId);
+            pollButton.classList.toggle('btn-primary', viewerOptionId === thisOptionId);
+            pollButton.classList.toggle('btn-outline-primary', viewerOptionId !== thisOptionId);
+            const percentageNode = pollButton.querySelector('[data-poll-option-percentage]');
+            if (percentageNode && state) {
+              percentageNode.textContent = String(Number(state.percentage || 0));
+            }
+          });
+
+          const totalVotesNode = pollCard.querySelector('[data-poll-total-votes]');
+          if (totalVotesNode) totalVotesNode.textContent = String(Number(poll.total_votes || 0));
+        }
       } finally {
         button.disabled = false;
       }
@@ -462,17 +534,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const postId = form.querySelector('input[name="post_id"]')?.value || '0';
       const type = form.querySelector('select[name="interest_type"]')?.value || '';
       const msg = form.querySelector('input[name="message_optional"]')?.value || '';
-      const token = form.querySelector('input[name="_token"]')?.value || '';
+      const token = getCsrfToken(form);
       const feedback = feedFeedbackForPost(postId);
       try {
-        const response = await fetch('/feed/private-interest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-          body: new URLSearchParams({ post_id: String(postId), interest_type: type, message_optional: msg, _token: token })
-        });
+        const response = await postAsForm('/feed/private-interest', { post_id: String(postId), interest_type: type, message_optional: msg }, token);
         const payload = await parseJsonSafe(response);
         if (!response.ok || !payload.ok) throw new Error(payload.message || 'Falha ao enviar interesse.');
         showInlineFeedback(feedback, payload.message || 'Interesse enviado.', 'success');
+        const countEl = document.querySelector(`[data-post-private-interest-count="${CSS.escape(String(postId))}"]`);
+        if (countEl) countEl.textContent = String(Number(countEl.textContent || '0') + 1);
       } catch (error) {
         showInlineFeedback(feedback, error.message || 'Falha ao enviar interesse.', 'error');
       }
@@ -482,17 +552,41 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-feed-availability-form]').forEach((form) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const token = form.querySelector('input[name="_token"]')?.value || '';
+      const token = getCsrfToken(form);
       const availabilityType = form.querySelector('select[name="availability_type"]')?.value || '';
       const duration = form.querySelector('select[name="duration_minutes"]')?.value || '180';
+      let feedback = form.querySelector('[data-feed-availability-feedback]');
+      if (!feedback) {
+        feedback = document.createElement('div');
+        feedback.className = 'small mt-2';
+        feedback.setAttribute('data-feed-availability-feedback', '1');
+        form.appendChild(feedback);
+      }
       try {
-        await fetch('/feed/availability', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-          body: new URLSearchParams({ availability_type: availabilityType, duration_minutes: duration, _token: token })
+        const response = await postAsForm('/feed/availability', { availability_type: availabilityType, duration_minutes: duration }, token);
+        const payload = await parseJsonSafe(response);
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || 'Falha ao ativar disponibilidade.');
+        }
+
+        showInlineFeedback(feedback, payload.message || 'Estado social ativado.', 'success');
+        const badgeText = availabilityType.replaceAll('_', ' ');
+        document.querySelectorAll('.rd-feed-post__meta').forEach((metaWrap) => {
+          const ownedPostCard = metaWrap.closest('.rd-feed-post');
+          if (!ownedPostCard) return;
+          const deleteForm = ownedPostCard.querySelector('form[action="/feed/delete"]');
+          if (!deleteForm) return;
+          let badge = metaWrap.querySelector('.rd-badge-availability');
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge text-bg-info rd-badge-availability';
+            metaWrap.appendChild(badge);
+          }
+          badge.textContent = badgeText;
         });
-        window.setTimeout(() => window.location.reload(), 180);
-      } catch (_error) {}
+      } catch (error) {
+        showInlineFeedback(feedback, error.message || 'Falha ao ativar disponibilidade.', 'error');
+      }
     });
   });
 

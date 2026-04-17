@@ -264,6 +264,7 @@ final class FeedService extends Model
         }
 
         $createdCommentId = (int) $this->db->lastInsertId();
+        $author = $this->fetchOne('SELECT CONCAT(first_name, " ", last_name) AS author_name FROM users WHERE id=:id LIMIT 1', [':id' => $userId]) ?: [];
 
         $actor = $this->fetchOne('SELECT CONCAT(first_name, " ", last_name) AS actor_name FROM users WHERE id=:id LIMIT 1', [':id' => $userId]) ?: [];
         $ownerId = (int) ($post['user_id'] ?? 0);
@@ -277,7 +278,19 @@ final class FeedService extends Model
             );
         }
 
-        return ['success' => true, 'message' => $parentId === null ? 'Comentário enviado.' : 'Resposta enviada.', 'action' => $parentId === null ? 'commented' : 'replied', 'created_id' => $createdCommentId, 'target_id' => $parentId, 'post_id' => $postId];
+        return [
+            'success' => true,
+            'message' => $parentId === null ? 'Comentário enviado.' : 'Resposta enviada.',
+            'action' => $parentId === null ? 'commented' : 'replied',
+            'created_id' => $createdCommentId,
+            'target_id' => $parentId,
+            'post_id' => $postId,
+            'comment' => [
+                'id' => $createdCommentId,
+                'author_name' => (string) ($author['author_name'] ?? 'Tu'),
+                'comment_text' => $normalized,
+            ],
+        ];
     }
 
     public function getFeedForUser(int $userId, int $page = 1, int $perPage = 20, int $selectedPostId = 0, int $selectedCommentId = 0, bool $expandSelected = false, string $tab = 'for_you'): array
@@ -286,9 +299,6 @@ final class FeedService extends Model
         $perPage = min(50, max(5, $perPage));
         $offset = ($page - 1) * $perPage;
         $tab = $this->ranking->normalizeTab($tab);
-
-        $countRow = $this->fetchOne("SELECT COUNT(*) AS total FROM posts WHERE status='active'") ?: ['total' => 0];
-        $total = (int) ($countRow['total'] ?? 0);
 
         $conditions = ["p.status='active'"];
         if ($tab === FeedRankingService::TAB_NEARBY) {
@@ -299,15 +309,31 @@ final class FeedService extends Model
 
         $where = implode(' AND ', $conditions);
         $orderBy = $this->ranking->orderByForTab($tab);
+        $countRow = $this->fetchOne(
+            "SELECT COUNT(*) AS total
+             FROM posts p
+             JOIN users u ON u.id = p.user_id
+             LEFT JOIN users vu ON vu.id = :viewer_count
+             LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
+             LEFT JOIN user_connection_modes viewer_mode ON viewer_mode.user_id = :viewer_mode_count
+             WHERE $where",
+            [':viewer_count' => $userId, ':viewer_mode_count' => $userId]
+        ) ?: ['total' => 0];
+        $total = (int) ($countRow['total'] ?? 0);
 
         $sql = "SELECT p.id, p.user_id, p.content, p.status, p.created_at, p.updated_at,
                        p.post_mood, p.relational_phase, p.origin_type,
                        CONCAT(u.first_name, ' ', u.last_name) AS author_name,
                        u.online_status AS author_online,
                        u.profile_photo_path AS author_photo,
+                       u.bio AS author_bio,
                        u.premium_status AS author_premium,
                        u.city_id AS author_city_id,
                        u.province_id AS author_province_id,
+                       u.relationship_goal AS author_relationship_goal,
+                       COALESCE(ui.interests_count, 0) AS interests_count,
+                       COALESCE(up.has_preferences, 0) AS has_preferences,
+                       COALESCE(pf.has_active_premium, 0) AS has_active_premium,
                        IFNULL(iv.is_verified, 0) AS author_verified,
                        COALESCE(pl.likes_count, 0) AS likes_count,
                        COALESCE(pc.comments_count, 0) AS comments_count,
@@ -318,6 +344,8 @@ final class FeedService extends Model
                        COALESCE(cs.score, 0) AS compatibility_score,
                        COALESCE(author_mode.current_intention = viewer_mode.current_intention, 0) AS same_intention,
                        COALESCE(author_mode.relational_pace = viewer_mode.relational_pace, 0) AS same_pace,
+                       author_mode.current_intention AS author_intention,
+                       author_mode.relational_pace AS author_relational_pace,
                        CASE WHEN u.city_id = vu.city_id THEN 1 ELSE 0 END AS is_same_city,
                        CASE WHEN u.province_id = vu.province_id THEN 1 ELSE 0 END AS is_same_province,
                        (COALESCE(pl.likes_count, 0) + COALESCE(pc.comments_count, 0) + COALESCE(rv.total_votes, 0) + COALESCE(pr.total_reactions, 0) + COALESCE(pi2.private_interest_count, 0)) AS engagement_score,
@@ -346,6 +374,9 @@ final class FeedService extends Model
                     FROM identity_verifications
                     GROUP BY user_id
                 ) iv ON iv.user_id = u.id
+                LEFT JOIN (SELECT user_id, COUNT(*) AS interests_count FROM user_interests GROUP BY user_id) ui ON ui.user_id = u.id
+                LEFT JOIN (SELECT user_id, 1 AS has_preferences FROM user_preferences GROUP BY user_id) up ON up.user_id = u.id
+                LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_active_premium FROM premium_features GROUP BY user_id) pf ON pf.user_id = u.id
                 LEFT JOIN (SELECT post_id, COUNT(*) AS likes_count FROM post_likes GROUP BY post_id) pl ON pl.post_id = p.id
                 LEFT JOIN (SELECT post_id, COUNT(*) AS comments_count FROM post_comments GROUP BY post_id) pc ON pc.post_id = p.id
                 LEFT JOIN (SELECT post_id, COUNT(*) AS images_count, MIN(image_path) AS first_image_path, MIN(thumbnail_path) AS first_thumbnail_path FROM post_images GROUP BY post_id) pi ON pi.post_id = p.id
@@ -401,6 +432,7 @@ final class FeedService extends Model
         $promptMap = $this->prompts->loadAnswersForPosts($postIds);
         $pollMap = $this->polls->loadPollsForPosts($postIds, $userId);
         $privateInterestCounts = $this->privateInterests->aggregateByPosts($postIds);
+        $diaryShares = $this->loadDiarySharesForPosts($postIds, $userId);
 
         $authorIds = array_values(array_unique(array_map(static fn(array $row): int => (int) ($row['user_id'] ?? 0), $items)));
         $availability = $this->availability->loadActiveForUsers($authorIds);
@@ -418,11 +450,42 @@ final class FeedService extends Model
             $item['prompt_answer'] = $promptMap[$postId] ?? null;
             $item['poll'] = $pollMap[$postId] ?? null;
             $item['private_interest_count'] = (int) ($privateInterestCounts[$postId] ?? 0);
+            $item['diary_share'] = $diaryShares[$postId] ?? null;
             $item['author_availability'] = $availability[$authorId] ?? null;
+            $interestsCount = (int) ($item['interests_count'] ?? 0);
+            $hasProfilePhoto = !empty($item['author_photo']);
+            $hasBio = trim((string) ($item['author_bio'] ?? '')) !== '';
+            $hasLocation = (int) ($item['author_city_id'] ?? 0) > 0 && (int) ($item['author_province_id'] ?? 0) > 0;
+            $hasConnectionMode = trim((string) ($item['author_intention'] ?? '')) !== '' || trim((string) ($item['author_relational_pace'] ?? '')) !== '';
+            $hasRelationshipGoal = trim((string) ($item['author_relationship_goal'] ?? '')) !== '';
+            $hasPreferences = (int) ($item['has_preferences'] ?? 0) === 1;
+            $isVerified = (int) ($item['author_verified'] ?? 0) === 1;
+            $isPremium = in_array((string) ($item['author_premium'] ?? 'basic'), ['premium', 'boosted', 'verified'], true) || (int) ($item['has_active_premium'] ?? 0) === 1;
+
+            $trustPoints = 0;
+            $trustPoints += $hasProfilePhoto ? 22 : 0;
+            $trustPoints += $hasBio ? 12 : 0;
+            $trustPoints += $interestsCount >= 3 ? 15 : ($interestsCount > 0 ? 8 : 0);
+            $trustPoints += $hasPreferences ? 12 : 0;
+            $trustPoints += $hasLocation ? 12 : 0;
+            $trustPoints += $hasConnectionMode ? 10 : 0;
+            $trustPoints += $hasRelationshipGoal ? 5 : 0;
+            $trustPoints += $isVerified ? 10 : 0;
+            $trustPoints += $isPremium ? 2 : 0;
+
             $item['author_trust_flags'] = [
-                'verified' => (int) ($item['author_verified'] ?? 0) === 1,
-                'profile_complete' => !empty($item['author_photo']) && (int) ($item['compatibility_score'] ?? 0) >= 0,
-                'premium' => in_array((string) ($item['author_premium'] ?? 'basic'), ['premium', 'boosted', 'verified'], true),
+                'verified' => $isVerified,
+                'profile_complete' => $trustPoints >= 55,
+                'premium' => $isPremium,
+                'trust_score' => max(0, min(100, $trustPoints)),
+                'signals' => [
+                    'photo' => $hasProfilePhoto,
+                    'bio' => $hasBio,
+                    'interests' => $interestsCount > 0,
+                    'preferences' => $hasPreferences,
+                    'location' => $hasLocation,
+                    'connection_mode' => $hasConnectionMode,
+                ],
             ];
 
             if ((int) ($item['user_id'] ?? 0) === $userId) {
@@ -475,11 +538,48 @@ final class FeedService extends Model
                  JOIN users u ON u.id = plc.user_id
                  LEFT JOIN user_connection_modes ucm ON ucm.user_id = plc.user_id
                  WHERE plc.post_id = :post_id_dup
+                 UNION
+                 SELECT pc.user_id AS actor_user_id,
+                        ucm.current_intention AS actor_intention,
+                        u.city_id AS actor_city_id,
+                        u.province_id AS actor_province_id
+                 FROM post_comments pc
+                 JOIN users u ON u.id = pc.user_id
+                 LEFT JOIN user_connection_modes ucm ON ucm.user_id = pc.user_id
+                 WHERE pc.post_id = :post_id_comments
+                 UNION
+                 SELECT ppi.sender_user_id AS actor_user_id,
+                        ucm.current_intention AS actor_intention,
+                        u.city_id AS actor_city_id,
+                        u.province_id AS actor_province_id
+                 FROM post_private_interests ppi
+                 JOIN users u ON u.id = ppi.sender_user_id
+                 LEFT JOIN user_connection_modes ucm ON ucm.user_id = ppi.sender_user_id
+                 WHERE ppi.post_id = :post_id_private
+                 UNION
+                 SELECT ppv.user_id AS actor_user_id,
+                        ucm.current_intention AS actor_intention,
+                        u.city_id AS actor_city_id,
+                        u.province_id AS actor_province_id
+                 FROM post_polls poll
+                 JOIN post_poll_votes ppv ON ppv.poll_id = poll.id
+                 JOIN users u ON u.id = ppv.user_id
+                 LEFT JOIN user_connection_modes ucm ON ucm.user_id = ppv.user_id
+                 WHERE poll.post_id = :post_id_poll_votes
              ) inter
              LEFT JOIN compatibility_scores cs ON cs.user_id = :owner_id AND cs.target_user_id = inter.actor_user_id
              LEFT JOIN user_connection_modes owner_mode ON owner_mode.user_id = :owner_mode
              JOIN users owner ON owner.id = :owner_user",
-            [':post_id' => $postId, ':post_id_dup' => $postId, ':owner_id' => $ownerId, ':owner_mode' => $ownerId, ':owner_user' => $ownerId]
+            [
+                ':post_id' => $postId,
+                ':post_id_dup' => $postId,
+                ':post_id_comments' => $postId,
+                ':post_id_private' => $postId,
+                ':post_id_poll_votes' => $postId,
+                ':owner_id' => $ownerId,
+                ':owner_mode' => $ownerId,
+                ':owner_user' => $ownerId,
+            ]
         ) ?: [];
 
         return [
@@ -522,15 +622,28 @@ final class FeedService extends Model
                     p.post_mood, p.relational_phase, p.origin_type,
                     CONCAT(u.first_name, ' ', u.last_name) AS author_name,
                     u.online_status AS author_online, u.profile_photo_path AS author_photo,
+                    u.bio AS author_bio, u.premium_status AS author_premium,
+                    u.city_id AS author_city_id, u.province_id AS author_province_id,
+                    u.relationship_goal AS author_relationship_goal,
                     IFNULL(iv.is_verified, 0) AS author_verified,
+                    COALESCE(ui.interests_count, 0) AS interests_count,
+                    COALESCE(up.has_preferences, 0) AS has_preferences,
+                    COALESCE(pf.has_active_premium, 0) AS has_active_premium,
+                    author_mode.current_intention AS author_intention,
+                    author_mode.relational_pace AS author_relational_pace,
                     COALESCE(pl.likes_count, 0) AS likes_count,
                     COALESCE(pc.comments_count, 0) AS comments_count,
                     COALESCE(pi.images_count, 0) AS images_count,
                     pi.first_image_path, pi.first_thumbnail_path,
-                    CASE WHEN ul.id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer
+                    CASE WHEN ul.id IS NULL THEN 0 ELSE 1 END AS liked_by_viewer,
+                    0 AS compatibility_score
              FROM posts p
              JOIN users u ON u.id = p.user_id
+             LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
              LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='approved' THEN 1 ELSE 0 END) AS is_verified FROM identity_verifications GROUP BY user_id) iv ON iv.user_id = u.id
+             LEFT JOIN (SELECT user_id, COUNT(*) AS interests_count FROM user_interests GROUP BY user_id) ui ON ui.user_id = u.id
+             LEFT JOIN (SELECT user_id, 1 AS has_preferences FROM user_preferences GROUP BY user_id) up ON up.user_id = u.id
+             LEFT JOIN (SELECT user_id, MAX(CASE WHEN status='active' AND ends_at >= NOW() THEN 1 ELSE 0 END) AS has_active_premium FROM premium_features GROUP BY user_id) pf ON pf.user_id = u.id
              LEFT JOIN (SELECT post_id, COUNT(*) AS likes_count FROM post_likes GROUP BY post_id) pl ON pl.post_id = p.id
              LEFT JOIN (SELECT post_id, COUNT(*) AS comments_count FROM post_comments GROUP BY post_id) pc ON pc.post_id = p.id
              LEFT JOIN (SELECT post_id, COUNT(*) AS images_count, MIN(image_path) AS first_image_path, MIN(thumbnail_path) AS first_thumbnail_path FROM post_images GROUP BY post_id) pi ON pi.post_id = p.id
@@ -658,6 +771,97 @@ final class FeedService extends Model
         }
 
         return $grouped;
+    }
+
+    /** @param list<int> $postIds */
+    private function loadDiarySharesForPosts(array $postIds, int $viewerId): array
+    {
+        if ($postIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+        $params = $postIds;
+        $params[] = $viewerId;
+        $stmt = $this->db->prepare(
+            "SELECT pds.post_id, pds.diary_entry_id, pds.share_mode, pds.is_anonymous, pds.created_at,
+                    d.title AS diary_title, d.content AS diary_content, d.mood AS diary_mood, d.user_id AS diary_author_id
+             FROM post_diary_shares pds
+             JOIN diary_entries d ON d.id = pds.diary_entry_id
+             WHERE pds.post_id IN ($placeholders)
+               AND d.deleted_at IS NULL
+               AND (
+                 pds.share_mode = 'publico'
+                 OR (pds.share_mode = 'anonimo' AND d.user_id = ?)
+                 OR (pds.share_mode = 'so_matches' AND EXISTS (
+                    SELECT 1 FROM connection_invites ci
+                    WHERE ci.status='accepted'
+                      AND ((ci.sender_user_id = d.user_id AND ci.receiver_user_id = ?) OR (ci.sender_user_id = ? AND ci.receiver_user_id = d.user_id))
+                    LIMIT 1
+                 ))
+                 OR (pds.share_mode = 'so_interessados' AND EXISTS (
+                    SELECT 1 FROM post_private_interests ppi
+                    WHERE ppi.post_id = pds.post_id AND ppi.sender_user_id = ?
+                    LIMIT 1
+                 ))
+               )"
+        );
+        $stmt->execute(array_merge($params, [$viewerId, $viewerId, $viewerId]));
+
+        $map = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $content = trim((string) ($row['diary_content'] ?? ''));
+            if (mb_strlen($content) > 280) {
+                $content = mb_substr($content, 0, 280) . '…';
+            }
+
+            $map[(int) ($row['post_id'] ?? 0)] = [
+                'diary_entry_id' => (int) ($row['diary_entry_id'] ?? 0),
+                'share_mode' => (string) ($row['share_mode'] ?? 'publico'),
+                'is_anonymous' => (int) ($row['is_anonymous'] ?? 0) === 1,
+                'title' => (string) ($row['diary_title'] ?? ''),
+                'mood' => (string) ($row['diary_mood'] ?? ''),
+                'preview' => $content,
+            ];
+        }
+
+        return $map;
+    }
+
+    public function listShareableDiaryEntries(int $userId, int $limit = 20): array
+    {
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $limit = min(60, max(5, $limit));
+        $stmt = $this->db->prepare(
+            "SELECT d.id, d.title, d.content, d.mood, d.created_at
+             FROM diary_entries d
+             WHERE d.user_id = :user_id
+               AND d.deleted_at IS NULL
+               AND (d.archived_at IS NULL OR d.archived_at > DATE_SUB(NOW(), INTERVAL 365 DAY))
+             ORDER BY d.created_at DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue(':user_id', $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        return array_map(static function (array $row): array {
+            $content = trim((string) ($row['content'] ?? ''));
+            if (mb_strlen($content) > 120) {
+                $content = mb_substr($content, 0, 120) . '…';
+            }
+
+            return [
+                'id' => (int) ($row['id'] ?? 0),
+                'title' => (string) ($row['title'] ?? ''),
+                'mood' => (string) ($row['mood'] ?? ''),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'preview' => $content,
+            ];
+        }, $stmt->fetchAll());
     }
 
     private function countLikes(int $postId): int

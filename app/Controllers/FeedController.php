@@ -51,6 +51,7 @@ final class FeedController extends Controller
             'reaction_types' => FeedReactionService::TYPES,
             'interest_types' => PostPrivateInterestService::TYPES,
             'availability_types' => UserSocialAvailabilityService::TYPES,
+            'shareable_diary_entries' => $this->service->listShareableDiaryEntries($viewerId, 24),
         ]);
     }
 
@@ -218,7 +219,10 @@ final class FeedController extends Controller
         }
 
         $this->dailyRoutes->trackFromModule($userId, DailyRouteEventBridge::EVENT_FEED_SOCIAL_AVAILABILITY, 'feed', 1);
-        Response::json(['ok' => true, 'message' => 'Estado social ativado por tempo limitado.']);
+        Response::json(['ok' => true, 'message' => 'Estado social ativado por tempo limitado.', 'state' => [
+            'availability_type' => (string) Request::input('availability_type', ''),
+            'duration_minutes' => (int) Request::input('duration_minutes', 180),
+        ]]);
     }
 
     public function like(): void

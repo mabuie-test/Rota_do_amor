@@ -141,6 +141,10 @@
 .rd-feed-comment-item { padding-bottom: .45rem; border-bottom: 1px dashed #dbe0f0; }
 .rd-feed-comment-item:last-child { border-bottom: 0; padding-bottom: 0; }
 .rd-feed-replies { margin-left: .75rem; padding-left: .75rem; border-left: 2px solid #e1e5f4; }
+.rd-feed-origin { display:flex; align-items:center; gap:.45rem; }
+.rd-diary-share { border:1px solid #dbe0f0; border-radius:.75rem; background:#fffdfa; padding:.65rem .75rem; }
+.rd-feed-comment-item .btn-link { font-size:.78rem; text-decoration:none; }
+.rd-feed-comment-item .btn-link:hover { text-decoration:underline; }
 .rd-feed-floating-cta {
   transition: opacity var(--motion-fast), transform var(--motion-fast), visibility 0s linear 0s;
 }
@@ -168,6 +172,7 @@
   .rd-section-card .card-body { padding: .85rem; }
   .rd-feed-comment-box .d-flex.gap-2 { flex-direction: column; }
   .rd-feed-comment-box .btn { width: 100%; }
+  .rd-feed-comment-item .btn-link { width: auto; }
 }
 
 .rd-feed-tabs { display:flex; gap:.5rem; overflow:auto; padding-bottom:.2rem; }
