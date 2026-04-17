@@ -116,6 +116,33 @@ php scripts/generate_daily_compatibility_duels.php
 php scripts/rotate_story_of_day.php
 ```
 
+## Operação em host real (shared hosting)
+Para ambientes parcialmente migrados ou com limitações de infraestrutura:
+
+1. **Verificar prontidão real do host**
+   ```bash
+   php scripts/verify_production_readiness.php
+   ```
+   O script valida conexão DB, tabelas/colunas obrigatórias, `site_settings` mínimas, queries críticas do admin (`/admin/settings`, `/admin/risk`, `/admin/super-dashboard`) e também alertas de upload (`upload_tmp_dir`, escrita em `public/storage/uploads`).
+
+2. **Reparo seguro e idempotente**
+   ```bash
+   php scripts/repair_host_environment.php
+   ```
+   O reparo:
+   - cria `site_settings` se estiver ausente;
+   - faz bootstrap de chaves mínimas ausentes/vazias;
+   - tenta preparar diretório final de uploads;
+   - reporta tabelas/colunas críticas ainda pendentes de migração **sem destruir dados**.
+
+3. **Diagnóstico de uploads em produção**
+   - O `UploadService` registra logs estruturados (`[upload.issue]`) com:
+     - `upload_tmp_dir` / `ini_upload_tmp_dir`;
+     - `sys_temp_dir`;
+     - código/label do erro PHP (`UPLOAD_ERR_*`);
+     - estado de permissões e diretório de destino.
+   - Em caso de `UPLOAD_ERR_NO_TMP_DIR`, a aplicação retorna mensagem amigável ao usuário e mantém detalhes técnicos apenas em log para troubleshooting operacional.
+
 ## Segurança aplicada
 - `password_hash` / `password_verify`
 - Prepared statements via PDO

@@ -1,4 +1,7 @@
 <h3 class="mb-3">Configurações</h3>
+<?php foreach (($warnings ?? []) as $warning): ?>
+  <div class="alert alert-warning py-2"><?= e((string) $warning) ?></div>
+<?php endforeach; ?>
 <div class="row g-3">
   <div class="col-lg-7"><div class="rd-card"><div class="card-body table-responsive"><table class="table table-modern align-middle"><thead><tr><th>Chave</th><th>Valor</th><th>Tipo</th></tr></thead><tbody><?php foreach (($settings ?? []) as $s): ?><tr><td><?= e($s['setting_key']) ?></td><td><?= e($s['setting_value']) ?></td><td><?= e($s['value_type']) ?></td></tr><?php endforeach; ?></tbody></table></div></div></div>
   <div class="col-lg-5"><div class="rd-card"><div class="card-body"><h6>Atualizar setting</h6><form method="post" action="/admin/settings/update" class="d-flex flex-column gap-2"><?= csrf_field() ?><input class="form-control" name="setting_key" placeholder="setting_key"><input class="form-control" name="setting_value" placeholder="setting_value"><select class="form-select" name="value_type"><option>string</option><option>int</option><option>bool</option><option>json</option></select><button class="btn btn-rd-primary">Guardar</button></form></div></div></div>

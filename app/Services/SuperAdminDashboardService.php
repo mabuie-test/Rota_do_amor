@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use Throwable;
 
 final class SuperAdminDashboardService extends Model
 {
@@ -22,24 +23,25 @@ final class SuperAdminDashboardService extends Model
 
     public function build(): array
     {
-        $diary = $this->diary->superAdminAnalytics();
-        $safeDateMetrics = $this->safeDates->adminMetrics(30);
-        $dailyRouteMetrics = $this->dailyRoutes->superAdminMetrics(30);
-        $visitorsMetrics = $this->visitors->superAdminMetrics(30);
-        $storiesMetrics = $this->stories->adminMetrics(30);
-        $duelMetrics = $this->duels->superAdminMetrics(30);
+        $warnings = [];
+        $diary = $this->guardModule('diary', static fn(): array => $this->diary->superAdminAnalytics(), $warnings);
+        $safeDateMetrics = $this->guardModule('safe_dates', static fn(): array => $this->safeDates->adminMetrics(30), $warnings);
+        $dailyRouteMetrics = $this->guardModule('daily_routes', static fn(): array => $this->dailyRoutes->superAdminMetrics(30), $warnings);
+        $visitorsMetrics = $this->guardModule('visitors', static fn(): array => $this->visitors->superAdminMetrics(30), $warnings);
+        $storiesMetrics = $this->guardModule('stories', static fn(): array => $this->stories->adminMetrics(30), $warnings);
+        $duelMetrics = $this->guardModule('duels', static fn(): array => $this->duels->superAdminMetrics(30), $warnings);
 
         $product = [
-            'total_users' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users')['c'] ?? 0),
-            'new_users_7_days' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)')['c'] ?? 0),
-            'new_users_prev_7_days' => (int) ($this->fetchOne('SELECT COUNT(*) c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)')['c'] ?? 0),
-            'paid_activations' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM users WHERE activation_paid_at IS NOT NULL")['c'] ?? 0),
-            'active_subscriptions' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM subscriptions WHERE status='active' AND ends_at > NOW()")['c'] ?? 0),
-            'active_boosts' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM user_boosts WHERE status='active' AND ends_at > NOW()")['c'] ?? 0),
-            'match_to_conversation_30_days' => round((float) ($this->fetchOne("SELECT COALESCE(100 * (
+            'total_users' => (int) ($this->safeFetchOne('SELECT COUNT(*) c FROM users', [], 'super.product.total_users', $warnings)['c'] ?? 0),
+            'new_users_7_days' => (int) ($this->safeFetchOne('SELECT COUNT(*) c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)', [], 'super.product.new_users_7_days', $warnings)['c'] ?? 0),
+            'new_users_prev_7_days' => (int) ($this->safeFetchOne('SELECT COUNT(*) c FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY) AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)', [], 'super.product.new_users_prev_7_days', $warnings)['c'] ?? 0),
+            'paid_activations' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM users WHERE activation_paid_at IS NOT NULL", [], 'super.product.paid_activations', $warnings)['c'] ?? 0),
+            'active_subscriptions' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM subscriptions WHERE status='active' AND ends_at > NOW()", [], 'super.product.active_subscriptions', $warnings)['c'] ?? 0),
+            'active_boosts' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM user_boosts WHERE status='active' AND ends_at > NOW()", [], 'super.product.active_boosts', $warnings)['c'] ?? 0),
+            'match_to_conversation_30_days' => round((float) ($this->safeFetchOne("SELECT COALESCE(100 * (
                 (SELECT COUNT(*) FROM conversations WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY))
                 / NULLIF((SELECT COUNT(*) FROM matches WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)), 0)
-            ),0) AS v")['v'] ?? 0), 2),
+            ),0) AS v", [], 'super.product.match_to_conversation_30_days', $warnings)['v'] ?? 0), 2),
             'safe_dates_proposed_30_days' => (int) ($safeDateMetrics['proposed_total'] ?? 0),
             'safe_dates_acceptance_rate_30_days' => (float) ($safeDateMetrics['acceptance_rate'] ?? 0),
             'safe_dates_completion_rate_30_days' => (float) ($safeDateMetrics['completion_rate'] ?? 0),
@@ -84,23 +86,26 @@ final class SuperAdminDashboardService extends Model
         ];
 
         $operations = [
-            'pending_verifications' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM identity_verifications WHERE status='pending'")['c'] ?? 0),
-            'pending_reports' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM reports WHERE status='pending'")['c'] ?? 0),
-            'suspended_or_banned' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM users WHERE status IN ('suspended','banned')")['c'] ?? 0),
-            'audit_events_24h' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM activity_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)")['c'] ?? 0),
+            'pending_verifications' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM identity_verifications WHERE status='pending'", [], 'super.operations.pending_verifications', $warnings)['c'] ?? 0),
+            'pending_reports' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM reports WHERE status='pending'", [], 'super.operations.pending_reports', $warnings)['c'] ?? 0),
+            'suspended_or_banned' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM users WHERE status IN ('suspended','banned')", [], 'super.operations.suspended_or_banned', $warnings)['c'] ?? 0),
+            'audit_events_24h' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM activity_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)", [], 'super.operations.audit_events_24h', $warnings)['c'] ?? 0),
         ];
 
         $finance = [
-            'payments_completed' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='completed'")['c'] ?? 0),
-            'payments_pending' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='pending'")['c'] ?? 0),
-            'payments_failed' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed'")['c'] ?? 0),
-            'payments_failed_7_days' => (int) ($this->fetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['c'] ?? 0),
-            'revenue_7_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)")['s'] ?? 0),
-            'revenue_30_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['s'] ?? 0),
-            'revenue_prev_30_days' => (float) ($this->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND paid_at < DATE_SUB(NOW(), INTERVAL 30 DAY)")['s'] ?? 0),
+            'payments_completed' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM payments WHERE status='completed'", [], 'super.finance.payments_completed', $warnings)['c'] ?? 0),
+            'payments_pending' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM payments WHERE status='pending'", [], 'super.finance.payments_pending', $warnings)['c'] ?? 0),
+            'payments_failed' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed'", [], 'super.finance.payments_failed', $warnings)['c'] ?? 0),
+            'payments_failed_7_days' => (int) ($this->safeFetchOne("SELECT COUNT(*) c FROM payments WHERE status='failed' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)", [], 'super.finance.payments_failed_7_days', $warnings)['c'] ?? 0),
+            'revenue_7_days' => (float) ($this->safeFetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)", [], 'super.finance.revenue_7_days', $warnings)['s'] ?? 0),
+            'revenue_30_days' => (float) ($this->safeFetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", [], 'super.finance.revenue_30_days', $warnings)['s'] ?? 0),
+            'revenue_prev_30_days' => (float) ($this->safeFetchOne("SELECT COALESCE(SUM(amount),0) s FROM payments WHERE status='completed' AND paid_at >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND paid_at < DATE_SUB(NOW(), INTERVAL 30 DAY)", [], 'super.finance.revenue_prev_30_days', $warnings)['s'] ?? 0),
         ];
 
-        $risk = $this->risk->build();
+        $risk = $this->guardModule('risk_center', static fn(): array => $this->risk->build(), $warnings);
+        if (($risk['overview'] ?? null) === null) {
+            $risk = ['overview' => []];
+        }
 
         return [
             'product' => $product,
@@ -120,9 +125,53 @@ final class SuperAdminDashboardService extends Model
             ],
             'critical_alerts' => $this->criticalAlerts($operations, $finance, $risk['overview'], $diary),
             'action_required' => $this->actionRequired($operations, $risk['overview']),
-            'recent_activity' => $this->fetchAll('SELECT action, actor_type, target_type, target_id, created_at FROM activity_logs ORDER BY id DESC LIMIT 12'),
+            'recent_activity' => $this->safeFetchAll('SELECT action, actor_type, target_type, target_id, created_at FROM activity_logs ORDER BY id DESC LIMIT 12', [], 'super.recent_activity', $warnings),
             'executive_blocks' => $this->executiveBlocks($product, $operations, $finance, $risk['overview'], $diary),
+            'warnings' => array_values(array_unique($warnings)),
         ];
+    }
+
+    /**
+     * @param array<int,string> $warnings
+     */
+    private function safeFetchOne(string $sql, array $params, string $context, array &$warnings): ?array
+    {
+        try {
+            return $this->fetchOne($sql, $params);
+        } catch (Throwable $exception) {
+            $warnings[] = 'Alguns blocos do dashboard executivo foram carregados com dados parciais.';
+            error_log('[admin.super_dashboard.query_failed] context=' . $context . ' error=' . $exception->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * @param array<int,string> $warnings
+     */
+    private function safeFetchAll(string $sql, array $params, string $context, array &$warnings): array
+    {
+        try {
+            return $this->fetchAll($sql, $params);
+        } catch (Throwable $exception) {
+            $warnings[] = 'Alguns blocos do dashboard executivo foram carregados com dados parciais.';
+            error_log('[admin.super_dashboard.query_failed] context=' . $context . ' error=' . $exception->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * @param array<int,string> $warnings
+     */
+    private function guardModule(string $module, callable $callback, array &$warnings): array
+    {
+        try {
+            $result = $callback();
+            return is_array($result) ? $result : [];
+        } catch (Throwable $exception) {
+            $warnings[] = sprintf('Módulo "%s" indisponível no host atual.', $module);
+            error_log('[admin.super_dashboard.module_failed] module=' . $module . ' error=' . $exception->getMessage());
+            return [];
+        }
     }
 
     private function executiveBlocks(array $product, array $operations, array $finance, array $risk, array $diary): array

@@ -1,5 +1,6 @@
 <?php $metrics = $metrics ?? []; $product = $metrics['product'] ?? []; $operations = $metrics['operations'] ?? []; $finance = $metrics['finance'] ?? []; $diary = $metrics['diary'] ?? []; $risk = $metrics['risk'] ?? []; $trend = $metrics['trend'] ?? []; $blocks = $metrics['executive_blocks'] ?? []; $safeDateTrend = $trend['safe_dates_daily_trend_30_days'] ?? []; ?>
 <h3 class="mb-3">Dashboard Executivo · Super Admin</h3>
+<?php foreach (($metrics['warnings'] ?? []) as $warning): ?><div class="alert alert-warning py-2"><?= e((string) $warning) ?></div><?php endforeach; ?>
 
 <div class="row g-3 mb-3">
   <?php foreach ($blocks as $key => $block): ?>

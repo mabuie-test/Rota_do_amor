@@ -1,5 +1,6 @@
 <?php $users = $users ?? []; $overview = $overview ?? []; $inviteAnomalies = $invites_anomalies ?? []; $messageAnomalies = $messages_anomalies ?? []; $safeDateAnomalies = $safe_dates_anomalies ?? []; $queue = $priority_queue ?? []; $currentPriority = $current_priority ?? ''; $explainability = $explainability ?? []; ?>
 <h3 class="mb-3">Centro de Risco & Abuso</h3>
+<?php foreach (($warnings ?? []) as $warning): ?><div class="alert alert-warning py-2"><?= e((string) $warning) ?></div><?php endforeach; ?>
 <?php if (!empty($explainability)): ?><div class="alert alert-light border py-2"><strong>Modelo actual:</strong> <?= e((string) ($explainability['method'] ?? 'Score composto')) ?> · <span class="small text-muted">actualizado em <?= e((string) ($explainability['last_refreshed_at'] ?? '')) ?></span></div><?php endif; ?>
 
 <div class="row g-3 mb-3">

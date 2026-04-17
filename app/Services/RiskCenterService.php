@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use Throwable;
 
 final class RiskCenterService extends Model
 {
+    /** @var array<int,string> */
+    private array $warnings = [];
+
     public function build(): array
     {
         $users = $this->suspiciousUsers();
@@ -20,6 +24,7 @@ final class RiskCenterService extends Model
             'safe_dates_anomalies' => $this->safeDateAnomalies(),
             'visitors_anomalies' => $this->visitorAnomalies(),
             'duels_anomalies' => $this->duelAnomalies(),
+            'warnings' => array_values(array_unique($this->warnings)),
             'priority_queue' => [
                 'high' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'alta')),
                 'medium' => count(array_filter($users, static fn(array $u): bool => (string) ($u['risk_priority'] ?? '') === 'média')),
@@ -33,7 +38,7 @@ final class RiskCenterService extends Model
 
     public function suspiciousUsers(): array
     {
-        $rows = $this->fetchAll("SELECT u.id,u.first_name,u.last_name,u.email,u.status,
+        $rows = $this->safeFetchAll("SELECT u.id,u.first_name,u.last_name,u.email,u.status,
                         (SELECT COUNT(*) FROM reports r WHERE r.target_user_id=u.id) AS reports_count,
                         (SELECT COUNT(*) FROM reports r WHERE r.target_user_id=u.id AND r.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS reports_30_days,
                         (SELECT COUNT(*) FROM blocks b WHERE b.target_user_id=u.id) AS blocked_count,
@@ -45,7 +50,7 @@ final class RiskCenterService extends Model
                     FROM users u
                     HAVING reports_count >= 2 OR blocked_count >= 3 OR messages_24h >= 100 OR invites_24h >= 40
                     ORDER BY reports_count DESC, blocked_count DESC, messages_24h DESC
-                    LIMIT 200");
+                    LIMIT 200", [], 'risk.suspicious_users');
 
         return array_map(function (array $row): array {
             $score = 0;
@@ -111,51 +116,51 @@ final class RiskCenterService extends Model
     private function overview(): array
     {
         return [
-            'users_flagged' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (
+            'users_flagged' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM (
                 SELECT u.id
                 FROM users u
                 HAVING (SELECT COUNT(*) FROM reports r WHERE r.target_user_id=u.id) >= 2
                     OR (SELECT COUNT(*) FROM blocks b WHERE b.target_user_id=u.id) >= 3
                     OR (SELECT COUNT(*) FROM messages m WHERE m.sender_id=u.id AND m.created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)) >= 100
-            ) t")['c'] ?? 0),
-            'reports_pending' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM reports WHERE status='pending'")['c'] ?? 0),
-            'reports_recurrent_targets_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (
+            ) t", [], 'risk.overview.users_flagged')['c'] ?? 0),
+            'reports_pending' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM reports WHERE status='pending'", [], 'risk.overview.reports_pending')['c'] ?? 0),
+            'reports_recurrent_targets_30d' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM (
                 SELECT target_user_id
                 FROM reports
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
                 GROUP BY target_user_id
                 HAVING COUNT(*) >= 3
-            ) t")['c'] ?? 0),
-            'high_message_spike_users_24h' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (
+            ) t", [], 'risk.overview.reports_recurrent_targets_30d')['c'] ?? 0),
+            'high_message_spike_users_24h' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM (
                 SELECT sender_id
                 FROM messages
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                 GROUP BY sender_id
                 HAVING COUNT(*) >= 100
-            ) t")['c'] ?? 0),
-            'safe_dates_decline_spike_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (
+            ) t", [], 'risk.overview.high_message_spike_users_24h')['c'] ?? 0),
+            'safe_dates_decline_spike_30d' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM (
                 SELECT initiator_user_id
                 FROM safe_dates
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
                 GROUP BY initiator_user_id
                 HAVING SUM(CASE WHEN status='declined' THEN 1 ELSE 0 END) >= 6
-            ) t")['c'] ?? 0),
-            'safe_dates_reschedule_spike_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (
+            ) t", [], 'risk.overview.safe_dates_decline_spike_30d')['c'] ?? 0),
+            'safe_dates_reschedule_spike_30d' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM (
                 SELECT initiator_user_id
                 FROM safe_dates
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
                 GROUP BY initiator_user_id
                 HAVING SUM(CASE WHEN status IN ('reschedule_requested','rescheduled') THEN 1 ELSE 0 END) >= 6
-            ) t")['c'] ?? 0),
-            'safe_dates_safety_signals_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM safe_date_private_feedback WHERE safety_signal IN ('attention','emergency') AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")['c'] ?? 0),
-            'anonymous_story_reports_pending' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM anonymous_story_reports WHERE status='pending'")['c'] ?? 0),
-            'visitors_artificial_patterns_30d' => (int) ($this->fetchOne("SELECT COUNT(*) AS c FROM (SELECT visitor_user_id FROM profile_visits WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY visitor_user_id HAVING COUNT(*) >= 80 OR COUNT(DISTINCT visited_user_id) >= 60) t")['c'] ?? 0),
+            ) t", [], 'risk.overview.safe_dates_reschedule_spike_30d')['c'] ?? 0),
+            'safe_dates_safety_signals_30d' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM safe_date_private_feedback WHERE safety_signal IN ('attention','emergency') AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", [], 'risk.overview.safe_dates_safety_signals_30d')['c'] ?? 0),
+            'anonymous_story_reports_pending' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM anonymous_story_reports WHERE status='pending'", [], 'risk.overview.anonymous_story_reports_pending')['c'] ?? 0),
+            'visitors_artificial_patterns_30d' => (int) ($this->safeFetchOne("SELECT COUNT(*) AS c FROM (SELECT visitor_user_id FROM profile_visits WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY visitor_user_id HAVING COUNT(*) >= 80 OR COUNT(DISTINCT visited_user_id) >= 60) t", [], 'risk.overview.visitors_artificial_patterns_30d')['c'] ?? 0),
         ];
     }
 
     private function inviteAnomalies(): array
     {
-        return $this->fetchAll("SELECT ci.sender_id, CONCAT(u.first_name, ' ', u.last_name) AS sender_name,
+        return $this->safeFetchAll("SELECT ci.sender_id, CONCAT(u.first_name, ' ', u.last_name) AS sender_name,
                 COUNT(*) AS invites_24h,
                 SUM(CASE WHEN ci.status = 'accepted' THEN 1 ELSE 0 END) AS accepted_24h,
                 ROUND((SUM(CASE WHEN ci.status = 'accepted' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) AS acceptance_rate_24h
@@ -165,12 +170,12 @@ final class RiskCenterService extends Model
             GROUP BY ci.sender_id
             HAVING invites_24h >= 20
             ORDER BY invites_24h DESC
-            LIMIT 25");
+            LIMIT 25", [], 'risk.invites_anomalies');
     }
 
     private function messageAnomalies(): array
     {
-        return $this->fetchAll("SELECT m.sender_id, CONCAT(u.first_name, ' ', u.last_name) AS sender_name,
+        return $this->safeFetchAll("SELECT m.sender_id, CONCAT(u.first_name, ' ', u.last_name) AS sender_name,
                 COUNT(*) AS messages_24h,
                 COUNT(DISTINCT m.conversation_id) AS conversations_touched,
                 ROUND(COUNT(*) / GREATEST(COUNT(DISTINCT m.conversation_id), 1), 2) AS messages_per_conversation
@@ -180,12 +185,12 @@ final class RiskCenterService extends Model
             GROUP BY m.sender_id
             HAVING messages_24h >= 80
             ORDER BY messages_24h DESC
-            LIMIT 25");
+            LIMIT 25", [], 'risk.messages_anomalies');
     }
 
     private function safeDateAnomalies(): array
     {
-        return $this->fetchAll("SELECT sd.initiator_user_id AS sender_id,
+        return $this->safeFetchAll("SELECT sd.initiator_user_id AS sender_id,
                 CONCAT(u.first_name, ' ', u.last_name) AS sender_name,
                 COUNT(*) AS safe_dates_30d,
                 SUM(CASE WHEN sd.status='declined' THEN 1 ELSE 0 END) AS declined_30d,
@@ -197,12 +202,12 @@ final class RiskCenterService extends Model
             GROUP BY sd.initiator_user_id
             HAVING safe_dates_30d >= 8 AND (decline_rate_30d >= 55 OR cancelled_30d >= 4)
             ORDER BY decline_rate_30d DESC, cancelled_30d DESC, safe_dates_30d DESC
-            LIMIT 25");
+            LIMIT 25", [], 'risk.safe_dates_anomalies');
     }
 
     private function visitorAnomalies(): array
     {
-        return $this->fetchAll("SELECT pv.visitor_user_id AS user_id, CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+        return $this->safeFetchAll("SELECT pv.visitor_user_id AS user_id, CONCAT(u.first_name, ' ', u.last_name) AS user_name,
                 COUNT(*) AS visits_24h, COUNT(DISTINCT pv.visited_user_id) AS unique_targets
             FROM profile_visits pv
             JOIN users u ON u.id = pv.visitor_user_id
@@ -210,12 +215,12 @@ final class RiskCenterService extends Model
             GROUP BY pv.visitor_user_id
             HAVING visits_24h >= 30 OR unique_targets >= 20
             ORDER BY visits_24h DESC, unique_targets DESC
-            LIMIT 25");
+            LIMIT 25", [], 'risk.visitor_anomalies');
     }
 
     private function duelAnomalies(): array
     {
-        return $this->fetchAll("SELECT d.user_id, CONCAT(u.first_name, ' ', u.last_name) AS user_name,
+        return $this->safeFetchAll("SELECT d.user_id, CONCAT(u.first_name, ' ', u.last_name) AS user_name,
                 COUNT(*) AS duels_7d,
                 SUM(CASE WHEN d.status IN ('voted','engaged') THEN 1 ELSE 0 END) AS voted_7d
             FROM compatibility_duels d
@@ -224,6 +229,32 @@ final class RiskCenterService extends Model
             GROUP BY d.user_id
             HAVING duels_7d >= 7 AND voted_7d <= 1
             ORDER BY duels_7d DESC
-            LIMIT 25");
+            LIMIT 25", [], 'risk.duel_anomalies');
+    }
+
+    private function safeFetchOne(string $sql, array $params = [], string $context = 'risk.query'): ?array
+    {
+        try {
+            return $this->fetchOne($sql, $params);
+        } catch (Throwable $exception) {
+            $this->registerFailure($context, $exception);
+            return null;
+        }
+    }
+
+    private function safeFetchAll(string $sql, array $params = [], string $context = 'risk.query'): array
+    {
+        try {
+            return $this->fetchAll($sql, $params);
+        } catch (Throwable $exception) {
+            $this->registerFailure($context, $exception);
+            return [];
+        }
+    }
+
+    private function registerFailure(string $context, Throwable $exception): void
+    {
+        $this->warnings[] = 'Parte das métricas de risco está indisponível no host atual.';
+        error_log('[admin.risk.query_failed] context=' . $context . ' error=' . $exception->getMessage());
     }
 }

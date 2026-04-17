@@ -9,21 +9,38 @@ use App\Core\Request;
 use App\Core\Response;
 use App\Core\Session;
 use App\Services\AuditService;
+use App\Services\SettingsService;
+use Throwable;
 
 final class AdminSystemController extends Controller
 {
-    public function __construct(private readonly AuditService $audit = new AuditService())
+    public function __construct(
+        private readonly AuditService $audit = new AuditService(),
+        private readonly SettingsService $settings = new SettingsService()
+    )
     {
     }
 
     public function index(): void
     {
-        $rows = \App\Core\Database::connection()->query('SELECT * FROM site_settings ORDER BY setting_key')->fetchAll();
-        if (Request::input('format') === 'json') {
-            Response::json(['settings' => $rows]);
+        $warnings = [];
+        $rows = $this->settings->listAllSafe();
+        if ($rows === []) {
+            $boot = $this->settings->bootstrapMinimumSettings();
+            if (($boot['failed'] ?? []) !== []) {
+                $warnings[] = 'Configurações mínimas não puderam ser totalmente carregadas neste host.';
+            }
+            $rows = $this->settings->listAllSafe();
+            if ($rows === []) {
+                $warnings[] = 'A tabela de configurações ainda não está pronta. O sistema seguirá em modo seguro.';
+            }
         }
 
-        $this->view('admin/settings', ['title' => 'Admin · Configurações', 'settings' => $rows]);
+        if (Request::input('format') === 'json') {
+            Response::json(['settings' => $rows, 'warnings' => $warnings]);
+        }
+
+        $this->view('admin/settings', ['title' => 'Admin · Configurações', 'settings' => $rows, 'warnings' => $warnings]);
     }
 
     public function update(): void
@@ -35,10 +52,21 @@ final class AdminSystemController extends Controller
             Response::json(['ok' => false, 'message' => 'setting_key é obrigatório'], 422);
         }
 
-        $stmt = \App\Core\Database::connection()->prepare('INSERT INTO site_settings (setting_key,setting_value,value_type,updated_at) VALUES (:k,:v,:t,NOW()) ON DUPLICATE KEY UPDATE setting_value=:v,value_type=:t,updated_at=NOW()');
-        $stmt->execute([':k' => $key, ':v' => $value, ':t' => $type]);
+        $this->settings->ensureSiteSettingsTable();
 
-        $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'site_setting_updated', 'site_setting', null, ['key' => $key, 'type' => $type]);
+        try {
+            $stmt = \App\Core\Database::connection()->prepare('INSERT INTO site_settings (setting_key,setting_value,value_type,updated_at) VALUES (:k,:v,:t,NOW()) ON DUPLICATE KEY UPDATE setting_value=:v,value_type=:t,updated_at=NOW()');
+            $stmt->execute([':k' => $key, ':v' => $value, ':t' => $type]);
+        } catch (Throwable $exception) {
+            error_log('[admin.settings_update_failed] key=' . $key . ' error=' . $exception->getMessage());
+            Response::json(['ok' => false, 'message' => 'Não foi possível atualizar a configuração neste momento.'], 500);
+        }
+
+        try {
+            $this->audit->logAdminEvent((int) Session::get('admin_id', 0), 'site_setting_updated', 'site_setting', null, ['key' => $key, 'type' => $type]);
+        } catch (Throwable $exception) {
+            error_log('[admin.settings_audit_failed] key=' . $key . ' error=' . $exception->getMessage());
+        }
         Response::json(['ok' => true]);
     }
 }

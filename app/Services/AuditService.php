@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Model;
+use Throwable;
 
 final class AuditService extends Model
 {
@@ -120,18 +121,22 @@ final class AuditService extends Model
 
     private function insertEvent(string $actorType, ?int $actorId, string $action, ?string $targetType, ?int $targetId, array $metadata): void
     {
-        $this->execute(
-            'INSERT INTO activity_logs (actor_type,actor_id,action,target_type,target_id,metadata_json,ip_address,created_at) VALUES (:actor_type,:actor_id,:action,:target_type,:target_id,:metadata,:ip,NOW())',
-            [
-                ':actor_type' => $actorType,
-                ':actor_id' => $actorId,
-                ':action' => $action,
-                ':target_type' => $targetType,
-                ':target_id' => $targetId,
-                ':metadata' => json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
-            ]
-        );
+        try {
+            $this->execute(
+                'INSERT INTO activity_logs (actor_type,actor_id,action,target_type,target_id,metadata_json,ip_address,created_at) VALUES (:actor_type,:actor_id,:action,:target_type,:target_id,:metadata,:ip,NOW())',
+                [
+                    ':actor_type' => $actorType,
+                    ':actor_id' => $actorId,
+                    ':action' => $action,
+                    ':target_type' => $targetType,
+                    ':target_id' => $targetId,
+                    ':metadata' => json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                ]
+            );
+        } catch (Throwable $exception) {
+            error_log('[audit.log_failed] action=' . $action . ' target_type=' . ($targetType ?? 'null') . ' target_id=' . ($targetId ?? 0) . ' error=' . $exception->getMessage());
+        }
     }
 
     private function buildTargetDisplay(array $item): string

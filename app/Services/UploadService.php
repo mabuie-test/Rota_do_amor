@@ -29,7 +29,8 @@ final class UploadService extends Model
 
     public function storeImage(array $file, string $domain = 'temp'): array
     {
-        $this->validateUpload($file);
+        $safeDomain = $this->normalizeDomain($domain);
+        $this->validateUpload($file, $safeDomain);
 
         $maxSize = $this->effectiveMaxSize();
         if ((int) ($file['size'] ?? 0) > $maxSize) {
@@ -49,7 +50,6 @@ final class UploadService extends Model
 
         $this->assertImageGeometry($tmpPath);
 
-        $safeDomain = $this->normalizeDomain($domain);
         $filePrefix = str_replace(['/', '\\'], '_', $safeDomain);
         $baseDirectory = dirname(__DIR__, 2) . '/public/storage/uploads/' . $safeDomain;
         $this->ensureWritableDirectory($baseDirectory);
@@ -57,7 +57,7 @@ final class UploadService extends Model
         $fileName = $filePrefix . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
         $absolutePath = $baseDirectory . '/' . $fileName;
         if (!$this->moveUploadedFile($tmpPath, $absolutePath)) {
-            $this->logUploadIssue('move_uploaded_file_failed', ['domain' => $safeDomain, 'tmp_name' => $tmpPath, 'destination' => $absolutePath]);
+            $this->logUploadIssue('move_uploaded_file_failed', $this->diagnosticsContext($safeDomain, (int) ($file['error'] ?? UPLOAD_ERR_OK), $tmpPath, $absolutePath));
             throw new RuntimeException('Falha ao mover ficheiro para o diretório final de uploads.');
         }
 
@@ -192,13 +192,17 @@ final class UploadService extends Model
         return false;
     }
 
-    private function validateUpload(array $file): void
+    private function validateUpload(array $file, string $domain = 'temp'): void
     {
         if ($file === [] || !isset($file['error'], $file['tmp_name'])) {
+            $this->logUploadIssue('invalid_upload_payload', $this->diagnosticsContext($domain, -1, (string) ($file['tmp_name'] ?? ''), null));
             throw new RuntimeException('Nenhum ficheiro enviado.');
         }
 
         $errorCode = (int) $file['error'];
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            $this->logUploadIssue('upload_php_error', $this->diagnosticsContext($domain, $errorCode, (string) ($file['tmp_name'] ?? ''), null));
+        }
         if ($errorCode === UPLOAD_ERR_NO_FILE) {
             throw new RuntimeException('Nenhum ficheiro enviado.');
         }
@@ -212,6 +216,7 @@ final class UploadService extends Model
         }
 
         if ($errorCode === UPLOAD_ERR_NO_TMP_DIR) {
+            $this->logUploadIssue('upload_tmp_dir_unavailable', $this->diagnosticsContext($domain, $errorCode, (string) ($file['tmp_name'] ?? ''), null));
             throw new RuntimeException('Falha no upload: diretório temporário ausente no servidor.');
         }
 
@@ -228,8 +233,11 @@ final class UploadService extends Model
         }
 
         if (!is_uploaded_file((string) $file['tmp_name'])) {
+            $this->logUploadIssue('upload_tmp_name_untrusted', $this->diagnosticsContext($domain, $errorCode, (string) $file['tmp_name'], null));
             throw new RuntimeException('Upload inválido ou não confiável (tmp_name inválido).');
         }
+
+        $this->logUploadIssue('upload_validated', $this->diagnosticsContext($domain, $errorCode, (string) $file['tmp_name'], null));
     }
 
     private function normalizeFilesArray(array $files): array
@@ -321,6 +329,48 @@ final class UploadService extends Model
         $payload['event'] = $event;
         $payload['service'] = 'UploadService';
         error_log('[upload.issue] ' . json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function diagnosticsContext(string $domain, int $errorCode, ?string $tmpPath, ?string $destination): array
+    {
+        $uploadTmpDir = (string) ini_get('upload_tmp_dir');
+        $sysTempDir = (string) sys_get_temp_dir();
+        $iniTemp = $uploadTmpDir !== '' ? $uploadTmpDir : $sysTempDir;
+
+        return [
+            'domain' => $domain,
+            'upload_error_code' => $errorCode,
+            'upload_error_label' => $this->uploadErrorLabel($errorCode),
+            'tmp_name' => $tmpPath,
+            'tmp_name_readable' => $tmpPath !== null && $tmpPath !== '' ? is_readable($tmpPath) : false,
+            'tmp_name_exists' => $tmpPath !== null && $tmpPath !== '' ? file_exists($tmpPath) : false,
+            'upload_tmp_dir' => $uploadTmpDir,
+            'ini_upload_tmp_dir' => $uploadTmpDir,
+            'sys_temp_dir' => $sysTempDir,
+            'selected_tmp_dir' => $iniTemp,
+            'selected_tmp_dir_exists' => $iniTemp !== '' ? is_dir($iniTemp) : false,
+            'selected_tmp_dir_writable' => $iniTemp !== '' ? is_writable($iniTemp) : false,
+            'destination' => $destination,
+            'destination_dir' => $destination !== null ? dirname($destination) : null,
+            'destination_dir_exists' => $destination !== null ? is_dir(dirname($destination)) : false,
+            'destination_dir_writable' => $destination !== null ? is_writable(dirname($destination)) : false,
+            'open_basedir' => (string) ini_get('open_basedir'),
+        ];
+    }
+
+    private function uploadErrorLabel(int $errorCode): string
+    {
+        return match ($errorCode) {
+            UPLOAD_ERR_OK => 'UPLOAD_ERR_OK',
+            UPLOAD_ERR_INI_SIZE => 'UPLOAD_ERR_INI_SIZE',
+            UPLOAD_ERR_FORM_SIZE => 'UPLOAD_ERR_FORM_SIZE',
+            UPLOAD_ERR_PARTIAL => 'UPLOAD_ERR_PARTIAL',
+            UPLOAD_ERR_NO_FILE => 'UPLOAD_ERR_NO_FILE',
+            UPLOAD_ERR_NO_TMP_DIR => 'UPLOAD_ERR_NO_TMP_DIR',
+            UPLOAD_ERR_CANT_WRITE => 'UPLOAD_ERR_CANT_WRITE',
+            UPLOAD_ERR_EXTENSION => 'UPLOAD_ERR_EXTENSION',
+            default => 'UNKNOWN',
+        };
     }
 
     private function assertImageGeometry(string $path): void
