@@ -117,9 +117,9 @@ $originLabels = [
 <div class="rd-feed-shell" data-csrf-token="<?= e($csrfToken) ?>">
 <?php if (!empty($feed)): foreach (($feed ?? []) as $post): ?>
   <?php $postId = (int) ($post['id'] ?? 0); $authorName = (string) ($post['author_name'] ?? ('Utilizador #' . (int) $post['user_id'])); $authorInitial = strtoupper(substr(trim($authorName), 0, 1)); ?>
-  <article class="rd-card rd-feed-post <?= $selectedPostId === $postId ? 'rd-post-highlight' : '' ?>" id="post-<?= $postId ?>">
+  <article class="rd-card rd-feed-post <?= $selectedPostId === $postId ? 'rd-post-highlight' : '' ?>" id="post-<?= $postId ?>" data-post-id="<?= $postId ?>" data-author-id="<?= (int) ($post['user_id'] ?? 0) ?>">
     <div class="card-body">
-      <header class="d-flex justify-content-between gap-2 mb-2"><div class="rd-feed-post__author"><div class="rd-feed-post__avatar"><?= e($authorInitial !== '' ? $authorInitial : 'U') ?></div><div><a class="text-decoration-none fw-semibold" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>"><?= e($authorName) ?></a><div class="rd-feed-post__meta"><?php if ((int) ($post['author_online'] ?? 0) === 1): ?><span class="badge text-bg-success">online</span><?php endif; ?><?php if ((int) ($post['author_verified'] ?? 0) === 1): ?><span class="badge text-bg-primary">verificado</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['premium'])): ?><span class="badge text-bg-warning">premium</span><?php endif; ?><?php if (!empty($post['author_availability']['availability_type'])): ?><span class="badge text-bg-info rd-badge-availability"><?= e(str_replace('_', ' ', (string) $post['author_availability']['availability_type'])) ?></span><?php endif; ?><?php if (!empty($post['author_trust_flags']['profile_complete'])): ?><span class="badge text-bg-light">perfil completo</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['signals']['recent_activity'])): ?><span class="badge text-bg-light">ativo recentemente</span><?php endif; ?><?php if (isset($post['author_trust_flags']['trust_score'])): ?><span class="badge text-bg-light">trust <?= (int) ($post['author_trust_flags']['trust_score'] ?? 0) ?></span><?php endif; ?></div></div></div><small class="text-muted text-nowrap"><?= e((string) $post['created_at']) ?></small></header>
+      <header class="d-flex justify-content-between gap-2 mb-2"><div class="rd-feed-post__author"><div class="rd-feed-post__avatar"><?= e($authorInitial !== '' ? $authorInitial : 'U') ?></div><div><a class="text-decoration-none fw-semibold" href="/member/<?= (int) ($post['user_id'] ?? 0) ?>"><?= e($authorName) ?></a><div class="rd-feed-post__meta"><?php if ((int) ($post['author_online'] ?? 0) === 1): ?><span class="badge text-bg-success">online</span><?php endif; ?><?php if ((int) ($post['author_verified'] ?? 0) === 1): ?><span class="badge text-bg-primary">verificado</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['premium'])): ?><span class="badge text-bg-warning">premium</span><?php endif; ?><?php if (!empty($post['author_availability']['availability_type'])): ?><span class="badge text-bg-info rd-badge-availability"><?= e(str_replace('_', ' ', (string) $post['author_availability']['availability_type'])) ?></span><?php endif; ?><?php if (!empty($post['author_trust_flags']['profile_complete'])): ?><span class="badge text-bg-light">perfil completo</span><?php endif; ?><?php if (!empty($post['author_trust_flags']['signals']['recent_activity'])): ?><span class="badge text-bg-light">ativo recentemente</span><?php endif; ?><?php if (isset($post['author_trust_flags']['trust_score'])): ?><span class="badge text-bg-light" title="Sinal agregado de confiança do autor">trust <?= (int) ($post['author_trust_flags']['trust_score'] ?? 0) ?></span><?php endif; ?></div></div></div><small class="text-muted text-nowrap"><?= e((string) $post['created_at']) ?></small></header>
       <?php $originType = (string) ($post['origin_type'] ?? 'normal'); $originMeta = $originLabels[$originType] ?? $originLabels['normal']; ?>
       <div class="rd-feed-origin mb-2"><span class="badge rounded-pill text-bg-light"><i class="fa-solid <?= e((string) ($originMeta['icon'] ?? 'fa-pen')) ?> me-1"></i><?= e((string) ($originMeta['label'] ?? 'Post')) ?></span><?php if (in_array($originType, ['match_collab', 'story_shared'], true)): ?><small class="text-muted ms-2">Origem reservada para fase futura.</small><?php endif; ?></div>
 
@@ -130,7 +130,7 @@ $originLabels = [
         <div class="rd-diary-share mb-2">
           <div class="d-flex justify-content-between align-items-center gap-2">
             <strong><i class="fa-solid fa-book-heart me-1"></i>Diário partilhado</strong>
-            <span class="badge text-bg-light"><?= e(str_replace('_', ' ', (string) ($post['diary_share']['share_mode'] ?? 'publico'))) ?></span>
+            <span class="badge text-bg-light"><?= e(str_replace('_', ' ', (string) ($post['diary_share']['share_mode'] ?? 'publico'))) ?></span><?php if (!empty($post['diary_share']['is_anonymous'])): ?><span class="badge text-bg-secondary">autor anónimo</span><?php endif; ?>
           </div>
           <?php if (!empty($post['diary_share']['title'])): ?><div class="small fw-semibold mt-1"><?= e((string) ($post['diary_share']['title'] ?? '')) ?></div><?php endif; ?>
           <?php if (!empty($post['diary_share']['mood'])): ?><div class="small text-muted">Mood do diário: <?= e((string) ($post['diary_share']['mood'] ?? '')) ?></div><?php endif; ?>
@@ -180,7 +180,7 @@ $originLabels = [
             <div id="comment-<?= $commentId ?>" class="rd-feed-comment-item <?= $isTargetComment ? 'rd-comment-highlight' : '' ?>" data-comment-parent="<?= $commentId ?>">
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div><a href="/member/<?= (int) ($comment['user_id'] ?? 0) ?>" class="fw-semibold text-decoration-none"><?= e((string) ($comment['author_name'] ?? 'Utilizador')) ?></a>: <?= e((string) ($comment['comment_text'] ?? '')) ?></div>
-                <button type="button" class="btn btn-link btn-sm p-0" data-reply-toggle data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">Responder</button>
+                <button type="button" class="btn btn-link btn-sm p-0" data-reply-toggle data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>" data-expanded-label="Ocultar" data-collapsed-label="Responder">Responder</button>
               </div>
               <form method="post" action="/feed/comment" class="mt-2 d-none" id="reply-form-<?= $postId ?>-<?= $commentId ?>" data-feed-comment-form data-comment-kind="reply" data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">
                 <?= csrf_field() ?>
@@ -189,6 +189,7 @@ $originLabels = [
                 <div class="d-flex gap-2">
                   <input class="form-control form-control-sm" name="comment" maxlength="600" placeholder="Responder ao comentário..." required>
                   <button class="btn btn-sm btn-rd-primary">Responder</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-reply-cancel data-post-id="<?= $postId ?>" data-parent-id="<?= $commentId ?>">Cancelar</button>
                 </div>
               </form>
               <?php if (!empty($comment['replies'])): ?>
@@ -200,7 +201,7 @@ $originLabels = [
                     </div>
                   <?php endforeach; ?>
                 </div>
-                <?php if ($replyCount > 2): ?><button type="button" class="btn btn-link btn-sm p-0" data-toggle-replies data-parent-id="<?= $commentId ?>">Ver replies</button><?php endif; ?>
+                <?php if ($replyCount > 2): ?><button type="button" class="btn btn-link btn-sm p-0" data-toggle-replies data-parent-id="<?= $commentId ?>" data-total-replies="<?= $replyCount ?>">Ver <?= $replyCount ?> replies</button><?php endif; ?>
               <?php endif; ?>
             </div>
           <?php endforeach; ?>

@@ -69,7 +69,7 @@ $appNavItems = [
 $showShellSidebar = $isAuthenticated || $isAdminArea;
 $sidebarView = $isAdminArea ? dirname(__DIR__) . '/partials/admin-sidebar.php' : dirname(__DIR__) . '/partials/app-sidebar.php';
 ?>
-<body class="<?= e($experienceClass) ?>">
+<body class="<?= e($experienceClass) ?>" data-auth-user-id="<?= (int) (Auth::id() ?? 0) ?>">
 <a href="#main-content" class="rd-skip-link">Ir para conteúdo principal</a>
 
 <div class="rd-topbar py-2">
