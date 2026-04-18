@@ -25,6 +25,125 @@ function columnExists(PDO $pdo, string $schema, string $table, string $column): 
     return (int) ($stmt->fetch()['c'] ?? 0) > 0;
 }
 
+function configureSessionTimezone(PDO $pdo): void
+{
+    $timezone = trim((string) ($_ENV['DB_TIMEZONE'] ?? $_ENV['APP_DB_TIMEZONE'] ?? '+02:00'));
+    if ($timezone === '') {
+        $timezone = '+02:00';
+    }
+
+    try {
+        $stmt = $pdo->prepare('SET time_zone = :tz');
+        $stmt->execute([':tz' => $timezone]);
+    } catch (Throwable $exception) {
+        out('[WARN] Não foi possível aplicar time_zone da sessão (' . $timezone . '): ' . $exception->getMessage());
+    }
+}
+
+function shouldIgnoreMigrationError(Throwable $exception): bool
+{
+    $message = mb_strtolower($exception->getMessage());
+
+    return str_contains($message, 'already exists')
+        || str_contains($message, 'duplicate column name')
+        || str_contains($message, 'duplicate key name')
+        || str_contains($message, 'duplicate entry')
+        || str_contains($message, 'multiple primary key defined');
+}
+
+/**
+ * @return list<string>
+ */
+function splitSqlStatements(string $sql): array
+{
+    $statements = [];
+    $buffer = '';
+    $length = strlen($sql);
+    $quote = null;
+
+    for ($i = 0; $i < $length; $i++) {
+        $char = $sql[$i];
+        $next = $i + 1 < $length ? $sql[$i + 1] : '';
+
+        if ($quote === null && $char === '-' && $next === '-') {
+            while ($i < $length && $sql[$i] !== "\n") {
+                $i++;
+            }
+            continue;
+        }
+
+        if ($quote === null && $char === '/' && $next === '*') {
+            $i += 2;
+            while ($i < $length - 1 && !($sql[$i] === '*' && $sql[$i + 1] === '/')) {
+                $i++;
+            }
+            $i++;
+            continue;
+        }
+
+        if ($char === "'" || $char === '"' || $char === '`') {
+            if ($quote === null) {
+                $quote = $char;
+            } elseif ($quote === $char) {
+                $prev = $i > 0 ? $sql[$i - 1] : '';
+                if ($prev !== '\\') {
+                    $quote = null;
+                }
+            }
+        }
+
+        if ($quote === null && $char === ';') {
+            $trimmed = trim($buffer);
+            if ($trimmed !== '') {
+                $statements[] = $trimmed;
+            }
+            $buffer = '';
+            continue;
+        }
+
+        $buffer .= $char;
+    }
+
+    $trimmed = trim($buffer);
+    if ($trimmed !== '') {
+        $statements[] = $trimmed;
+    }
+
+    return $statements;
+}
+
+/**
+ * @param array<int,string> $actions
+ * @param array<int,string> $warnings
+ */
+function applyMigrationFile(PDO $pdo, string $filePath, string $label, array &$actions, array &$warnings): void
+{
+    if (!is_file($filePath)) {
+        $warnings[] = 'Migration não encontrada para módulo ' . $label . ': ' . $filePath;
+        return;
+    }
+
+    $sql = (string) file_get_contents($filePath);
+    $statements = splitSqlStatements($sql);
+    $executed = 0;
+
+    foreach ($statements as $statement) {
+        try {
+            $pdo->exec($statement);
+            $executed++;
+        } catch (Throwable $exception) {
+            if (shouldIgnoreMigrationError($exception)) {
+                continue;
+            }
+
+            $warnings[] = sprintf('Falha ao aplicar migration de %s: %s', $label, $exception->getMessage());
+            return;
+        }
+    }
+
+    $actions[] = sprintf('Migration de %s aplicada (%d statements)', $label, $executed);
+}
+
 $settingsDefaults = [
     'daily_route_reward_boost_hours' => ['value' => '4', 'type' => 'int'],
     'daily_route_reward_badge_type' => ['value' => 'consistencia', 'type' => 'string'],
@@ -71,11 +190,14 @@ try {
     exit(2);
 }
 
+configureSessionTimezone($pdo);
+
 out('== Rota do Amor · Repair host environment ==');
 out('Database: ' . $dbConfig['database']);
 
 $actions = [];
 $warnings = [];
+$migrationsPath = dirname(__DIR__) . '/database/migrations';
 
 if (!tableExists($pdo, $dbConfig['database'], 'site_settings')) {
     $pdo->exec('CREATE TABLE IF NOT EXISTS site_settings (
@@ -103,6 +225,28 @@ foreach ($settingsDefaults as $key => $definition) {
     $inserted++;
 }
 $actions[] = 'Bootstrap de settings executado (' . $inserted . ' chaves processadas)';
+
+if (!tableExists($pdo, $dbConfig['database'], 'safe_dates') || !tableExists($pdo, $dbConfig['database'], 'safe_date_private_feedback')) {
+    applyMigrationFile($pdo, $migrationsPath . '/20260412_safe_dates_module.sql', 'safe_dates', $actions, $warnings);
+}
+
+if (!tableExists($pdo, $dbConfig['database'], 'daily_routes')) {
+    applyMigrationFile($pdo, $migrationsPath . '/20260413_daily_routes_module.sql', 'daily_routes', $actions, $warnings);
+}
+if (!tableExists($pdo, $dbConfig['database'], 'daily_route_event_logs')) {
+    applyMigrationFile($pdo, $migrationsPath . '/20260413_daily_routes_consolidation.sql', 'daily_routes_events', $actions, $warnings);
+}
+
+if (!tableExists($pdo, $dbConfig['database'], 'profile_visits')
+    || !tableExists($pdo, $dbConfig['database'], 'anonymous_stories')
+    || !tableExists($pdo, $dbConfig['database'], 'compatibility_duels')
+) {
+    applyMigrationFile($pdo, $migrationsPath . '/20260413_retention_modules_visitors_stories_duels.sql', 'retention_modules', $actions, $warnings);
+}
+
+if (!columnExists($pdo, $dbConfig['database'], 'diary_entries', 'deleted_at')) {
+    applyMigrationFile($pdo, $migrationsPath . '/20260412_diary_soft_delete_and_audit_indexes.sql', 'diary', $actions, $warnings);
+}
 
 foreach ($criticalTables as $table) {
     if (!tableExists($pdo, $dbConfig['database'], $table)) {

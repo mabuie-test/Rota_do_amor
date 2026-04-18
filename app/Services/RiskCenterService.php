@@ -254,7 +254,21 @@ final class RiskCenterService extends Model
 
     private function registerFailure(string $context, Throwable $exception): void
     {
+        if ($this->isMissingInfrastructure($exception)) {
+            error_log('[admin.risk.query_skipped] context=' . $context . ' reason=missing_infrastructure error=' . $exception->getMessage());
+            return;
+        }
+
         $this->warnings[] = 'Parte das métricas de risco está indisponível no host atual.';
         error_log('[admin.risk.query_failed] context=' . $context . ' error=' . $exception->getMessage());
+    }
+
+    private function isMissingInfrastructure(Throwable $exception): bool
+    {
+        $message = mb_strtolower($exception->getMessage());
+
+        return str_contains($message, 'sqlstate[42s02]')
+            || str_contains($message, 'base table or view not found')
+            || str_contains($message, "doesn't exist");
     }
 }
