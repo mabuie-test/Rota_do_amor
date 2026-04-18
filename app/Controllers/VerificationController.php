@@ -39,15 +39,11 @@ final class VerificationController extends Controller
         try {
             $documentFile = (array) ($_FILES['document_image'] ?? []);
             $documentFallbackData = (string) Request::input('document_image_data_url', '');
-            $document = $this->uploads->shouldUseDataUrlFallback($documentFile, $documentFallbackData)
-                ? $this->uploads->storeImageFromDataUrl($documentFallbackData, 'verification/documents')
-                : $this->uploads->storeImage($documentFile, 'verification/documents');
+            $document = $this->storeVerificationImage($documentFile, $documentFallbackData, 'verification/documents');
 
             $selfieFile = (array) ($_FILES['selfie_image'] ?? []);
             $selfieFallbackData = (string) Request::input('selfie_image_data_url', '');
-            $selfie = $this->uploads->shouldUseDataUrlFallback($selfieFile, $selfieFallbackData)
-                ? $this->uploads->storeImageFromDataUrl($selfieFallbackData, 'verification/selfies')
-                : $this->uploads->storeImage($selfieFile, 'verification/selfies');
+            $selfie = $this->storeVerificationImage($selfieFile, $selfieFallbackData, 'verification/selfies');
 
             $id = $this->service->submitVerification(
                 $userId,
@@ -67,5 +63,15 @@ final class VerificationController extends Controller
             Flash::set('error', $exception->getMessage());
             Response::redirect('/verification');
         }
+    }
+
+    private function storeVerificationImage(array $file, string $fallbackDataUrl, string $domain): array
+    {
+        $normalizedFallback = trim($fallbackDataUrl);
+        if ($normalizedFallback !== '') {
+            return $this->uploads->storeImageFromDataUrl($normalizedFallback, $domain);
+        }
+
+        return $this->uploads->storeImage($file, $domain);
     }
 }
