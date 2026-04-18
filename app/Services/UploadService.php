@@ -345,8 +345,10 @@ final class UploadService extends Model
         }
 
         if ($errorCode === UPLOAD_ERR_NO_TMP_DIR) {
-            $this->logUploadIssue('upload_tmp_dir_unavailable', $this->diagnosticsContext($domain, $errorCode, (string) ($file['tmp_name'] ?? ''), null));
-            throw new RuntimeException('Falha no upload: diretório temporário ausente no servidor.');
+            $context = $this->diagnosticsContext($domain, $errorCode, (string) ($file['tmp_name'] ?? ''), null);
+            $context['remediation'] = $this->tmpDirRemediationChecklist();
+            $this->logUploadIssue('upload_tmp_dir_unavailable', $context);
+            throw new RuntimeException('Falha no upload: diretório temporário ausente no servidor. Verifique upload_tmp_dir, sys_temp_dir e permissões de escrita (chmod/chown).');
         }
 
         if ($errorCode === UPLOAD_ERR_CANT_WRITE) {
@@ -417,6 +419,7 @@ final class UploadService extends Model
     private function resolveApplicationTempDirectory(): string
     {
         $candidates = [];
+        $attempts = [];
         $configured = trim((string) Config::env('UPLOAD_FALLBACK_TMP_DIR', ''));
         if ($configured !== '') {
             $candidates[] = $configured;
@@ -441,7 +444,19 @@ final class UploadService extends Model
 
         foreach ($candidates as $candidate) {
             $normalized = rtrim(str_replace('\\', '/', trim((string) $candidate)), '/');
-            if ($normalized === '' || !is_dir($normalized) || !is_writable($normalized)) {
+            if ($normalized === '') {
+                continue;
+            }
+
+            $exists = is_dir($normalized);
+            $writable = $exists ? is_writable($normalized) : false;
+            $attempts[] = [
+                'candidate' => $normalized,
+                'exists' => $exists,
+                'writable' => $writable,
+            ];
+
+            if (!$exists || !$writable) {
                 continue;
             }
 
@@ -453,6 +468,8 @@ final class UploadService extends Model
             'session_save_path' => ini_get('session.save_path'),
             'sys_temp_dir' => sys_get_temp_dir(),
             'open_basedir' => ini_get('open_basedir'),
+            'attempts' => $attempts,
+            'remediation' => $this->tmpDirRemediationChecklist(),
         ]);
         throw new RuntimeException('Falha no upload: sem diretório temporário interno configurado para fallback.');
     }
@@ -567,11 +584,25 @@ final class UploadService extends Model
             'selected_tmp_dir' => $iniTemp,
             'selected_tmp_dir_exists' => $iniTemp !== '' ? is_dir($iniTemp) : false,
             'selected_tmp_dir_writable' => $iniTemp !== '' ? is_writable($iniTemp) : false,
+            'session_save_path' => (string) ini_get('session.save_path'),
+            'php_sapi' => PHP_SAPI,
+            'php_version' => PHP_VERSION,
             'destination' => $destination,
             'destination_dir' => $destination !== null ? dirname($destination) : null,
             'destination_dir_exists' => $destination !== null ? is_dir(dirname($destination)) : false,
             'destination_dir_writable' => $destination !== null ? is_writable(dirname($destination)) : false,
             'open_basedir' => (string) ini_get('open_basedir'),
+        ];
+    }
+
+    private function tmpDirRemediationChecklist(): array
+    {
+        return [
+            'Criar diretório temporário no host (ex.: /home/USER/tmp ou /tmp).',
+            'Dar permissão de escrita ao utilizador do PHP-FPM/Apache (chown/chmod 1733 ou 1777).',
+            'Configurar php.ini/.user.ini: upload_tmp_dir=<diretório temporário válido>.',
+            'Opcional: definir UPLOAD_FALLBACK_TMP_DIR no .env para fallback interno.',
+            'Reiniciar PHP-FPM/Apache após alterar php.ini.',
         ];
     }
 
