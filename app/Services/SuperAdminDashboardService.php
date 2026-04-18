@@ -168,10 +168,24 @@ final class SuperAdminDashboardService extends Model
             $result = $callback();
             return is_array($result) ? $result : [];
         } catch (Throwable $exception) {
+            if ($this->isMissingInfrastructure($exception)) {
+                error_log('[admin.super_dashboard.module_skipped] module=' . $module . ' reason=missing_infrastructure error=' . $exception->getMessage());
+                return [];
+            }
+
             $warnings[] = sprintf('Módulo "%s" indisponível no host atual.', $module);
             error_log('[admin.super_dashboard.module_failed] module=' . $module . ' error=' . $exception->getMessage());
             return [];
         }
+    }
+
+    private function isMissingInfrastructure(Throwable $exception): bool
+    {
+        $message = mb_strtolower($exception->getMessage());
+
+        return str_contains($message, 'sqlstate[42s02]')
+            || str_contains($message, 'base table or view not found')
+            || str_contains($message, "doesn't exist");
     }
 
     private function executiveBlocks(array $product, array $operations, array $finance, array $risk, array $diary): array

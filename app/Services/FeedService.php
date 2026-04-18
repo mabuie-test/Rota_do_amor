@@ -319,7 +319,10 @@ final class FeedService extends Model
              FROM posts p
              {$scope['joins']}
              WHERE $where",
-            [':viewer_user' => $userId]
+            [
+                ':viewer_profile' => $userId,
+                ':viewer_mode' => $userId,
+            ]
         ) ?: ['total' => 0];
         $total = (int) ($countRow['total'] ?? 0);
 
@@ -405,7 +408,8 @@ final class FeedService extends Model
                 LIMIT :limit OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':viewer_user', $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(':viewer_profile', $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(':viewer_mode', $userId, \PDO::PARAM_INT);
         $stmt->bindValue(':viewer_comp', $userId, \PDO::PARAM_INT);
         $stmt->bindValue(':viewer_like', $userId, \PDO::PARAM_INT);
         $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
@@ -664,9 +668,9 @@ final class FeedService extends Model
     private function buildFeedScope(string $tab): array
     {
         $joins = "JOIN users u ON u.id = p.user_id
-                  LEFT JOIN users vu ON vu.id = :viewer_user
+                  LEFT JOIN users vu ON vu.id = :viewer_profile
                   LEFT JOIN user_connection_modes author_mode ON author_mode.user_id = p.user_id
-                  LEFT JOIN user_connection_modes viewer_mode ON viewer_mode.user_id = :viewer_user";
+                  LEFT JOIN user_connection_modes viewer_mode ON viewer_mode.user_id = :viewer_mode";
 
         $conditions = ["p.status='active'"];
         if ($tab === FeedRankingService::TAB_NEARBY) {
