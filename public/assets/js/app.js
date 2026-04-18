@@ -818,8 +818,12 @@ document.addEventListener('DOMContentLoaded', () => {
           }));
         }
       } catch (error) {
-        alert(error instanceof Error ? error.message : 'Falha ao preparar upload.');
-        submitting = false;
+        console.warn('Falha ao preparar fallback de upload; a submeter multipart padrão.', error);
+        const hiddenFields = form.querySelectorAll('input[type="hidden"][name$="_data_url"], input[type="hidden"][name="images_data_urls"]');
+        hiddenFields.forEach((hidden) => {
+          hidden.value = '';
+        });
+        form.submit();
         return;
       }
 
