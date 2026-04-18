@@ -806,6 +806,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const files = Array.from(input.files).slice(0, 4);
             const dataUrls = await Promise.all(files.map(readFileAsDataUrl));
             hidden.value = JSON.stringify(dataUrls);
+            input.value = '';
           }
         } else {
           await Promise.all(fileInputs.map(async (input) => {
@@ -814,6 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const hidden = form.querySelector(`input[type="hidden"][name="${CSS.escape(`${sourceName}_data_url`)}"]`);
             if (hidden && input.files && input.files[0]) {
               hidden.value = await readFileAsDataUrl(input.files[0]);
+              input.value = '';
             }
           }));
         }

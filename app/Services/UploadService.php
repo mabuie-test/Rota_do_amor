@@ -91,8 +91,12 @@ final class UploadService extends Model
 
         $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
 
-        if ($errorCode === UPLOAD_ERR_OK || $errorCode === UPLOAD_ERR_NO_FILE) {
+        if ($errorCode === UPLOAD_ERR_OK) {
             return false;
+        }
+
+        if ($errorCode === UPLOAD_ERR_NO_FILE) {
+            return true;
         }
 
         return !in_array($errorCode, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
@@ -111,21 +115,37 @@ final class UploadService extends Model
 
         $errors = $files['error'] ?? null;
         if (is_array($errors)) {
+            $hasNoFileOnly = true;
             foreach ($errors as $code) {
                 $errorCode = (int) $code;
-                if ($errorCode !== UPLOAD_ERR_OK
-                    && $errorCode !== UPLOAD_ERR_NO_FILE
-                    && !in_array($errorCode, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+                if ($errorCode === UPLOAD_ERR_OK) {
+                    $hasNoFileOnly = false;
+                    continue;
+                }
+
+                if ($errorCode === UPLOAD_ERR_NO_FILE) {
+                    continue;
+                }
+
+                if (!in_array($errorCode, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
                     return true;
                 }
+            }
+
+            if ($hasNoFileOnly) {
+                return true;
             }
 
             return false;
         }
 
         $errorCode = (int) $errors;
-        if ($errorCode === UPLOAD_ERR_OK || $errorCode === UPLOAD_ERR_NO_FILE) {
+        if ($errorCode === UPLOAD_ERR_OK) {
             return false;
+        }
+
+        if ($errorCode === UPLOAD_ERR_NO_FILE) {
+            return true;
         }
 
         return !in_array($errorCode, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
