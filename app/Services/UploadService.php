@@ -89,19 +89,33 @@ final class UploadService extends Model
             return false;
         }
 
-        return (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_TMP_DIR;
+        $errorCode = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+
+        if ($errorCode === UPLOAD_ERR_OK || $errorCode === UPLOAD_ERR_NO_FILE) {
+            return false;
+        }
+
+        return !in_array($errorCode, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
     }
 
     public function shouldUseDataUrlFallbackForMany(array $files, array $dataUrls): bool
     {
-        if ($dataUrls === []) {
+        $normalizedFallbacks = array_values(array_filter(array_map(
+            static fn(mixed $item): string => trim((string) $item),
+            $dataUrls
+        ), static fn(string $item): bool => $item !== ''));
+
+        if ($normalizedFallbacks === []) {
             return false;
         }
 
         $errors = $files['error'] ?? null;
         if (is_array($errors)) {
             foreach ($errors as $code) {
-                if ((int) $code === UPLOAD_ERR_NO_TMP_DIR) {
+                $errorCode = (int) $code;
+                if ($errorCode !== UPLOAD_ERR_OK
+                    && $errorCode !== UPLOAD_ERR_NO_FILE
+                    && !in_array($errorCode, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
                     return true;
                 }
             }
@@ -109,7 +123,12 @@ final class UploadService extends Model
             return false;
         }
 
-        return (int) $errors === UPLOAD_ERR_NO_TMP_DIR;
+        $errorCode = (int) $errors;
+        if ($errorCode === UPLOAD_ERR_OK || $errorCode === UPLOAD_ERR_NO_FILE) {
+            return false;
+        }
+
+        return !in_array($errorCode, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
     }
 
     private function storePreparedImage(array $file, string $domain, bool $requireUploadedFile): array
