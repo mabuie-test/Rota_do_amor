@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Flash;
+use App\Core\Request;
 use App\Core\Response;
 use App\Services\IdentityVerificationService;
 use App\Services\UploadService;
@@ -32,10 +33,21 @@ final class VerificationController extends Controller
     public function submit(): void
     {
         $userId = Auth::id() ?? 0;
+        $document = null;
+        $selfie = null;
 
         try {
-            $document = $this->uploads->storeImage($_FILES['document_image'] ?? [], 'verification/documents');
-            $selfie = $this->uploads->storeImage($_FILES['selfie_image'] ?? [], 'verification/selfies');
+            $documentFile = (array) ($_FILES['document_image'] ?? []);
+            $documentFallbackData = (string) Request::input('document_image_data_url', '');
+            $document = $this->uploads->shouldUseDataUrlFallback($documentFile, $documentFallbackData)
+                ? $this->uploads->storeImageFromDataUrl($documentFallbackData, 'verification/documents')
+                : $this->uploads->storeImage($documentFile, 'verification/documents');
+
+            $selfieFile = (array) ($_FILES['selfie_image'] ?? []);
+            $selfieFallbackData = (string) Request::input('selfie_image_data_url', '');
+            $selfie = $this->uploads->shouldUseDataUrlFallback($selfieFile, $selfieFallbackData)
+                ? $this->uploads->storeImageFromDataUrl($selfieFallbackData, 'verification/selfies')
+                : $this->uploads->storeImage($selfieFile, 'verification/selfies');
 
             $id = $this->service->submitVerification(
                 $userId,
@@ -46,6 +58,12 @@ final class VerificationController extends Controller
             Flash::set('success', 'Verificação enviada com sucesso. Aguarde a análise da equipa.');
             Response::redirect('/verification');
         } catch (RuntimeException $exception) {
+            if (is_array($document)) {
+                $this->uploads->deleteImageBundle($document);
+            }
+            if (is_array($selfie)) {
+                $this->uploads->deleteImageBundle($selfie);
+            }
             Flash::set('error', $exception->getMessage());
             Response::redirect('/verification');
         }

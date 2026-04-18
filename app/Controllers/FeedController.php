@@ -71,7 +71,12 @@ final class FeedController extends Controller
         $storedImages = [];
         try {
             if (isset($_FILES['images'])) {
-                $storedImages = $this->uploads->storeManyImages($_FILES['images'], 'feed/posts', 4);
+                $fallbackRaw = Request::input('images_data_urls', '[]');
+                $fallbackDataUrls = is_string($fallbackRaw) ? json_decode($fallbackRaw, true) : [];
+                $fallbackDataUrls = is_array($fallbackDataUrls) ? $fallbackDataUrls : [];
+                $storedImages = $this->uploads->shouldUseDataUrlFallbackForMany((array) $_FILES['images'], $fallbackDataUrls)
+                    ? $this->uploads->storeManyImagesFromDataUrls($fallbackDataUrls, 'feed/posts', 4)
+                    : $this->uploads->storeManyImages($_FILES['images'], 'feed/posts', 4);
                 foreach ($storedImages as $index => $storedImage) {
                     $path = trim((string) ($storedImage['path'] ?? ''));
                     if ($path === '') {

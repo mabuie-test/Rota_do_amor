@@ -68,12 +68,13 @@ $safeDateMeta = safe_date_capability_meta($safeDateCapabilities, 'messages');
       </div>
       </div>
 
-      <form id="chat-form" method="post" action="/messages/send" class="d-flex gap-2 align-items-center" enctype="multipart/form-data">
+      <form id="chat-form" method="post" action="/messages/send" class="d-flex gap-2 align-items-center" enctype="multipart/form-data" data-upload-fallback="single">
         <?= csrf_field() ?>
         <input type="hidden" name="receiver_id" value="<?= $otherId ?>">
         <input type="hidden" name="message_type" value="text">
         <input id="message-text" class="form-control" name="message_text" maxlength="2000" placeholder="Escreve a tua mensagem (opcional quando enviar imagem)">
       <input class="form-control form-control-sm" style="max-width:240px" type="file" name="image" accept="image/jpeg,image/png,image/webp">
+      <input type="hidden" name="image_data_url" value="">
         <button class="btn btn-rd-primary"><i class="fa-solid fa-paper-plane"></i></button>
       </form>
     <?php else: ?>

@@ -779,6 +779,54 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Não foi possível ler o ficheiro selecionado.'));
+    reader.readAsDataURL(file);
+  });
+
+  const fallbackForms = document.querySelectorAll('form[data-upload-fallback]');
+  fallbackForms.forEach((form) => {
+    let submitting = false;
+    form.addEventListener('submit', async (event) => {
+      if (submitting) return;
+      const mode = form.getAttribute('data-upload-fallback');
+      if (!mode) return;
+      const fileInputs = Array.from(form.querySelectorAll('input[type="file"]'));
+      if (fileInputs.length === 0) return;
+
+      event.preventDefault();
+      submitting = true;
+      try {
+        if (mode === 'multiple') {
+          const input = fileInputs[0];
+          const hidden = form.querySelector('input[type="hidden"][name="images_data_urls"]');
+          if (hidden && input?.files?.length) {
+            const files = Array.from(input.files).slice(0, 4);
+            const dataUrls = await Promise.all(files.map(readFileAsDataUrl));
+            hidden.value = JSON.stringify(dataUrls);
+          }
+        } else {
+          await Promise.all(fileInputs.map(async (input) => {
+            const fileName = input.getAttribute('name') || '';
+            const sourceName = fileName.replace(/\[\]$/, '');
+            const hidden = form.querySelector(`input[type="hidden"][name="${CSS.escape(`${sourceName}_data_url`)}"]`);
+            if (hidden && input.files && input.files[0]) {
+              hidden.value = await readFileAsDataUrl(input.files[0]);
+            }
+          }));
+        }
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Falha ao preparar upload.');
+        submitting = false;
+        return;
+      }
+
+      form.submit();
+    });
+  });
+
 
   const submitButtons = document.querySelectorAll('form button[type="submit"], form button:not([type])');
   submitButtons.forEach((button) => {
