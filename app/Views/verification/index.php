@@ -35,11 +35,12 @@ $statusClass = match ($status) {
     </ul>
   </div>
 
-  <form method="post" action="/verification/submit" class="row g-3" enctype="multipart/form-data"><?= csrf_field() ?>
+  <form method="post" action="/verification/submit" class="row g-3" enctype="multipart/form-data" data-upload-fallback="multi-single"><?= csrf_field() ?>
     <div class="col-md-6">
       <label class="form-label">Documento de identidade</label>
       <div class="rd-upload-drop">
         <input required class="form-control" type="file" name="document_image" accept="image/jpeg,image/png,image/webp">
+        <input type="hidden" name="document_image_data_url" value="">
       </div>
       <div class="form-text">JPG, PNG ou WEBP.</div>
     </div>
@@ -47,6 +48,7 @@ $statusClass = match ($status) {
       <label class="form-label">Selfie segurando o documento</label>
       <div class="rd-upload-drop">
         <input required class="form-control" type="file" name="selfie_image" accept="image/jpeg,image/png,image/webp">
+        <input type="hidden" name="selfie_image_data_url" value="">
       </div>
       <div class="form-text">Imagem nítida e bem iluminada.</div>
     </div>

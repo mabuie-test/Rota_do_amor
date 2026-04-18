@@ -128,7 +128,11 @@ final class ProfileController extends Controller
         $userId = Auth::id() ?? 0;
         $stored = null;
         try {
-            $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'profiles');
+            $file = (array) ($_FILES['photo'] ?? []);
+            $fallbackData = (string) Request::input('photo_data_url', '');
+            $stored = $this->uploads->shouldUseDataUrlFallback($file, $fallbackData)
+                ? $this->uploads->storeImageFromDataUrl($fallbackData, 'profiles')
+                : $this->uploads->storeImage($file, 'profiles');
             $path = trim((string) ($stored['path'] ?? ''));
             if ($path === '') {
                 throw new RuntimeException('Falha no upload da foto principal.');
@@ -158,7 +162,11 @@ final class ProfileController extends Controller
         $userId = Auth::id() ?? 0;
         $stored = null;
         try {
-            $stored = $this->uploads->storeImage($_FILES['photo'] ?? [], 'gallery');
+            $file = (array) ($_FILES['photo'] ?? []);
+            $fallbackData = (string) Request::input('photo_data_url', '');
+            $stored = $this->uploads->shouldUseDataUrlFallback($file, $fallbackData)
+                ? $this->uploads->storeImageFromDataUrl($fallbackData, 'gallery')
+                : $this->uploads->storeImage($file, 'gallery');
             $path = trim((string) ($stored['path'] ?? ''));
             if ($path === '') {
                 throw new RuntimeException('Falha no upload da foto da galeria.');

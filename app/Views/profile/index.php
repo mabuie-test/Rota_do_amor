@@ -125,16 +125,18 @@ $profileName = trim((string) (($profile['first_name'] ?? '') . ' ' . ($profile['
 
     <div class="row g-3 mb-3">
       <div class="col-md-6">
-        <form method="post" action="/profile/photo" enctype="multipart/form-data" class="rd-upload-drop"><?= csrf_field() ?>
+        <form method="post" action="/profile/photo" enctype="multipart/form-data" class="rd-upload-drop" data-upload-fallback="single"><?= csrf_field() ?>
           <label class="form-label">Atualizar foto principal</label>
           <input required class="form-control mb-2" type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+          <input type="hidden" name="photo_data_url" value="">
           <button class="btn btn-rd-primary btn-sm">Enviar foto principal</button>
         </form>
       </div>
       <div class="col-md-6">
-        <form method="post" action="/profile/gallery" enctype="multipart/form-data" class="rd-upload-drop"><?= csrf_field() ?>
+        <form method="post" action="/profile/gallery" enctype="multipart/form-data" class="rd-upload-drop" data-upload-fallback="single"><?= csrf_field() ?>
           <label class="form-label">Adicionar à galeria</label>
           <input required class="form-control mb-2" type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+          <input type="hidden" name="photo_data_url" value="">
           <button class="btn btn-outline-primary btn-sm">Adicionar foto</button>
         </form>
       </div>

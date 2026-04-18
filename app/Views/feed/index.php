@@ -54,7 +54,7 @@ $originLabels = [
     <div class="modal-content rd-card">
       <div class="modal-header border-0 pb-0"><h5 class="modal-title"><i class="fa-solid fa-feather me-2"></i>Nova publicação relacional</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button></div>
       <div class="modal-body pt-2">
-        <form method="post" action="/feed/post" enctype="multipart/form-data" class="d-grid gap-2" data-feed-create-post-form>
+        <form method="post" action="/feed/post" enctype="multipart/form-data" class="d-grid gap-2" data-feed-create-post-form data-upload-fallback="multiple">
           <?= csrf_field() ?>
           <textarea class="form-control" name="content" maxlength="2000" rows="4" placeholder="Escrever livremente..."></textarea>
           <div class="row g-2">
@@ -106,6 +106,7 @@ $originLabels = [
             <div class="small text-muted mt-1 d-none" data-diary-entry-preview></div>
           </div>
           <input class="form-control form-control-sm" type="file" name="images[]" accept="image/jpeg,image/png,image/webp" multiple>
+          <input type="hidden" name="images_data_urls" value="[]">
           <small class="text-muted d-block">Até 4 imagens por publicação.</small>
           <div class="d-flex justify-content-end"><button class="btn btn-rd-primary">Publicar</button></div>
         </form>

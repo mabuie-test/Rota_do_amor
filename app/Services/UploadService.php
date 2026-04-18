@@ -26,11 +26,96 @@ final class UploadService extends Model
         'image/png' => 'png',
         'image/webp' => 'webp',
     ];
+    private const DATA_URL_PATTERN = '/^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+\/=\s]+)$/i';
 
     public function storeImage(array $file, string $domain = 'temp'): array
     {
+        return $this->storePreparedImage($file, $domain, true);
+    }
+
+    public function storeImageFromDataUrl(string $dataUrl, string $domain = 'temp'): array
+    {
         $safeDomain = $this->normalizeDomain($domain);
-        $this->validateUpload($file, $safeDomain);
+        $prepared = $this->prepareDataUrlPayload($dataUrl, $safeDomain);
+
+        try {
+            return $this->storePreparedImage($prepared, $safeDomain, false);
+        } finally {
+            $tmpPath = (string) ($prepared['tmp_name'] ?? '');
+            if ($tmpPath !== '' && is_file($tmpPath) && @unlink($tmpPath) === false) {
+                $this->logUploadIssue('fallback_tmp_cleanup_failed', ['domain' => $safeDomain, 'tmp_name' => $tmpPath]);
+            }
+        }
+    }
+
+    public function storeManyImagesFromDataUrls(array $dataUrls, string $domain, int $maxFiles = 4): array
+    {
+        $normalized = array_values(array_filter(array_map(
+            static fn(mixed $item): string => trim((string) $item),
+            $dataUrls
+        ), static fn(string $item): bool => $item !== ''));
+        if ($normalized === []) {
+            return [];
+        }
+
+        if (count($normalized) > $maxFiles) {
+            throw new RuntimeException('Quantidade de imagens acima do permitido por operação.');
+        }
+
+        $stored = [];
+        try {
+            foreach ($normalized as $index => $dataUrl) {
+                try {
+                    $stored[] = $this->storeImageFromDataUrl($dataUrl, $domain);
+                } catch (RuntimeException $exception) {
+                    throw new RuntimeException(sprintf('Falha no upload do ficheiro #%d: %s', $index + 1, $exception->getMessage()));
+                }
+            }
+        } catch (RuntimeException $exception) {
+            foreach ($stored as $item) {
+                $this->logUploadIssue('multi_upload_rollback', ['domain' => $domain, 'path' => $item['path'] ?? null, 'thumbnail_path' => $item['thumbnail_path'] ?? null]);
+                $this->deleteImageBundle($item);
+            }
+            throw $exception;
+        }
+
+        return $stored;
+    }
+
+    public function shouldUseDataUrlFallback(array $file, string $dataUrl): bool
+    {
+        $candidate = trim($dataUrl);
+        if ($candidate === '') {
+            return false;
+        }
+
+        return (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_TMP_DIR;
+    }
+
+    public function shouldUseDataUrlFallbackForMany(array $files, array $dataUrls): bool
+    {
+        if ($dataUrls === []) {
+            return false;
+        }
+
+        $errors = $files['error'] ?? null;
+        if (is_array($errors)) {
+            foreach ($errors as $code) {
+                if ((int) $code === UPLOAD_ERR_NO_TMP_DIR) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return (int) $errors === UPLOAD_ERR_NO_TMP_DIR;
+    }
+
+    private function storePreparedImage(array $file, string $domain, bool $requireUploadedFile): array
+    {
+        $safeDomain = $this->normalizeDomain($domain);
+        $this->validateUpload($file, $safeDomain, $requireUploadedFile);
 
         $maxSize = $this->effectiveMaxSize();
         if ((int) ($file['size'] ?? 0) > $maxSize) {
@@ -56,8 +141,9 @@ final class UploadService extends Model
 
         $fileName = $filePrefix . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(12)) . '.' . $extension;
         $absolutePath = $baseDirectory . '/' . $fileName;
-        if (!$this->moveUploadedFile($tmpPath, $absolutePath)) {
-            $this->logUploadIssue('move_uploaded_file_failed', $this->diagnosticsContext($safeDomain, (int) ($file['error'] ?? UPLOAD_ERR_OK), $tmpPath, $absolutePath));
+        if (!$this->moveUploadedFile($tmpPath, $absolutePath, $requireUploadedFile)) {
+            $event = $requireUploadedFile ? 'move_uploaded_file_failed' : 'fallback_copy_failed';
+            $this->logUploadIssue($event, $this->diagnosticsContext($safeDomain, (int) ($file['error'] ?? UPLOAD_ERR_OK), $tmpPath, $absolutePath));
             throw new RuntimeException('Falha ao mover ficheiro para o diretório final de uploads.');
         }
 
@@ -183,16 +269,20 @@ final class UploadService extends Model
         }
     }
 
-    private function moveUploadedFile(string $tmpPath, string $destination): bool
+    private function moveUploadedFile(string $tmpPath, string $destination, bool $requireUploadedFile = true): bool
     {
-        if (is_uploaded_file($tmpPath)) {
+        if ($requireUploadedFile && is_uploaded_file($tmpPath)) {
             return @move_uploaded_file($tmpPath, $destination);
         }
 
-        return false;
+        if ($requireUploadedFile) {
+            return false;
+        }
+
+        return @rename($tmpPath, $destination) || @copy($tmpPath, $destination);
     }
 
-    private function validateUpload(array $file, string $domain = 'temp'): void
+    private function validateUpload(array $file, string $domain = 'temp', bool $requireUploadedFile = true): void
     {
         if ($file === [] || !isset($file['error'], $file['tmp_name'])) {
             $this->logUploadIssue('invalid_upload_payload', $this->diagnosticsContext($domain, -1, (string) ($file['tmp_name'] ?? ''), null));
@@ -232,12 +322,100 @@ final class UploadService extends Model
             throw new RuntimeException('Falha inesperada no upload.');
         }
 
-        if (!is_uploaded_file((string) $file['tmp_name'])) {
+        if ($requireUploadedFile && !is_uploaded_file((string) $file['tmp_name'])) {
             $this->logUploadIssue('upload_tmp_name_untrusted', $this->diagnosticsContext($domain, $errorCode, (string) $file['tmp_name'], null));
             throw new RuntimeException('Upload inválido ou não confiável (tmp_name inválido).');
         }
 
         $this->logUploadIssue('upload_validated', $this->diagnosticsContext($domain, $errorCode, (string) $file['tmp_name'], null));
+    }
+
+    private function prepareDataUrlPayload(string $dataUrl, string $domain): array
+    {
+        $trimmed = trim($dataUrl);
+        if ($trimmed === '') {
+            throw new RuntimeException('Nenhum ficheiro enviado.');
+        }
+
+        if (!preg_match(self::DATA_URL_PATTERN, $trimmed, $matches)) {
+            $this->logUploadIssue('fallback_payload_invalid_format', ['domain' => $domain, 'length' => strlen($trimmed)]);
+            throw new RuntimeException('Formato inválido. Apenas JPEG, PNG e WEBP são permitidos.');
+        }
+
+        $raw = base64_decode(preg_replace('/\s+/', '', (string) ($matches[2] ?? '')), true);
+        if ($raw === false || $raw === '') {
+            $this->logUploadIssue('fallback_payload_decode_failed', ['domain' => $domain]);
+            throw new RuntimeException('Upload inválido ou corrompido.');
+        }
+
+        $maxSize = $this->effectiveMaxSize();
+        if (strlen($raw) > $maxSize) {
+            throw new RuntimeException('Ficheiro acima do limite permitido para upload.');
+        }
+
+        $tmpDir = $this->resolveApplicationTempDirectory();
+        $tmpPath = tempnam($tmpDir, 'upload_fallback_');
+        if ($tmpPath === false) {
+            $this->logUploadIssue('fallback_tmp_file_create_failed', ['domain' => $domain, 'tmp_dir' => $tmpDir]);
+            throw new RuntimeException('Falha no upload: não foi possível preparar ficheiro temporário interno.');
+        }
+
+        if (@file_put_contents($tmpPath, $raw) === false) {
+            @unlink($tmpPath);
+            $this->logUploadIssue('fallback_tmp_file_write_failed', ['domain' => $domain, 'tmp_name' => $tmpPath]);
+            throw new RuntimeException('Falha no upload: não foi possível gravar ficheiro temporário interno.');
+        }
+
+        return [
+            'name' => 'fallback.' . (self::ALLOWED_MIME_MAP[strtolower((string) $matches[1])] ?? 'bin'),
+            'type' => strtolower((string) $matches[1]),
+            'tmp_name' => $tmpPath,
+            'error' => UPLOAD_ERR_OK,
+            'size' => strlen($raw),
+        ];
+    }
+
+    private function resolveApplicationTempDirectory(): string
+    {
+        $candidates = [];
+        $configured = trim((string) Config::env('UPLOAD_FALLBACK_TMP_DIR', ''));
+        if ($configured !== '') {
+            $candidates[] = $configured;
+        }
+
+        $uploadTmp = trim((string) ini_get('upload_tmp_dir'));
+        if ($uploadTmp !== '') {
+            $candidates[] = $uploadTmp;
+        }
+
+        $sessionPath = trim((string) ini_get('session.save_path'));
+        if ($sessionPath !== '') {
+            $parts = explode(';', $sessionPath);
+            $candidates[] = (string) end($parts);
+        }
+
+        $sysTemp = trim((string) sys_get_temp_dir());
+        if ($sysTemp !== '') {
+            $candidates[] = $sysTemp;
+        }
+        $candidates[] = '/tmp';
+
+        foreach ($candidates as $candidate) {
+            $normalized = rtrim(str_replace('\\', '/', trim((string) $candidate)), '/');
+            if ($normalized === '' || !is_dir($normalized) || !is_writable($normalized)) {
+                continue;
+            }
+
+            return $normalized;
+        }
+
+        $this->logUploadIssue('fallback_tmp_dir_unavailable', [
+            'upload_tmp_dir' => ini_get('upload_tmp_dir'),
+            'session_save_path' => ini_get('session.save_path'),
+            'sys_temp_dir' => sys_get_temp_dir(),
+            'open_basedir' => ini_get('open_basedir'),
+        ]);
+        throw new RuntimeException('Falha no upload: sem diretório temporário interno configurado para fallback.');
     }
 
     private function normalizeFilesArray(array $files): array
